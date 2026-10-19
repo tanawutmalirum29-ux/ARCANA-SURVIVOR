@@ -1,5 +1,11 @@
 # ARCANA SURVIVOR
 
+## Playable Demo (development)
+**P0/P1 prototype source is available in `main` after PR acceptance**; this is an offline local demo, not the commercial game. For local development use **Node 20+**: run `npm run dev` and open `http://localhost:4173`. Run `npm test` for deterministic core and save tests; `npm run build` for distributable static files in `dist/`.
+
+Features: arena combat, auto-targeting, 3 enemy archetypes, 4 upgradeable skills, boss encounter, keyboard/touch controls, offline unlockable visual-only skins, settings and local save. **No real payments, online events, seasonal shop, multiplayer or backend yet.** See [implementation status](docs/IMPLEMENTATION_STATUS.md) for QA scope, limitations, and technical stack decision.
+
+
 **สถานะ: PRE-PRODUCTION / DOCUMENTATION BASELINE** — กำหนดทิศทางโครงการแล้ว แต่ยังไม่มีระบบเกมที่พัฒนาเสร็จหรือเปิดขายเงินจริง
 
 ARCANA SURVIVOR เป็นเกม 2D fantasy bullet-heaven / survivor สำหรับ Web และมือถือ: ผู้เล่นเดินหลบศัตรู ตัวละครโจมตีอัตโนมัติ เลือกสกิลระหว่างรอบ ต่อสู้กับบอส และสะสมเครื่องแต่งกาย/เอฟเฟกต์ที่สวยงาม

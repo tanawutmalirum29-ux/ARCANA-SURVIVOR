@@ -1,0 +1,22 @@
+name: Arcana Quality Gate
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+jobs:
+  unit-and-build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Deterministic simulation and save tests
+        run: npm test
+      - name: Build static demo
+        run: npm run build
+      - name: Validate generated entrypoint
+        run: test -s dist/index.html && test -s dist/src/engine.js
