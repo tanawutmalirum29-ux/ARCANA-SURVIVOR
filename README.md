@@ -15,6 +15,7 @@ ARCANA SURVIVOR เป็นเกม 2D fantasy bullet-heaven / survivor สำ
 | [เศรษฐกิจและร้านค้า](docs/ECONOMY_COMMERCE.md) | เงินเกม รางวัล ราคา การเติมเงินที่ปลอดภัย |
 | [กิจกรรมทั้งหมด](docs/EVENTS_PLAYBOOK.md) | Daily / Weekly / Festival / Boss / Challenge / Return |
 | [ซีซันปีแรก](docs/SEASONS_YEAR_ONE.md) | 4 ซีซัน ธีม ปฏิทิน คอนเทนต์ และพาส |
+| [แค็ตตาล็อกกิจกรรมปีแรก](docs/EVENT_CATALOG_YEAR_ONE.md) | 12 กิจกรรมธีมซีซัน พร้อมเป้าหมาย/รางวัล/การขาย |
 | [สถาปัตยกรรม](docs/TECH_ARCHITECTURE.md) | Client, save, server, billing และขอบเขต |
 | [สัญญาข้อมูล](docs/DATA_SCHEMA.md) | โครงสร้าง config, ID, state และ validation |
 | [สายการผลิตคอนเทนต์](docs/CONTENT_PRODUCTION.md) | การผลิตตัวละคร สกิน อีเวนต์ การตรวจคุณภาพ |
@@ -30,5 +31,7 @@ ARCANA SURVIVOR เป็นเกม 2D fantasy bullet-heaven / survivor สำ
 5. มีช่องทางรางวัลฟรีที่มีคุณค่าและระบบคืน/นำสกินกิจกรรมกลับมา
 6. ลด motion/flash, รองรับมือถือเล็ก, ไม่ใช้ OS alert/menu ใน UI เกม
 7. งานส่ง main หลังผ่าน QA; เอกสารเป็น **แผน** ไม่ใช่คำกล่าวอ้างว่าระบบมีแล้ว
+
+[เปิดกระดานงาน GitHub Issues](https://github.com/tanawutmalirum29-ux/ARCANA-SURVIVOR/issues)
 
 **Next action:** เริ่ม Phase 0-1 ตาม [ROADMAP_BACKLOG](docs/ROADMAP_BACKLOG.md) และ GitHub Issues ในรีโปนี้; ยังไม่เปิดระบบขายจริงจนกว่า Payment Gate ผ่าน

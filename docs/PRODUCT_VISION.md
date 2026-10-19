@@ -21,7 +21,7 @@
 | Gate | Included | Explicitly excluded |
 |---|---|---|
 | P0 Prototype | 1 hero, 1 map, 3 enemy archetypes, 1 boss, movement, auto attack, 4 skills, XP, win/lose, offline local save, 2 demo skins | Shopเงินจริง, multiplayer, ranking |
-| P1 Vertical Slice | 2 heroes, 2 maps, 8+ skills, 8 sample skins, wardrobe, currency loop, achievements, basic missions, VFX tiers | Echtgeld payment, competitive leaderboards |
+| P1 Vertical Slice | 2 heroes, 2 maps, 8+ skills, 8 sample skins, wardrobe, currency loop, achievements, basic missions, VFX tiers | real-money payment, competitive leaderboards |
 | P2 Soft Launch | Account/cloud save, validated inventory, shop preview/direct purchase sandbox, live-event templates, season-pass infrastructure, telemetry, support flow | Startเงินจริงก่อน audit |
 | P3 Commercial | Verified billing, refunds, entitlement sync, live events/seasons, admin tools, moderation, anti-fraud | การเพิ่มพลังด้วยเงินจริง |
 | Later | Co-op, social plaza, guilds, cross-platform cloud, UGC โดยผ่านการประเมินต้นทุนและความเสี่ยง | ไม่ผูกวันส่งมอบล่วงหน้า |

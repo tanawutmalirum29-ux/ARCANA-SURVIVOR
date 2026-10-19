@@ -39,5 +39,5 @@ Draft cart -> checkout intent (server) -> payment provider -> server verifies si
 - Mission and run rewards generated from validated rules with per-day/season limits; no pay gate for core stages
 - Cosmetics มี free earnable aspirational target ทุกซีซัน (อย่างน้อย 1 tier สูง)
 - จ่ายแล้วไม่ต้อง grind เพื่อใช้สินค้าที่ซื้อ; free route มีเป้าหมายระยะสมเหตุผล
-- ก่อน上线 event ทดสอบว่าผู้เล่นที่เล่น 3 sessions/week ยังเก็บ event reward หลักได้โดยไม่ต้องเติม
+- ก่อนเปิดอีเวนต์ ทดสอบว่าผู้เล่นที่เล่น 3 sessions/week ยังเก็บ event reward หลักได้โดยไม่ต้องเติม
 - Balance review ดู acquisition/consumption, median time to rewards, duplicate rate, refund rate, support incidents

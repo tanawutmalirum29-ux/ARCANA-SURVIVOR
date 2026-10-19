@@ -49,3 +49,6 @@ S-8w concept & event themes -> S-6w gameplay/reward budgets -> S-5w art approval
 - ภาระการผลิตลดได้: reuse biome with palette changes; rerun older events transparently; never promise unbuilt cosmetics
 - Season pass ต้องมี contingency: server down -> extend season/compensate; paid grant bug -> purchase hold, reconciliation, public update
 - Localization TH first / EN optional after quality review
+
+## Detailed per-season event design
+อ่าน [EVENT_CATALOG_YEAR_ONE.md](EVENT_CATALOG_YEAR_ONE.md) สำหรับ 12 อีเวนต์รายซีซัน, กิจกรรมประจำสัปดาห์, กติกา, เส้นทางรับสกินฟรี, และ QA ต่ออีเวนต์

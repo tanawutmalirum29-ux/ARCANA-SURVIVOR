@@ -43,3 +43,27 @@ Implementation + tests + real-browser proof where UI; no regression; docs/data u
 - **Do not build all 4 seasons before P0 works**; first-year plan is content direction, not content already implemented.
 - No payment/live shop until account/ledger/checkout security operational.
 - Features from Later bucket are proposal-only until gameplay retention validates them.
+
+## GitHub Issue Board (Created)
+[Open all issues](https://github.com/tanawutmalirum29-ux/ARCANA-SURVIVOR/issues)
+
+| Epic | Issue | Workstream |
+|---|---|---|
+| ARC-01 | [#1](https://github.com/tanawutmalirum29-ux/ARCANA-SURVIVOR/issues/1) | Foundation |
+| ARC-02 | [#2](https://github.com/tanawutmalirum29-ux/ARCANA-SURVIVOR/issues/2) | Controls & HUD |
+| ARC-03 | [#3](https://github.com/tanawutmalirum29-ux/ARCANA-SURVIVOR/issues/3) | Combat Core |
+| ARC-04 | [#4](https://github.com/tanawutmalirum29-ux/ARCANA-SURVIVOR/issues/4) | Skills & XP |
+| ARC-05 | [#5](https://github.com/tanawutmalirum29-ux/ARCANA-SURVIVOR/issues/5) | Boss & Result |
+| ARC-06 | [#6](https://github.com/tanawutmalirum29-ux/ARCANA-SURVIVOR/issues/6) | Save & Profile |
+| ARC-07 | [#7](https://github.com/tanawutmalirum29-ux/ARCANA-SURVIVOR/issues/7) | VFX Framework |
+| ARC-08 | [#8](https://github.com/tanawutmalirum29-ux/ARCANA-SURVIVOR/issues/8) | Skins & Wardrobe |
+| ARC-09 | [#9](https://github.com/tanawutmalirum29-ux/ARCANA-SURVIVOR/issues/9) | Economy & Craft |
+| ARC-10 | [#10](https://github.com/tanawutmalirum29-ux/ARCANA-SURVIVOR/issues/10) | Event Engine |
+| ARC-11 | [#11](https://github.com/tanawutmalirum29-ux/ARCANA-SURVIVOR/issues/11) | Season Pass |
+| ARC-12 | [#12](https://github.com/tanawutmalirum29-ux/ARCANA-SURVIVOR/issues/12) | Cloud Backend |
+| ARC-13 | [#13](https://github.com/tanawutmalirum29-ux/ARCANA-SURVIVOR/issues/13) | Real Money Shop (HOLD) |
+| ARC-14 | [#14](https://github.com/tanawutmalirum29-ux/ARCANA-SURVIVOR/issues/14) | QA Automation |
+| ARC-15 | [#15](https://github.com/tanawutmalirum29-ux/ARCANA-SURVIVOR/issues/15) | Season 01 Content |
+| ARC-16 | [#16](https://github.com/tanawutmalirum29-ux/ARCANA-SURVIVOR/issues/16) | LiveOps |
+
+**Execution:** เริ่ม #1 และ #14 ก่อน แล้ว #2/#3/#4/#5. งาน #13 เป็น HOLD ห้ามเปิดใช้เงินจริงก่อน Gate G4/G5 ผ่าน
