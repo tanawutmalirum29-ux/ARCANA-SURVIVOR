@@ -7,7 +7,7 @@ const $=id=>document.getElementById(id);
 const canvas=$('scene'),ctx=canvas.getContext('2d',{alpha:false});
 let profile=loadProfile(),game=createGame(73001),screen='lobby',paused=false,lastTime=0,accumulator=0,lastHud=0;
 const heldKeys=new Set();const touch={x:0,y:0,active:false,pointerId:null,originX:0,originY:0};
-let toastUntil=0, lobbyMusicOn=true;
+let toastUntil=0;
 const sound=createGameAudio();
 const profileSkin=()=>COSMETICS.find(x=>x.id===profile.skin)||COSMETICS[0];
 function persist(){if(!saveProfile(profile))notify('ไม่สามารถบันทึกข้อมูลในเบราว์เซอร์นี้ได้')}
@@ -35,14 +35,6 @@ function showLobby(){
  <div class="lobby-stats"><div><b>${profile.gold}</b><small>GOLD ✦</small></div><div><b>${profile.runs}</b><small>RUNS</small></div><div><b>${profile.totalKills}</b><small>KILLS</small></div></div>
  <button type="button" data-action="start" class="button primary wide">✦ &nbsp; เข้าสู่สนามรบ &nbsp; ✦</button>
  <div class="action-row"><button type="button" data-action="wardrobe" class="button secondary">◇ คลังสกิน</button><button type="button" data-action="settings" class="button secondary">⚙ ตั้งค่า</button></div>
- <div class="lobby-music" aria-label="เพลงล็อบบี้">
- <div class="eyebrow">ORIGINAL LOBBY SOUNDTRACK</div>
- <div class="music-controls">
- <button type="button" data-action="lobby-music" class="button secondary" aria-label="เปิดหรือหยุดเพลงล็อบบี้">${sound.isReady()&&sound.isEnabled()&&lobbyMusicOn?'Ⅱ หยุดเพลง':'♫ ฟังเพลง'}</button>
- <button type="button" data-action="music-theme" class="button secondary" aria-label="เปลี่ยนธีมเพลงล็อบบี้">ธีม: ${sound.musicChoices().find(c=>c.id===sound.getMusicChoice())?.label} ↻</button>
- </div>
- <p class="music-status">กำลังเลือก: ${sound.musicChoices().find(c=>c.id===sound.getMusicTheme())?.label}</p>
- </div>
  <p class="legal-note">FREE TO PLAY · OFFLINE DEMO · NO REAL MONEY PURCHASES</p>
  </section>`,'lobby-overlay');
 }
@@ -79,23 +71,6 @@ function showPause(){if(screen!=='play')return;sound.play('pause');heldKeys.clea
 }
 function resume(){sound.unlock();sound.play('resume');screen='play';paused=false;accumulator=0;lastTime=0;hideOverlay()}
 function handleAction(action,id){
- if(action==='lobby-music'){
-   if(!sound.isEnabled())sound.setEnabled(true);
-   if(!sound.isReady()){lobbyMusicOn=true;sound.unlock()}
-   else lobbyMusicOn=!lobbyMusicOn;
-   sound.update(lobbyMusicOn?'lobby':false);
-   return showLobby();
- }
- if(action==='music-theme'){
-   const choices=sound.musicChoices(),idx=choices.findIndex(c=>c.id===sound.getMusicChoice());
-   let next=(idx+1)%choices.length;
-   // When AUTO already sounds like Astral, skip the duplicate preview.
-   if(idx===0&&choices[next].id===sound.getMusicTheme())next=(next+1)%choices.length;
-   sound.setMusicChoice(choices[next].id);
-   sound.unlock();sound.play('switch');
-   if(lobbyMusicOn)sound.update('lobby');
-   return showLobby();
- }
  if(action==='home'){sound.play('menuBack');return showLobby()}
  if(action==='start')return startRun();
  if(action==='wardrobe'){sound.unlock();sound.play('menuOpen');return showWardrobe()}
@@ -178,10 +153,21 @@ function frame(ts){
  const lobbyVisible=screen==='lobby'||screen==='wardrobe'||
    (screen==='settings'&&window.__returnTo!=='pause');
  const musicMode=document.hidden?false:
-   screen==='play'&&!paused?'play':lobbyVisible&&lobbyMusicOn?'lobby':false;
+   screen==='play'&&!paused?'play':lobbyVisible?'lobby':false;
  sound.update(musicMode);
  drawScene(canvas,ctx,game,profile,ts/1000);
  if(toastUntil&&ts>toastUntil){$('toast').classList.add('hidden');toastUntil=0}
  requestAnimationFrame(frame);
 }
-showLobby();requestAnimationFrame(frame);
+// Start lobby music automatically whenever the browser permits autoplay.
+// Browsers that block sound until a user gesture unlock it on the first tap/key,
+// without requiring a dedicated play control.
+function unlockAudioOnInteraction() {
+ if(sound.isEnabled()&&!sound.isReady())sound.unlock();
+}
+window.addEventListener('pointerdown',unlockAudioOnInteraction,{capture:true});
+window.addEventListener('keydown',unlockAudioOnInteraction,{capture:true});
+window.addEventListener('touchstart',unlockAudioOnInteraction,{capture:true,passive:true});
+showLobby();
+sound.unlock();
+requestAnimationFrame(frame);

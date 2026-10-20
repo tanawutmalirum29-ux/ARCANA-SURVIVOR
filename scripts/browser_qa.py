@@ -50,16 +50,8 @@ def scenario(browser, browser_name, mode, size, html=None, main=None):
         assert page.evaluate("() => { const style = getComputedStyle(document.body); return style.userSelect === 'none' || style.webkitUserSelect === 'none'; }"), (browser_name, w, h, 'OS text selection not prevented')
         assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1"), (browser_name, w, h, 'horizontal overflow')
         bounds_ok(page, '.main-card', w, h)
-        assert page.locator('[data-action="lobby-music"]').count() == 1
-        # The first selection after AUTO depends on the calendar. Cycle until
-        # this named theme appears instead of assuming the current season.
-        for _ in range(6):
-            page.locator('[data-action="music-theme"]').click()
-            if 'Songkran • Waterlight' in page.locator('[data-action="music-theme"]').inner_text():
-                break
-        else:
-            raise AssertionError('Songkran preview not reachable through theme switch')
-        page.locator('[data-action="lobby-music"]').click()
+        assert page.locator('[data-action="lobby-music"]').count() == 0, 'manual lobby play button remains'
+        assert page.locator('[data-action="music-theme"]').count() == 0, 'lobby theme control remains'
         page.locator('[data-action="settings"]').click()
         page.locator('[data-action="vfx"]').click()
         assert page.get_by_text('LOW', exact=True).count() == 1
@@ -72,6 +64,8 @@ def scenario(browser, browser_name, mode, size, html=None, main=None):
         page.locator('[data-action="music-settings"]').click()
         assert page.get_by_text('Lantern • Moonriver', exact=False).count() > 0
         page.locator('[data-action="back"]').click()
+        assert page.locator('[data-action="lobby-music"]').count() == 0
+        assert page.locator('[data-action="music-theme"]').count() == 0
         page.locator('[data-action="start"]').click()
         assert page.locator('#overlay').is_hidden()
         assert page.locator('#hud').is_visible()

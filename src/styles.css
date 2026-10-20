@@ -3,13 +3,3 @@
 @media(max-width:360px){.main-card{padding:14px}.lobby h1{margin:9px 0}.eyebrow{font-size:8px}.hero-preview{height:123px}.skin-halo{width:73px;height:73px}.hero-portrait{transform:scale(.8)}.lobby-stats{margin:0 0 8px}.lobby-stats>div{padding:7px 3px}.button{min-height:37px;padding:9px}.legal-note{margin-top:10px}.joystick{width:88px;height:88px}.joystick>span{height:39px;width:39px}.hud-left{padding:7px}.run-tag{font-size:8px}.build-mark{font-size:7px}}
 @media(max-height:520px){.overlay{align-items:safe center}.main-card{padding:12px 18px}.lobby h1{font-size:29px;margin:6px 0}.eyebrow{font-size:9px}.hero-preview{height:0;overflow:hidden}.ornament,.tagline{margin:5px 0}.lobby-stats>div{padding:6px 3px}.lobby-stats{margin:7px 0}.legal-note{margin:8px 0 0}.menu-card h2{font-size:23px;margin:5px 0}.menu-card .muted{margin:3px 0 9px}.skin-card{padding:7px}.joystick{width:75px;height:75px}.joystick>span{width:33px;height:33px}.hud{top:6px}.hud-left{width:min(195px,58vw);padding:5px}.run-top{margin-bottom:1px}.meter{height:10px;margin:2px 0}.boss-bar{top:76px}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important}}
-
-
-/* Compact festival soundtrack controls; CSS-only and responsive. */
-.lobby-music{margin:12px 0 0;padding:10px 9px 7px;border:1px solid rgba(216,191,252,.21);background:rgba(105,86,165,.065);border-radius:8px}
-.lobby-music .eyebrow{font-size:9px;letter-spacing:.09em}
-.music-controls{display:grid;grid-template-columns:minmax(90px,1fr) minmax(0,1.45fr);gap:7px;margin-top:7px}
-.music-controls .button{min-width:0;white-space:normal;overflow-wrap:anywhere;font-size:10px;padding:8px 7px;line-height:1.3}
-.music-status{color:#b4b5d3;font-size:9px;margin:7px 0 0}
-@media(max-width:360px){.lobby-music{margin-top:8px;padding:7px 6px 5px}.music-controls{gap:5px}.music-controls .button{font-size:9px;min-height:32px}.music-status{font-size:8px}}
-@media(max-height:520px){.lobby-music{padding:5px 8px;margin-top:6px}.lobby-music .eyebrow,.music-status{display:none}.music-controls{margin-top:0}.music-controls .button{min-height:31px;padding:4px 5px}}
