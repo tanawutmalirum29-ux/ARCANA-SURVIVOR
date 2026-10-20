@@ -39,6 +39,17 @@ test('no locked skins can be equipped by spoofed DOM requests', () => {
   assert.equal(host.mounted, false);
 });
 
+test('forged premium ownership cannot trigger equip request', () => {
+  const profile = {skin:'apprentice', owned:['apprentice','crimson','celestial'], settings:{vfx:'low',reduceMotion:true}};
+  const host=fakeHost(); const requested=[];
+  const controller=mountSkinShowcase({host, profile, initialSkinId:'celestial', onEquip:id => requested.push(id)});
+  host.dispatch('data-vfx-equip','crimson');
+  host.dispatch('data-vfx-equip','celestial');
+  assert.deepEqual(requested,[]);
+  assert.match(host.innerHTML,/PREVIEW DOES NOT UNLOCK OR EQUIP/);
+  controller.dispose();
+});
+
 test('only already-owned unequipped IDs send a request to caller; no persistence', () => {
   const profile = {skin:'apprentice', owned:['apprentice','moon'], settings:{vfx:'medium', reduceMotion:false}};
   const host = fakeHost();
