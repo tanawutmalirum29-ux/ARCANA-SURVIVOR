@@ -1,6 +1,7 @@
 import { WORLD } from './engine.js';
 import { COSMETICS } from './storage.js';
 import { visualBudget } from './visual/presentation.js';
+import { paintBossWarning } from './visual/warnings.js';
 
 const GOLD = '#ebd8a1';
 const PI2 = Math.PI * 2;
@@ -89,9 +90,11 @@ export function drawScene(canvas,ctx,s,profile,time=0){
  for(const b of s.shots){glow(ctx,b.x,b.y,skin.glow,options.quality==='high'?27:15,.4*options.glow);ring(ctx,b.x,b.y,b.radius+1,skin.projectile,3);diamond(ctx,b.x,b.y,5,skin.color)}
  for(const b of s.hostileShots){glow(ctx,b.x,b.y,'#ff587e',30,.3*options.glow);ring(ctx,b.x,b.y,b.radius,'#ff9c9f',4)}
  for(const f of s.flashes){
-  const alpha=f.type==='warning'?.85:options.reducedMotion?.35:Math.min(.65,f.ttl/18*.42);ctx.globalAlpha=alpha;
+  // Telegraph outlines never fade with graphics quality, skin tier or reduced motion.
+  if(f.type==='warning'){paintBossWarning(ctx,f,{quality:options.quality,reducedMotion:options.reducedMotion});continue}
+  const alpha=options.reducedMotion?.35:Math.min(.65,f.ttl/18*.42);ctx.globalAlpha=alpha;
   if(f.type==='chain'){ctx.strokeStyle='#85ecff';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(f.x,f.y);ctx.lineTo(f.x2,f.y2);ctx.stroke()}
-  else if(f.type==='nova'||f.type==='warning') {ring(ctx,f.x,f.y,f.radius*(1-f.ttl/35*.22),f.type==='nova'?'#9adfff':'#ff777a',f.type==='warning'?5:3)}
+  else if(f.type==='nova')ring(ctx,f.x,f.y,f.radius*(1-f.ttl/35*.22),'#9adfff',3);
   else ring(ctx,f.x,f.y,f.radius*(1-f.ttl/35*.6),f.type==='hurt'?'#ff7187':'#d99dff',3);
   ctx.globalAlpha=1;
  }
