@@ -4,7 +4,6 @@
 @media(max-height:520px){.overlay{align-items:safe center}.main-card{padding:12px 18px}.lobby h1{font-size:29px;margin:6px 0}.eyebrow{font-size:9px}.hero-preview{height:0;overflow:hidden}.ornament,.tagline{margin:5px 0}.lobby-stats>div{padding:6px 3px}.lobby-stats{margin:7px 0}.legal-note{margin:8px 0 0}.menu-card h2{font-size:23px;margin:5px 0}.menu-card .muted{margin:3px 0 9px}.skin-card{padding:7px}.joystick{width:75px;height:75px}.joystick>span{width:33px;height:33px}.hud{top:6px}.hud-left{width:min(195px,58vw);padding:5px}.run-top{margin-bottom:1px}.meter{height:10px;margin:2px 0}.boss-bar{top:76px}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important}}
 
-
 /* VFX showcase: isolated, accessible, scroll-safe at portrait and short landscape widths. */
 .vfx-showcase{width:min(810px,100%);max-width:810px;padding:clamp(12px,2.2vw,24px);text-align:left}
 .vfx-showcase:before,.vfx-showcase:after{display:none}
