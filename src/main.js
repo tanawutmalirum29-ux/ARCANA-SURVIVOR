@@ -23,7 +23,7 @@ function updateHud(){
 }
 function setPlayingUI(active){$('hud').classList.toggle('hidden',!active);$('joystick').classList.toggle('hidden',!active);if(!active)$('boss-hud').classList.add('hidden')}
 function showLobby(){
- screen='lobby';paused=false;setPlayingUI(false);toastUntil=0;$('toast').classList.add('hidden');const skin=profileSkin();
+ heldKeys.clear();releaseTouch();screen='lobby';paused=false;setPlayingUI(false);toastUntil=0;$('toast').classList.add('hidden');const skin=profileSkin();
  panel(`<section class="main-card lobby">
  <div class="eyebrow"><span class="starline">✧</span> A WORLD OF ARCANE WONDER <span class="starline">✧</span></div>
  <h1>ARCANA<br><em>SURVIVOR</em></h1>
@@ -51,15 +51,15 @@ function startRun(){
  game=createGame(73001+profile.runs*79);screen='play';paused=false;accumulator=0;heldKeys.clear();touch.x=touch.y=0;touch.active=false;
  hideOverlay();setPlayingUI(true);updateHud();notify('เอาชีวิตรอดจนบอสปรากฏตัวที่ 01:10');
 }
-function showUpgrade(){screen='upgrade';const cards=game.upgrades.map(k=>{const [name,description]=UPGRADE_DESCRIPTIONS[k];return `<button class="upgrade-option" type="button" data-action="upgrade" data-id="${k}"><span class="upgrade-sigil">✧</span><span><b>${name}</b><small>${description}</small></span><span class="chevron">›</span></button>`}).join('');
+function showUpgrade(){heldKeys.clear();releaseTouch();screen='upgrade';const cards=game.upgrades.map(k=>{const [name,description]=UPGRADE_DESCRIPTIONS[k];return `<button class="upgrade-option" type="button" data-action="upgrade" data-id="${k}"><span class="upgrade-sigil">✧</span><span><b>${name}</b><small>${description}</small></span><span class="chevron">›</span></button>`}).join('');
  panel(`<section class="main-card menu-card upgrade-card"><div class="eyebrow">LEVEL UP — LV ${game.player.level}</div><h2>CHOOSE YOUR POWER</h2><p class="muted">เลือกพรเวทมนตร์ 1 อย่างเพื่อสู้ต่อ</p><div class="upgrade-list">${cards}</div></section>`,'upgrade-overlay');
 }
 function finishRun(){
- if(screen==='result')return;screen='result';setPlayingUI(false);
+ if(screen==='result')return;heldKeys.clear();releaseTouch();screen='result';setPlayingUI(false);
  const reward=getReward(game);profile=awardRun(profile,{gold:reward,kills:game.kills,seconds:game.tick/60});persist();const won=game.phase==='won';
  panel(`<section class="main-card menu-card result-card"><div class="eyebrow">${won?'THE STARS ARE YOURS':'THE FALLEN SHALL RISE'}</div><h2>${won?'VICTORY':'DEFEAT'}</h2><div class="result-icon">${won?'✦':'◇'}</div><p class="muted">${won?'คุณเอาชนะผู้พิทักษ์แห่งดาวตกได้แล้ว':'การเดินทางยังไม่สิ้นสุด ลองใหม่อีกครั้ง'}</p><div class="result-stats"><div><small>TIME</small><b>${formatTime(game.tick)}</b></div><div><small>DEFEATED</small><b>${game.kills}</b></div><div><small>REWARD</small><b>+${reward} ✦</b></div></div><button class="button primary wide" type="button" data-action="start">เล่นอีกครั้ง</button><button class="button secondary wide" type="button" data-action="home">กลับล็อบบี้</button></section>`,'menu-overlay');
 }
-function showPause(){if(screen!=='play')return;paused=true;screen='pause';
+function showPause(){if(screen!=='play')return;heldKeys.clear();releaseTouch();paused=true;screen='pause';
  panel(`<section class="main-card menu-card pause-card"><div class="eyebrow">TIME FROZEN</div><h2>PAUSED</h2><p class="muted">เวลาหยุดระหว่างพัก</p><button class="button primary wide" type="button" data-action="resume">เล่นต่อ</button><button class="button secondary wide" type="button" data-action="settings">ตั้งค่า</button><button class="button secondary wide" type="button" data-action="home">ออกสู่ล็อบบี้</button></section>`,'menu-overlay');
 }
 function resume(){screen='play';paused=false;accumulator=0;lastTime=0;hideOverlay()}
@@ -102,10 +102,10 @@ function moveTouch(e){
  const scale=Math.min(1,range/magnitude),mx=dx*scale,my=dy*scale;
  touch.x=mx/range;touch.y=my/range;knob.style.transform=`translate(${mx}px,${my}px)`;
 }
-function releaseTouch(){touch.active=false;touch.pointerId=null;touch.x=0;touch.y=0;knob.style.transform='translate(0,0)'}
-joystick.addEventListener('pointerdown',e=>{if(screen!=='play')return;e.preventDefault();touch.pointerId=e.pointerId;touch.active=true;joystick.setPointerCapture(e.pointerId);moveTouch(e)});
+function releaseTouch(e){if(e&&touch.pointerId!==e.pointerId)return;touch.active=false;touch.pointerId=null;touch.x=0;touch.y=0;knob.style.transform='translate(0,0)'}
+joystick.addEventListener('pointerdown',e=>{if(screen!=='play'||touch.active)return;e.preventDefault();touch.pointerId=e.pointerId;touch.active=true;joystick.setPointerCapture(e.pointerId);moveTouch(e)});
 joystick.addEventListener('pointermove',e=>{if(touch.active)moveTouch(e)});
-joystick.addEventListener('pointerup',releaseTouch);joystick.addEventListener('pointercancel',releaseTouch);
+joystick.addEventListener('pointerup',releaseTouch);joystick.addEventListener('pointercancel',releaseTouch);joystick.addEventListener('lostpointercapture',releaseTouch);
 function inputVector(){let x=touch.x,y=touch.y;for(const key of heldKeys){const [vx,vy]=movingKeys[key];x+=vx;y+=vy}return {x,y}}
 function frame(ts){
  const delta=lastTime?Math.min(.05,(ts-lastTime)/1000):0;lastTime=ts;
