@@ -6,6 +6,25 @@ on:
     branches: [main]
 
 jobs:
+  role-file-scope:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Enforce exclusive team file ownership
+        env:
+          TEAM_BRANCH: ${{ github.event.pull_request.head.ref }}
+          TEAM_BASE: ${{ github.event.pull_request.base.sha }}
+          TEAM_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: node scripts/check-team-scope.mjs
+
   unit-and-build:
     runs-on: ubuntu-latest
     permissions:
