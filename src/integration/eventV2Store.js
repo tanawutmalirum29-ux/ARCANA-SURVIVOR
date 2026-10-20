@@ -56,6 +56,12 @@ export function prepareStoredEventState({store,checkpoint}={}){
   // Reject it before writing so an existing replay/claim ledger cannot be lost.
   if(raw===undefined)return blocked('READ_FAILED',new TypeError('Event store read returned undefined'));
   if(raw===null){
+    // A second confirmed absence prevents a one-off false-null read from
+    // wiping a valid replay ledger. The adapter MUST still guarantee null
+    // means an authoritative missing key, not a swallowed decode error.
+    let confirm;
+    try{confirm=store.read()}catch(e){return blocked('READ_FAILED',e)}
+    if(confirm!==null)return blocked('READ_FAILED',new TypeError('Event store absence not confirmed'));
     const saved=saveVerified(store,createEventState(),checkpoint);
     return saved.ok?{...saved,status:'INITIALIZED'}:saved;
   }
