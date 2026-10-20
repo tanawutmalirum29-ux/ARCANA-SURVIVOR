@@ -51,8 +51,14 @@ def scenario(browser, browser_name, mode, size, html=None, main=None):
         assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1"), (browser_name, w, h, 'horizontal overflow')
         bounds_ok(page, '.main-card', w, h)
         assert page.locator('[data-action="lobby-music"]').count() == 1
-        page.locator('[data-action="music-theme"]').click()
-        assert page.get_by_text('Songkran • Waterlight', exact=False).count() > 0
+        # The first selection after AUTO depends on the calendar. Cycle until
+        # this named theme appears instead of assuming the current season.
+        for _ in range(6):
+            page.locator('[data-action="music-theme"]').click()
+            if 'Songkran • Waterlight' in page.locator('[data-action="music-theme"]').inner_text():
+                break
+        else:
+            raise AssertionError('Songkran preview not reachable through theme switch')
         page.locator('[data-action="lobby-music"]').click()
         page.locator('[data-action="settings"]').click()
         page.locator('[data-action="vfx"]').click()

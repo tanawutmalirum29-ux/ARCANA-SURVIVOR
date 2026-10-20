@@ -88,7 +88,10 @@ function handleAction(action,id){
  }
  if(action==='music-theme'){
    const choices=sound.musicChoices(),idx=choices.findIndex(c=>c.id===sound.getMusicChoice());
-   sound.setMusicChoice(choices[(idx+1)%choices.length].id);
+   let next=(idx+1)%choices.length;
+   // When AUTO already sounds like Astral, skip the duplicate preview.
+   if(idx===0&&choices[next].id===sound.getMusicTheme())next=(next+1)%choices.length;
+   sound.setMusicChoice(choices[next].id);
    sound.unlock();sound.play('switch');
    if(lobbyMusicOn)sound.update('lobby');
    return showLobby();
