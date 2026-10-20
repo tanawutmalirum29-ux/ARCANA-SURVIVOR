@@ -1,5 +1,6 @@
 import { WORLD } from './engine.js';
 import { COSMETICS } from './storage.js';
+import { visualBudget } from './visual/presentation.js';
 
 const GOLD = '#ebd8a1';
 const PI2 = Math.PI * 2;
@@ -35,13 +36,13 @@ function backdrop(ctx, w,h,cam,s,t){
 function glow(ctx,x,y,color,r=25,intensity=.5){
  const g=ctx.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,color);g.addColorStop(1,'transparent');ctx.globalAlpha=intensity;ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,r,0,PI2);ctx.fill();ctx.globalAlpha=1;
 }
-function playerAvatar(ctx,x,y,profile,s,t){
+function playerAvatar(ctx,x,y,profile,s,t,options){
  const skin=COSMETICS.find(x=>x.id===profile.skin)||COSMETICS[0];
- const motion=profile.settings.reduceMotion?0:Math.sin(t*4)*3;
+ const motion=options.reducedMotion?0:Math.sin(t*4)*3;
  ctx.save();ctx.translate(x,y);ctx.globalAlpha=s.player.invuln>0 && s.player.invuln%8<4?.45:1;
- ellipse(ctx,0,15,21,9,'rgba(0,0,0,.42)');glow(ctx,0,0,skin.glow,50,profile.settings.vfx==='low'?.18:.35);
- if(profile.settings.vfx==='high'){
-   const tier={COMMON:3,EPIC:5,LEGENDARY:7,MYTHIC:9}[skin.rarity]||3;
+ ellipse(ctx,0,15,21,9,'rgba(0,0,0,.42)');glow(ctx,0,0,skin.glow,50,.35*options.glow);
+ if(options.particles>0){
+   const tier=options.quality==='high'?({COMMON:3,EPIC:5,LEGENDARY:7,MYTHIC:9}[skin.rarity]||3):3;
    for(let a=0;a<tier;a++){const angle=a*PI2/tier+t*(skin.rarity==='MYTHIC'?1.05:.7);
      const r=skin.rarity==='MYTHIC'?35:27;diamond(ctx,Math.cos(angle)*r,Math.sin(angle)*r*.68+motion*.4,skin.rarity==='MYTHIC'?4:3,skin.glow)}
    if(skin.rarity==='LEGENDARY'||skin.rarity==='MYTHIC'){ring(ctx,0,0,34,skin.glow,1.4)}
@@ -73,26 +74,28 @@ function enemyAvatar(ctx,e,t){
 }
 export function drawScene(canvas,ctx,s,profile,time=0){
  const skin=COSMETICS.find(x=>x.id===profile.skin)||COSMETICS[0];
+ const reduceMotion=Boolean(profile.settings?.reduceMotion || (typeof window.matchMedia==='function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches));
+ const options=visualBudget(profile.settings?.vfx || 'medium',reduceMotion);
  const bounds=canvas.getBoundingClientRect(),w=bounds.width||360,h=bounds.height||640;
- const dpr=Math.min(window.devicePixelRatio||1,2);const pw=Math.round(w*dpr),ph=Math.round(h*dpr);
+ const dpr=Math.min(window.devicePixelRatio||1,options.dprCap);const pw=Math.round(w*dpr),ph=Math.round(h*dpr);
  if(canvas.width!==pw||canvas.height!==ph){canvas.width=pw;canvas.height=ph}
  ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);
  const cam={x:clamp(s.player.x-w/2,0,Math.max(0,WORLD.width-w)),y:clamp(s.player.y-h/2,0,Math.max(0,WORLD.height-h))};
- backdrop(ctx,w,h,cam,s,time);
+ backdrop(ctx,w,h,cam,s,options.reducedMotion?0:time);
  ctx.save();ctx.translate(-cam.x,-cam.y);
- for(const o of s.pickups){glow(ctx,o.x,o.y,'#61dcc9',26,.24);diamond(ctx,o.x,o.y,7,'#6de7e0');diamond(ctx,o.x,o.y,3,'#fff9dc')}
- for(const e of s.enemies)enemyAvatar(ctx,e,time);
- for(const b of s.shots){glow(ctx,b.x,b.y,skin.glow,profile.settings.vfx==='low'?15:27,.4);ring(ctx,b.x,b.y,b.radius+1,skin.projectile,3);diamond(ctx,b.x,b.y,5,skin.color)}
- for(const b of s.hostileShots){glow(ctx,b.x,b.y,'#ff587e',30,.3);ring(ctx,b.x,b.y,b.radius,'#ff9c9f',4)}
+ for(const o of s.pickups){glow(ctx,o.x,o.y,'#61dcc9',26,.24*options.glow);diamond(ctx,o.x,o.y,7,'#6de7e0');diamond(ctx,o.x,o.y,3,'#fff9dc')}
+ for(const e of s.enemies)enemyAvatar(ctx,e,options.reducedMotion?0:time);
+ for(const b of s.shots){glow(ctx,b.x,b.y,skin.glow,options.quality==='high'?27:15,.4*options.glow);ring(ctx,b.x,b.y,b.radius+1,skin.projectile,3);diamond(ctx,b.x,b.y,5,skin.color)}
+ for(const b of s.hostileShots){glow(ctx,b.x,b.y,'#ff587e',30,.3*options.glow);ring(ctx,b.x,b.y,b.radius,'#ff9c9f',4)}
  for(const f of s.flashes){
-  const alpha=Math.min(.65,f.ttl/18*.42);ctx.globalAlpha=alpha;
+  const alpha=f.type==='warning'?.85:options.reducedMotion?.35:Math.min(.65,f.ttl/18*.42);ctx.globalAlpha=alpha;
   if(f.type==='chain'){ctx.strokeStyle='#85ecff';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(f.x,f.y);ctx.lineTo(f.x2,f.y2);ctx.stroke()}
   else if(f.type==='nova'||f.type==='warning') {ring(ctx,f.x,f.y,f.radius*(1-f.ttl/35*.22),f.type==='nova'?'#9adfff':'#ff777a',f.type==='warning'?5:3)}
   else ring(ctx,f.x,f.y,f.radius*(1-f.ttl/35*.6),f.type==='hurt'?'#ff7187':'#d99dff',3);
   ctx.globalAlpha=1;
  }
- if(s.skills.orbit){for(let i=0;i<3;i++){const a=i*PI2/3+time*2;const r=70+s.skills.orbit*5;const x=s.player.x+Math.cos(a)*r,y=s.player.y+Math.sin(a)*r;glow(ctx,x,y,'#ff9365',24,.45);diamond(ctx,x,y,10,'#ffbe83')}}
- playerAvatar(ctx,s.player.x,s.player.y,profile,s,time);
+ if(s.skills.orbit){for(let i=0;i<3;i++){const a=i*PI2/3+(options.reducedMotion?0:time*2);const r=70+s.skills.orbit*5;const x=s.player.x+Math.cos(a)*r,y=s.player.y+Math.sin(a)*r;glow(ctx,x,y,'#ff9365',24,.45*options.glow);diamond(ctx,x,y,10,'#ffbe83')}}
+ playerAvatar(ctx,s.player.x,s.player.y,profile,s,time,options);
  ctx.restore();
  const v=ctx.createRadialGradient(w/2,h/2,Math.min(w,h)*.2,w/2,h/2,Math.max(w,h)*.9);v.addColorStop(0,'transparent');v.addColorStop(1,'rgba(3,6,18,.47)');ctx.fillStyle=v;ctx.fillRect(0,0,w,h);
 }
