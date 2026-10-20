@@ -7,7 +7,7 @@ const $=id=>document.getElementById(id);
 const canvas=$('scene'),ctx=canvas.getContext('2d',{alpha:false});
 let profile=loadProfile(),game=createGame(73001),screen='lobby',paused=false,lastTime=0,accumulator=0,lastHud=0;
 const heldKeys=new Set();const touch={x:0,y:0,active:false,pointerId:null,originX:0,originY:0};
-let toastUntil=0;
+let toastUntil=0, lobbyMusicOn=true;
 const sound=createGameAudio();
 const profileSkin=()=>COSMETICS.find(x=>x.id===profile.skin)||COSMETICS[0];
 function persist(){if(!saveProfile(profile))notify('ไม่สามารถบันทึกข้อมูลในเบราว์เซอร์นี้ได้')}
@@ -35,6 +35,14 @@ function showLobby(){
  <div class="lobby-stats"><div><b>${profile.gold}</b><small>GOLD ✦</small></div><div><b>${profile.runs}</b><small>RUNS</small></div><div><b>${profile.totalKills}</b><small>KILLS</small></div></div>
  <button type="button" data-action="start" class="button primary wide">✦ &nbsp; เข้าสู่สนามรบ &nbsp; ✦</button>
  <div class="action-row"><button type="button" data-action="wardrobe" class="button secondary">◇ คลังสกิน</button><button type="button" data-action="settings" class="button secondary">⚙ ตั้งค่า</button></div>
+ <div class="lobby-music" aria-label="เพลงล็อบบี้">
+ <div class="eyebrow">ORIGINAL LOBBY SOUNDTRACK</div>
+ <div class="music-controls">
+ <button type="button" data-action="lobby-music" class="button secondary" aria-label="เปิดหรือหยุดเพลงล็อบบี้">${sound.isReady()&&sound.isEnabled()&&lobbyMusicOn?'Ⅱ หยุดเพลง':'♫ ฟังเพลง'}</button>
+ <button type="button" data-action="music-theme" class="button secondary" aria-label="เปลี่ยนธีมเพลงล็อบบี้">ธีม: ${sound.musicChoices().find(c=>c.id===sound.getMusicChoice())?.label} ↻</button>
+ </div>
+ <p class="music-status">กำลังเลือก: ${sound.musicChoices().find(c=>c.id===sound.getMusicTheme())?.label}</p>
+ </div>
  <p class="legal-note">FREE TO PLAY · OFFLINE DEMO · NO REAL MONEY PURCHASES</p>
  </section>`,'lobby-overlay');
 }
@@ -47,7 +55,7 @@ function showWardrobe(){screen='wardrobe';setPlayingUI(false);
 }
 function showSettings(from='lobby'){
  screen='settings';window.__returnTo=from;
- panel(`<section class="main-card menu-card"><div class="eyebrow">GAME OPTIONS</div><h2>SETTINGS</h2><div class="setting-row"><div><b>คุณภาพเอฟเฟกต์</b><small>ปรับความสวยให้เหมาะกับอุปกรณ์</small></div><button class="button secondary" type="button" data-action="vfx">${profile.settings.vfx==='high'?'HIGH':'LOW'}</button></div><div class="setting-row"><div><b>ลดการเคลื่อนไหว</b><small>ปิดการขยับตกแต่งและแสงมากเกินไป</small></div><button class="button secondary" type="button" data-action="motion">${profile.settings.reduceMotion?'ON':'OFF'}</button></div><div class="setting-row"><div><b>เสียงเวทมนตร์และเพลง</b><small>สังเคราะห์ในเครื่อง · เล่นออฟไลน์</small></div><button class="button secondary" type="button" data-action="sound">${sound.isEnabled()?'SOUND ON':'SOUND OFF'}</button></div><div class="tip">เดินด้วย WASD / ลูกศร หรือจอยสัมผัส<br>กด Esc เพื่อหยุดเกม · ระบบบันทึกในเครื่องนี้</div><button class="button primary wide" type="button" data-action="back">เสร็จสิ้น</button></section>`,'menu-overlay');
+ panel(`<section class="main-card menu-card"><div class="eyebrow">GAME OPTIONS</div><h2>SETTINGS</h2><div class="setting-row"><div><b>คุณภาพเอฟเฟกต์</b><small>ปรับความสวยให้เหมาะกับอุปกรณ์</small></div><button class="button secondary" type="button" data-action="vfx">${profile.settings.vfx==='high'?'HIGH':'LOW'}</button></div><div class="setting-row"><div><b>ลดการเคลื่อนไหว</b><small>ปิดการขยับตกแต่งและแสงมากเกินไป</small></div><button class="button secondary" type="button" data-action="motion">${profile.settings.reduceMotion?'ON':'OFF'}</button></div><div class="setting-row"><div><b>เสียงเวทมนตร์และเพลง</b><small>สังเคราะห์ในเครื่อง · เล่นออฟไลน์</small></div><button class="button secondary" type="button" data-action="sound">${sound.isEnabled()?'SOUND ON':'SOUND OFF'}</button></div><div class="setting-row"><div><b>เพลงล็อบบี้ตามเทศกาล</b><small>เปลี่ยนอัตโนมัติตามวันที่หรือเลือกธีมเองได้</small></div><button class="button secondary" type="button" data-action="music-settings">${sound.musicChoices().find(c=>c.id===sound.getMusicChoice())?.label} ↻</button></div><div class="tip">เดินด้วย WASD / ลูกศร หรือจอยสัมผัส<br>กด Esc เพื่อหยุดเกม · ระบบบันทึกในเครื่องนี้</div><button class="button primary wide" type="button" data-action="back">เสร็จสิ้น</button></section>`,'menu-overlay');
 }
 function startRun(){
  sound.unlock();sound.play('start');
@@ -71,6 +79,20 @@ function showPause(){if(screen!=='play')return;sound.play('pause');heldKeys.clea
 }
 function resume(){sound.unlock();sound.play('resume');screen='play';paused=false;accumulator=0;lastTime=0;hideOverlay()}
 function handleAction(action,id){
+ if(action==='lobby-music'){
+   if(!sound.isEnabled())sound.setEnabled(true);
+   if(!sound.isReady()){lobbyMusicOn=true;sound.unlock()}
+   else lobbyMusicOn=!lobbyMusicOn;
+   sound.update(lobbyMusicOn?'lobby':false);
+   return showLobby();
+ }
+ if(action==='music-theme'){
+   const choices=sound.musicChoices(),idx=choices.findIndex(c=>c.id===sound.getMusicChoice());
+   sound.setMusicChoice(choices[(idx+1)%choices.length].id);
+   sound.unlock();sound.play('switch');
+   if(lobbyMusicOn)sound.update('lobby');
+   return showLobby();
+ }
  if(action==='home'){sound.play('menuBack');return showLobby()}
  if(action==='start')return startRun();
  if(action==='wardrobe'){sound.unlock();sound.play('menuOpen');return showWardrobe()}
@@ -79,6 +101,12 @@ function handleAction(action,id){
  if(action==='vfx'){sound.play('switch');profile.settings.vfx=profile.settings.vfx==='high'?'low':'high';persist();return showSettings(window.__returnTo)}
  if(action==='motion'){sound.play('switch');profile.settings.reduceMotion=!profile.settings.reduceMotion;persist();return showSettings(window.__returnTo)}
  if(action==='sound'){sound.setEnabled(!sound.isEnabled());if(sound.isEnabled()){sound.unlock();sound.play('menu')}return showSettings(window.__returnTo)}
+ if(action==='music-settings'){
+   const choices=sound.musicChoices(),idx=choices.findIndex(c=>c.id===sound.getMusicChoice());
+   sound.setMusicChoice(choices[(idx+1)%choices.length].id);
+   sound.unlock();sound.play('switch');
+   return showSettings(window.__returnTo);
+ }
  if(action==='pause')return showPause();
  if(action==='resume')return resume();
  if(action==='upgrade') {if(chooseUpgrade(game,id)){sound.play(id==='heal'?'heal':'upgradeSelect');screen='play';hideOverlay();updateHud()}return;}
@@ -144,7 +172,11 @@ function frame(ts){
    }
    if(ts-lastHud>90){updateHud();lastHud=ts;}
  }
- sound.update(screen==='play'&&!paused&&!document.hidden);
+ const lobbyVisible=screen==='lobby'||screen==='wardrobe'||
+   (screen==='settings'&&window.__returnTo!=='pause');
+ const musicMode=document.hidden?false:
+   screen==='play'&&!paused?'play':lobbyVisible&&lobbyMusicOn?'lobby':false;
+ sound.update(musicMode);
  drawScene(canvas,ctx,game,profile,ts/1000);
  if(toastUntil&&ts>toastUntil){$('toast').classList.add('hidden');toastUntil=0}
  requestAnimationFrame(frame);

@@ -1,6 +1,8 @@
 // ARCANA SURVIVOR's original procedural audio: no samples, downloads or external services.
+import {createLobbyMusic,LOBBY_MUSIC_CHOICES,resolveLobbyTheme,validMusicChoice} from './lobbyMusic.js';
 // AudioContext is created only after a user gesture (required by mobile browsers).
 const SOUND_KEY = 'arcana-survivor-sound-v1';
+const MUSIC_CHOICE_KEY = 'arcana-survivor-lobby-theme-v1';
 
 // Side-effect-free hooks, derived only from the current deterministic simulation.
 // Effects intentionally remain outside engine.js so the gameplay state never changes.
@@ -52,10 +54,13 @@ export function createGameAudio({ storage, ContextClass } = {}) {
   let enabled = true;
   try { enabled = storage?.getItem(SOUND_KEY) !== 'off'; } catch { /* private mode */ }
 
+  let musicChoice = 'auto', eventTheme = null;
+  try { musicChoice = validMusicChoice(storage?.getItem(MUSIC_CHOICE_KEY)); } catch { /* private mode */ }
   const AudioCtor = ContextClass === undefined
     ? globalThis.AudioContext || globalThis.webkitAudioContext
     : ContextClass;
   let context = null, master = null, effects = null, music = null;
+  let ambientBus = null, lobbyBus = null, lobbyPlayer = null, audioMode = 'off';
   let isPlaying = false, nextNoteAt = 0, noteIndex = 0;
   const lastPlayed = new Map();
   const notes = [
@@ -75,10 +80,17 @@ export function createGameAudio({ storage, ContextClass } = {}) {
       music = context.createGain();
       master.gain.value = enabled ? 0.55 : 0;
       effects.gain.value = 0.42;
-      music.gain.value = 0;
+      music.gain.value = 0.50;
+      ambientBus = context.createGain();
+      lobbyBus = context.createGain();
+      ambientBus.gain.value = 0;
+      lobbyBus.gain.value = 0;
+      ambientBus.connect(music);
+      lobbyBus.connect(music);
       effects.connect(master);
       music.connect(master);
       master.connect(context.destination);
+      lobbyPlayer = createLobbyMusic({context, destination: lobbyBus});
     } catch {
       context = null;
     }
@@ -231,26 +243,45 @@ export function createGameAudio({ storage, ContextClass } = {}) {
     return true;
   }
 
-  function update(playing) {
-    if (!context || !enabled) return;
-    const active = Boolean(playing) && context.state === 'running';
+  function update(mode) {
+    if (!context) return;
+    const ready = enabled && context.state === 'running';
+    const desired = ready && mode === 'lobby' ? 'lobby' :
+      ready && (mode === 'play' || mode === true) ? 'play' : 'off';
+    if (desired !== audioMode) {
+      audioMode = desired;
+      const at = context.currentTime;
+      ambientBus.gain.setTargetAtTime(desired === 'play' ? .46 : 0, at, .17);
+      lobbyBus.gain.setTargetAtTime(desired === 'lobby' ? .84 : 0, at, .17);
+      nextNoteAt = 0;
+    }
+    lobbyPlayer.update(desired === 'lobby', resolveLobbyTheme(musicChoice, new Date(), eventTheme));
+    const active = desired === 'play';
     if (active !== isPlaying) {
       isPlaying = active;
-      music.gain.setTargetAtTime(active ? .23 : 0, context.currentTime, .065);
       nextNoteAt = 0;
     }
     if (!active) return;
     if (!nextNoteAt) nextNoteAt = context.currentTime + .045;
-    // Schedule a short lookahead, not an unbounded timer or busy loop.
     while (nextNoteAt < context.currentTime + .12) {
       const chord = notes[Math.floor(noteIndex / 8) % notes.length];
       const frequency = chord[pattern[noteIndex % pattern.length]] * 2;
-      tone(nextNoteAt, frequency, frequency, .46, .045, 'sine', music);
-      if (noteIndex % 8 === 0) tone(nextNoteAt, chord[0], chord[0], 2.0, .026, 'triangle', music);
+      tone(nextNoteAt, frequency, frequency, .46, .045, 'sine', ambientBus);
+      if (noteIndex % 8 === 0) tone(nextNoteAt, chord[0], chord[0], 2.0, .026, 'triangle', ambientBus);
       noteIndex++;
       nextNoteAt += .55;
     }
   }
+  function setMusicChoice(value) {
+    musicChoice = validMusicChoice(value);
+    try { storage?.setItem(MUSIC_CHOICE_KEY, musicChoice); } catch { /* private mode */ }
+    return musicChoice;
+  }
+  function setEventMusicTheme(value) {
+    eventTheme = value === null ? null : validMusicChoice(value);
+    if (eventTheme === 'auto') eventTheme = null;
+  }
+  const getMusicTheme = () => resolveLobbyTheme(musicChoice, new Date(), eventTheme);
 
   function setEnabled(value) {
     enabled = Boolean(value);
@@ -258,13 +289,22 @@ export function createGameAudio({ storage, ContextClass } = {}) {
     if (context) {
       master.gain.setTargetAtTime(enabled ? .55 : 0, context.currentTime, .025);
       if (!enabled) {
+        audioMode = 'off';
         isPlaying = false;
         nextNoteAt = 0;
-        music.gain.setTargetAtTime(0, context.currentTime, .025);
+        ambientBus.gain.setTargetAtTime(0, context.currentTime, .025);
+        lobbyBus.gain.setTargetAtTime(0, context.currentTime, .025);
+        lobbyPlayer.update(false);
       }
     }
     return enabled;
   }
 
-  return { unlock, play, update, setEnabled, isEnabled: () => enabled };
+  return {
+    unlock, play, update, setEnabled, isEnabled: () => enabled,
+    isReady: () => Boolean(context && context.state === 'running'),
+    getMusicTheme, getMusicChoice: () => musicChoice,
+    setMusicChoice, setEventMusicTheme,
+    musicChoices: () => LOBBY_MUSIC_CHOICES
+  };
 }

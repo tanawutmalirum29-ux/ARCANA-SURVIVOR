@@ -18,7 +18,8 @@ def modules_and_html():
         return 'data:text/javascript;base64,' + b64encode(source.encode()).decode()
     engine = data_module((ROOT / 'src/engine.js').read_text())
     storage = data_module((ROOT / 'src/storage.js').read_text())
-    audio = data_module((ROOT / 'src/audio.js').read_text())
+    lobby_music = data_module((ROOT / 'src/lobbyMusic.js').read_text())
+    audio = data_module((ROOT / 'src/audio.js').read_text().replace("from './lobbyMusic.js'", f"from '{lobby_music}'"))
     render = data_module((ROOT / 'src/render.js').read_text().replace("from './engine.js'", f"from '{engine}'").replace("from './storage.js'", f"from '{storage}'"))
     main = data_module((ROOT / 'src/main.js').read_text().replace("from './engine.js'", f"from '{engine}'").replace("from './render.js'", f"from '{render}'").replace("from './storage.js'", f"from '{storage}'").replace("from './audio.js'", f"from '{audio}'"))
     html = (ROOT / 'index.html').read_text().replace('<link rel="stylesheet" href="./src/styles.css" />', '<style>' + (ROOT / 'src/styles.css').read_text() + '</style>').replace('<script type="module" src="./src/main.js"></script>', '')
@@ -49,6 +50,10 @@ def scenario(browser, browser_name, mode, size, html=None, main=None):
         assert page.evaluate("() => { const style = getComputedStyle(document.body); return style.userSelect === 'none' || style.webkitUserSelect === 'none'; }"), (browser_name, w, h, 'OS text selection not prevented')
         assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1"), (browser_name, w, h, 'horizontal overflow')
         bounds_ok(page, '.main-card', w, h)
+        assert page.locator('[data-action="lobby-music"]').count() == 1
+        page.locator('[data-action="music-theme"]').click()
+        assert page.get_by_text('Songkran • Waterlight', exact=False).count() > 0
+        page.locator('[data-action="lobby-music"]').click()
         page.locator('[data-action="settings"]').click()
         page.locator('[data-action="vfx"]').click()
         assert page.get_by_text('LOW', exact=True).count() == 1
@@ -58,6 +63,8 @@ def scenario(browser, browser_name, mode, size, html=None, main=None):
         assert page.get_by_text('SOUND OFF', exact=True).count() == 1
         page.locator('[data-action="sound"]').click()
         assert page.get_by_text('SOUND ON', exact=True).count() == 1
+        page.locator('[data-action="music-settings"]').click()
+        assert page.get_by_text('Lantern • Moonriver', exact=False).count() > 0
         page.locator('[data-action="back"]').click()
         page.locator('[data-action="start"]').click()
         assert page.locator('#overlay').is_hidden()
