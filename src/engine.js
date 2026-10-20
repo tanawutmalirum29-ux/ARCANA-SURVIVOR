@@ -1,7 +1,9 @@
 /* Deterministic, renderer-agnostic 60Hz simulation. No DOM, storage, network or cosmetic imports. */
 export const STEP = 1 / 60;
 export const WORLD = { width: 2200, height: 1500 };
-export const BOSS_AT = 70;
+export const BOSS_AT = 9 * 60;
+export const BOSS_WARNING_TICKS = 36;
+export const BOSS_ENRAGE_AFTER = 90 * 60;
 export const MAX_ENEMIES = 125;
 const TYPES = Object.freeze({
   swarmer: { hp: 24, speed: 95, radius: 12, damage: 9, xp: 5 },
@@ -28,16 +30,32 @@ export function spawnEnemy(s, type, x, y) {
   if (!TYPES[type]) throw new Error('Unknown enemy type');
   const t = TYPES[type];
   const enemy = { id: id(s), type, x: clamp(x, t.radius, WORLD.width - t.radius), y: clamp(y, t.radius, WORLD.height - t.radius), radius: t.radius, hp: t.hp, maxHp: t.hp, speed: t.speed, damage: t.damage, xp: t.xp, shotTimer: 80, slow: 0, flash: 0 };
+  if (type === 'boss') Object.assign(enemy, { nextPattern: 0, pendingAttack: null, spawnTick: s.tick, enraged: false });
   s.enemies.push(enemy); return enemy;
+}
+// Preserve an actual safe spawn distance, even when the player hugs arena edges.
+function safeSpawnPosition(s, type, minRadius = 380, maxRadius = 550) {
+  const p = s.player;
+  const r = TYPES[type].radius;
+  for (let attempt = 0; attempt < 12; attempt++) {
+    const angle = random(s) * Math.PI * 2;
+    const radius = minRadius + random(s) * (maxRadius - minRadius);
+    const pos = {
+      x: clamp(p.x + Math.cos(angle) * radius, r, WORLD.width - r),
+      y: clamp(p.y + Math.sin(angle) * radius, r, WORLD.height - r),
+    };
+    if (distance(p, pos) >= 280) return pos;
+  }
+  // Deterministic fallback if all sampled angles point beyond a boundary.
+  return { x: p.x < WORLD.width / 2 ? WORLD.width - r : r,
+    y: p.y < WORLD.height / 2 ? WORLD.height - r : r };
 }
 function spawnWave(s) {
   if (s.enemies.length >= MAX_ENEMIES) return;
-  const p = s.player;
-  const angle = random(s) * Math.PI * 2;
-  const radius = 380 + random(s) * 170;
   const v = random(s);
   const type = s.tick / 60 < 14 || v < 0.64 ? 'swarmer' : v < 0.84 ? 'cultist' : 'brute';
-  spawnEnemy(s, type, p.x + Math.cos(angle) * radius, p.y + Math.sin(angle) * radius);
+  const pos = safeSpawnPosition(s, type);
+  spawnEnemy(s, type, pos.x, pos.y);
 }
 function hurt(s, amount) {
   const p = s.player;
@@ -77,6 +95,8 @@ export function chooseUpgrade(s, key) {
   else if (key === 'speed') p.speed = Math.min(350, p.speed + 22);
   else if (key === 'heal') p.hp = Math.min(p.maxHp, p.hp + 35);
   s.upgrades = []; s.phase = 'running';
+  // XP gained in a burst may cover multiple levels; queue the next choice, never discard XP.
+  if (p.xp >= p.nextXp) gainXp(s, 0);
   return true;
 }
 function gainXp(s, amount) {
@@ -136,37 +156,75 @@ function updateSkills(s) {
     }
   }
 }
+// Three deterministic boss patterns: rotating ring, aimed fan, and diagonal star.
+function queueBossAttack(s, e, delta) {
+  const pattern = e.nextPattern % 3;
+  e.nextPattern++;
+  e.pendingAttack = {
+    pattern, x: e.x, y: e.y,
+    angle: Math.atan2(delta.y, delta.x),
+    rotation: s.tick / 160, ticks: BOSS_WARNING_TICKS,
+  };
+  // Existing renderer draws warning rings; VFX can use pattern/angle metadata.
+  s.flashes.push({ id: id(s), x: e.x, y: e.y, type: 'warning',
+    pattern, angle: e.pendingAttack.angle, ttl: BOSS_WARNING_TICKS,
+    radius: pattern === 1 ? 200 : 170 });
+  e.shotTimer = e.enraged ? 74 : 112;
+}
+function fireBossAttack(s, attack, enraged) {
+  const damage = enraged ? 15 : 12;
+  if (attack.pattern === 0) {
+    for (let n = 0; n < 12; n++) {
+      const a = n / 12 * Math.PI * 2 + attack.rotation;
+      shoot(s, attack.x, attack.y, { x: Math.cos(a), y: Math.sin(a) }, false, damage, 195, 6);
+    }
+  } else if (attack.pattern === 1) {
+    for (let n = -2; n <= 2; n++) {
+      const a = attack.angle + n * .18;
+      shoot(s, attack.x, attack.y, { x: Math.cos(a), y: Math.sin(a) }, false, damage + 1, 240, 6);
+    }
+  } else {
+    for (let n = 0; n < 8; n++) {
+      const a = Math.PI / 4 + n / 8 * Math.PI * 2;
+      shoot(s, attack.x, attack.y, { x: Math.cos(a), y: Math.sin(a) }, false, damage + 1, 175, 6);
+    }
+  }
+}
 function updateEnemies(s) {
   const p = s.player;
   for (const e of s.enemies) {
     if (e.hp <= 0) continue;
     if (e.slow > 0) e.slow--;
     if (e.flash > 0) e.flash--;
+    if (e.type === 'boss' && s.tick - e.spawnTick >= BOSS_ENRAGE_AFTER) e.enraged = true;
     const dist = distance(p, e);
     const delta = unit(p.x - e.x, p.y - e.y);
-    let desired = e.type === 'cultist' ? 235 : p.radius + e.radius + 3;
-    if (dist > desired) {
-      const speed = e.speed * (e.slow ? .45 : 1) * STEP;
+    let travel = 0;
+    if (e.type === 'cultist') {
+      if (dist > 270) travel = 1;
+      else if (dist < 155) travel = -1;
+    } else if (dist > p.radius + e.radius + 3) travel = 1;
+    if (travel !== 0) {
+      const bossMultiplier = e.type === 'boss' && e.enraged ? 1.5 : 1;
+      const speed = e.speed * bossMultiplier * (e.slow ? .45 : 1) * STEP * travel;
       e.x = clamp(e.x + delta.x * speed, e.radius, WORLD.width - e.radius);
       e.y = clamp(e.y + delta.y * speed, e.radius, WORLD.height - e.radius);
     }
     if (dist < p.radius + e.radius) hurt(s, e.damage);
-    if (e.type === 'cultist' || e.type === 'boss') {
-      e.shotTimer--;
-      if (e.shotTimer <= 0 && dist < 720) {
-        if (e.type === 'cultist') shoot(s, e.x, e.y, delta, false, 10, 200, 5);
-        else {
-          const phase = Math.floor(s.tick / 240) % 3;
-          if (phase === 0) {
-            for (let n = 0; n < 12; n++) { const a = n / 12 * Math.PI * 2 + s.tick / 160; shoot(s, e.x, e.y, { x: Math.cos(a), y: Math.sin(a) }, false, 12, 195, 6); }
-          } else if (phase === 1) {
-            for (let n = -2; n <= 2; n++) { const a = Math.atan2(delta.y, delta.x) + n * .18; shoot(s, e.x, e.y, {x: Math.cos(a), y: Math.sin(a)}, false, 13, 240, 6); }
-          } else {
-            s.flashes.push({ id: id(s), x: e.x, y: e.y, type: 'warning', ttl: 36, radius: 170 });
-            for (let n = 0; n < 8; n++) { const a = n / 8 * Math.PI * 2; shoot(s, e.x, e.y, {x: Math.cos(a), y: Math.sin(a)}, false, 13, 165, 6); }
-          }
+    if (s.phase !== 'running') return;
+    if (e.type === 'cultist') {
+      if (--e.shotTimer <= 0 && dist < 720) {
+        shoot(s, e.x, e.y, delta, false, 10, 200, 5);
+        e.shotTimer = 140;
+      }
+    } else if (e.type === 'boss') {
+      if (e.pendingAttack) {
+        if (--e.pendingAttack.ticks <= 0) {
+          fireBossAttack(s, e.pendingAttack, e.enraged);
+          e.pendingAttack = null;
         }
-        e.shotTimer = e.type === 'boss' ? 105 : 140;
+      } else if (--e.shotTimer <= 0 && dist < 720) {
+        queueBossAttack(s, e, delta);
       }
     }
   }
@@ -213,10 +271,10 @@ export function step(s, input = {x:0,y:0}) {
   p.x = clamp(p.x + direction.x * p.speed * STEP * mag, p.radius, WORLD.width - p.radius);
   p.y = clamp(p.y + direction.y * p.speed * STEP * mag, p.radius, WORLD.height - p.radius);
   s.timers.spawn--;
-  if (s.timers.spawn <= 0) { spawnWave(s); s.timers.spawn = Math.max(14, 53 - Math.floor(s.tick / 180)); }
+  if (s.timers.spawn <= 0) { spawnWave(s); s.timers.spawn = Math.max(24, 53 - Math.floor(s.tick / 360)); }
   if (!s.bossSpawned && s.tick >= BOSS_AT * 60) {
-    const theta = random(s) * Math.PI * 2;
-    spawnEnemy(s, 'boss', p.x + Math.cos(theta) * 340, p.y + Math.sin(theta) * 340);
+    const pos = safeSpawnPosition(s, 'boss', 340, 450);
+    spawnEnemy(s, 'boss', pos.x, pos.y);
     s.bossSpawned = true;
   }
   updateEnemies(s);
