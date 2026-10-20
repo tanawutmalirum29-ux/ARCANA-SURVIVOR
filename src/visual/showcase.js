@@ -95,9 +95,48 @@ export function mountSkinShowcase({
     }
     if (!reduce && !disposed) raf = requestAnimationFrame(draw);
   }
-  function render() {
+  // Rerendering a preview replaces its buttons; restore keyboard focus and the
+  // scrollable card's position so bottom-of-gallery choices remain accessible.
+  // Only the visual subtree is touched; neither inventory nor profile is edited.
+  function render(origin = null) {
+    if (disposed) return;
+    const scrollTargets = ['.vfx-showcase', '.vfx-options-panel', '.vfx-catalog'];
+    const snapshots = scrollTargets.map(selector => {
+      const element = host.querySelector(selector);
+      return element ? { selector, top: element.scrollTop, left: element.scrollLeft } : null;
+    }).filter(Boolean);
+    const hostScroll = { top: host.scrollTop, left: host.scrollLeft };
+    const wasFocused = Boolean(origin && origin.ownerDocument?.activeElement === origin);
+    const focusAttrs = ['data-vfx-skin', 'data-vfx-quality', 'data-vfx-motion'];
+    const focusAttr = wasFocused ? focusAttrs.find(attr => origin.hasAttribute(attr)) : null;
+    const focusValue = focusAttr ? origin.getAttribute(focusAttr) : null;
+
     cancel();
     host.innerHTML = showcaseMarkup({ profile, catalog, selectedId, quality: currentQuality, reducedMotion: reduce });
+    for (const snapshot of snapshots) {
+      const element = host.querySelector(snapshot.selector);
+      if (element) { element.scrollTop = snapshot.top; element.scrollLeft = snapshot.left; }
+    }
+    if (Number.isFinite(hostScroll.top)) host.scrollTop = hostScroll.top;
+    if (Number.isFinite(hostScroll.left)) host.scrollLeft = hostScroll.left;
+
+    if (focusAttr && typeof host.querySelectorAll === 'function') {
+      const successor = Array.from(host.querySelectorAll('button'))
+        .find(button => button.hasAttribute(focusAttr) && button.getAttribute(focusAttr) === focusValue);
+      if (successor && typeof successor.focus === 'function') {
+        successor.focus({ preventScroll: true });
+        // Compensate only when the new layout makes the focused control hidden.
+        // Unlike scrollIntoView, this will not scroll the page behind the modal.
+        const card = host.querySelector('.vfx-showcase');
+        if (card && typeof card.getBoundingClientRect === 'function' &&
+            typeof successor.getBoundingClientRect === 'function') {
+          const outer = card.getBoundingClientRect();
+          const inner = successor.getBoundingClientRect();
+          if (inner.top < outer.top) card.scrollTop += inner.top - outer.top - 4;
+          else if (inner.bottom > outer.bottom) card.scrollTop += inner.bottom - outer.bottom + 4;
+        }
+      }
+    }
     draw(performance.now());
   }
   function click(event) {
@@ -106,17 +145,17 @@ export function mountSkinShowcase({
     if (button.hasAttribute('data-vfx-close')) { dispose(); onClose(); return; }
     if (button.hasAttribute('data-vfx-skin')) {
       selectedId = button.getAttribute('data-vfx-skin');
-      render(); return;
+      render(button); return;
     }
     if (button.hasAttribute('data-vfx-quality')) {
       currentQuality = normalizeQuality(button.getAttribute('data-vfx-quality'));
       onSettingsChange({ vfx: currentQuality, reduceMotion: reduce });
-      render(); return;
+      render(button); return;
     }
     if (button.hasAttribute('data-vfx-motion')) {
       reduce = !reduce;
       onSettingsChange({ vfx: currentQuality, reduceMotion: reduce });
-      render(); return;
+      render(button); return;
     }
     if (button.hasAttribute('data-vfx-equip')) {
       const id = button.getAttribute('data-vfx-equip');
