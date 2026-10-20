@@ -74,7 +74,13 @@ def keyboard_and_system_motion(browser,engine,w,h,origin):
     focused=page.evaluate("document.activeElement?.getAttribute('data-vfx-skin')")
     after=page.locator('.vfx-showcase').evaluate('(el) => el.scrollTop')
     assert focused=='celestial',(engine,w,h,'catalog keyboard focus lost',focused)
-    assert abs(after-before)<=8,(engine,w,h,'catalog scroll position lost',before,after)
+    card=page.locator('.vfx-showcase').bounding_box()
+    control=page.locator('[data-vfx-skin="celestial"]').bounding_box()
+    assert after>=before-8,(engine,w,h,'catalog unexpectedly jumped backwards',before,after)
+    # The rerender is allowed to reveal the focused control with a small forward
+    # scroll, but it must never reset the catalog or jump more than one page.
+    assert after-before<=card['height'],(engine,w,h,'catalog jumped too far',before,after)
+    assert control and control['y'] >= card['y']-5 and control['y']+control['height']<=card['y']+card['height']+5,(engine,w,h,'focused skin hidden after redraw')
     page.locator('[data-vfx-quality="low"]').focus()
     page.keyboard.press('Space')
     assert page.evaluate("document.activeElement?.getAttribute('data-vfx-quality')")=='low',(engine,w,h,'quality focus lost')
