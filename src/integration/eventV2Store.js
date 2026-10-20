@@ -51,7 +51,11 @@ export function prepareStoredEventState({store,checkpoint}={}){
     return blocked('INVALID_ARGUMENTS');
   let raw;
   try{raw=store.read()}catch(e){return blocked('READ_FAILED',e)}
-  if(raw===null||raw===undefined){
+  // ONLY a trusted null means that the key is genuinely absent. An undefined
+  // read is a malformed or interrupted adapter response, never an empty save.
+  // Reject it before writing so an existing replay/claim ledger cannot be lost.
+  if(raw===undefined)return blocked('READ_FAILED',new TypeError('Event store read returned undefined'));
+  if(raw===null){
     const saved=saveVerified(store,createEventState(),checkpoint);
     return saved.ok?{...saved,status:'INITIALIZED'}:saved;
   }
