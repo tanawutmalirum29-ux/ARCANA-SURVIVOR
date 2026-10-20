@@ -29,8 +29,8 @@ def bounds_ok(page, selector, w, h):
     assert box['x'] >= -1 and box['y'] >= -1 and box['x'] + box['width'] <= w + 1 and box['y'] + box['height'] <= h + 1, (selector, w, h, box)
 
 
-def scenario(browser, browser_name, mode, html=None, main=None):
-    for w, h in SIZES:
+def scenario(browser, browser_name, mode, size, html=None, main=None):
+    for w, h in [size]:
         page = browser.new_page(viewport={'width': w, 'height': h}, has_touch=True, is_mobile=True, device_scale_factor=1)
         errors = []
         page.on('pageerror', lambda e: errors.append(str(e)))
@@ -93,14 +93,16 @@ def main():
     html, module = (None, None) if args.served else modules_and_html()
     with sync_playwright() as p:
         for name in args.browsers:
-            kwargs = {}
-            if name == 'chromium' and args.embedded and os.environ.get('ARCANA_CHROMIUM_PATH'):
-                kwargs = {'executable_path': os.environ['ARCANA_CHROMIUM_PATH'], 'args': ['--no-sandbox']}
-            browser = getattr(p, name).launch(headless=True, **kwargs)
-            try:
-                scenario(browser, name, 'served' if args.served else 'embedded', html, module)
-            finally:
-                browser.close()
+            # Isolate Canvas/GPU state between browser viewports to prevent WebKit crashes.
+            for size in SIZES:
+                kwargs = {}
+                if name == 'chromium' and args.embedded and os.environ.get('ARCANA_CHROMIUM_PATH'):
+                    kwargs = {'executable_path': os.environ['ARCANA_CHROMIUM_PATH'], 'args': ['--no-sandbox']}
+                browser = getattr(p, name).launch(headless=True, **kwargs)
+                try:
+                    scenario(browser, name, 'served' if args.served else 'embedded', size, html, module)
+                finally:
+                    browser.close()
     print('QA COMPLETE:', len(args.browsers) * len(SIZES), 'browser/viewport combinations')
 
 
