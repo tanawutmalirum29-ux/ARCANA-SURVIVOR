@@ -45,7 +45,7 @@ def scenario(browser, browser_name, mode, size, html=None, main=None):
         page.locator('[data-action="start"]').wait_for()
         page.locator('[data-action="start"]').focus()
         assert page.evaluate("document.activeElement?.dataset.action") == 'start', (browser_name, w, h, 'keyboard focus unavailable')
-        assert page.evaluate("getComputedStyle(document.body).userSelect") == 'none', (browser_name, w, h, 'OS text selection not prevented')
+        assert page.evaluate("() => { const style = getComputedStyle(document.body); return style.userSelect === 'none' || style.webkitUserSelect === 'none'; }"), (browser_name, w, h, 'OS text selection not prevented')
         assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1"), (browser_name, w, h, 'horizontal overflow')
         bounds_ok(page, '.main-card', w, h)
         page.locator('[data-action="settings"]').click()
