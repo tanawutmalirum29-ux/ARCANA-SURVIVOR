@@ -75,7 +75,7 @@ def scenario(browser, browser_name, mode, size, html=None, main=None):
         page.locator('#pause-btn').click()
         page.locator('[data-action="home"]').click()
         page.locator('[data-action="wardrobe"]').click()
-        assert page.locator('.skin-card').count() == 3
+        assert page.locator('.skin-card').count() == 8
         bounds_ok(page, '.main-card', w, h)
         page.locator('[data-action="home"]').click()
         assert not errors, (browser_name, w, h, errors)

@@ -41,7 +41,10 @@ function playerAvatar(ctx,x,y,profile,s,t){
  ctx.save();ctx.translate(x,y);ctx.globalAlpha=s.player.invuln>0 && s.player.invuln%8<4?.45:1;
  ellipse(ctx,0,15,21,9,'rgba(0,0,0,.42)');glow(ctx,0,0,skin.glow,50,profile.settings.vfx==='low'?.18:.35);
  if(profile.settings.vfx==='high'){
-   for(let a=0;a<5;a++){const angle=a*PI2/5+t*.7;diamond(ctx,Math.cos(angle)*27,Math.sin(angle)*18+motion*.4,3,skin.glow)}
+   const tier={COMMON:3,EPIC:5,LEGENDARY:7,MYTHIC:9}[skin.rarity]||3;
+   for(let a=0;a<tier;a++){const angle=a*PI2/tier+t*(skin.rarity==='MYTHIC'?1.05:.7);
+     const r=skin.rarity==='MYTHIC'?35:27;diamond(ctx,Math.cos(angle)*r,Math.sin(angle)*r*.68+motion*.4,skin.rarity==='MYTHIC'?4:3,skin.glow)}
+   if(skin.rarity==='LEGENDARY'||skin.rarity==='MYTHIC'){ring(ctx,0,0,34,skin.glow,1.4)}
  }
  ctx.fillStyle=skin.glow;ctx.beginPath();ctx.moveTo(-13,2);ctx.lineTo(-18,24);ctx.lineTo(0,16+motion*.3);ctx.lineTo(18,24);ctx.lineTo(13,2);ctx.closePath();ctx.fill();
  ctx.strokeStyle='rgba(252,232,184,.75)';ctx.lineWidth=1.5;ctx.stroke();
@@ -69,6 +72,7 @@ function enemyAvatar(ctx,e,t){
  ctx.restore();
 }
 export function drawScene(canvas,ctx,s,profile,time=0){
+ const skin=COSMETICS.find(x=>x.id===profile.skin)||COSMETICS[0];
  const bounds=canvas.getBoundingClientRect(),w=bounds.width||360,h=bounds.height||640;
  const dpr=Math.min(window.devicePixelRatio||1,2);const pw=Math.round(w*dpr),ph=Math.round(h*dpr);
  if(canvas.width!==pw||canvas.height!==ph){canvas.width=pw;canvas.height=ph}
@@ -78,7 +82,7 @@ export function drawScene(canvas,ctx,s,profile,time=0){
  ctx.save();ctx.translate(-cam.x,-cam.y);
  for(const o of s.pickups){glow(ctx,o.x,o.y,'#61dcc9',26,.24);diamond(ctx,o.x,o.y,7,'#6de7e0');diamond(ctx,o.x,o.y,3,'#fff9dc')}
  for(const e of s.enemies)enemyAvatar(ctx,e,time);
- for(const b of s.shots){glow(ctx,b.x,b.y,'#88ceff',23,.45);ring(ctx,b.x,b.y,b.radius+1,'#d0edff',3);diamond(ctx,b.x,b.y,5,'#fff4da')}
+ for(const b of s.shots){glow(ctx,b.x,b.y,skin.glow,profile.settings.vfx==='low'?15:27,.4);ring(ctx,b.x,b.y,b.radius+1,skin.projectile,3);diamond(ctx,b.x,b.y,5,skin.color)}
  for(const b of s.hostileShots){glow(ctx,b.x,b.y,'#ff587e',30,.3);ring(ctx,b.x,b.y,b.radius,'#ff9c9f',4)}
  for(const f of s.flashes){
   const alpha=Math.min(.65,f.ttl/18*.42);ctx.globalAlpha=alpha;

@@ -39,7 +39,7 @@ function showLobby(){
 function showWardrobe(){screen='wardrobe';setPlayingUI(false);
  const cards=COSMETICS.map(s=>{const owned=profile.owned.includes(s.id),equipped=profile.skin===s.id;
    const buy=s.id==='ember'&&!owned&&profile.gold>=120;
-   return `<div class="skin-card ${equipped?'active':''}" style="--skin-color:${s.glow}"><div class="skin-dot" style="background:${s.color}"></div><div class="skin-info"><b>${s.name}</b><small>${s.th} · ${s.rarity}</small><span>${s.desc}</span></div><button class="button tiny ${equipped?'accent':'secondary'}" type="button" ${!owned&&!buy?'disabled':''} data-action="${owned?'equip':buy?'unlock':'locked'}" data-id="${s.id}">${equipped?'สวมอยู่':owned?'สวมใส่':buy?'120 GOLD':'ล็อก'}</button></div>`;
+   return `<div class="skin-card ${equipped?'active':''}" style="--skin-color:${s.glow}"><div class="skin-dot" style="background:${s.color}"></div><div class="skin-info"><b>${s.name}</b><small>${s.th} · ${s.rarity} · ${s.source}</small><span>${s.desc}</span></div><button class="button tiny ${equipped?'accent':'secondary'}" type="button" ${!owned&&!buy?'disabled':''} data-action="${owned?'equip':buy?'unlock':'locked'}" data-id="${s.id}">${equipped?'สวมอยู่':owned?'สวมใส่':buy?'120 GOLD':'ล็อก'}</button></div>`;
  }).join('');
  panel(`<section class="main-card menu-card"><div class="eyebrow">COLLECTION</div><h2>WARDROBE</h2><p class="muted">ทุกชุดมีค่าพลังเท่ากัน · รับสกินได้ฟรีจากการเล่น</p><div class="currency-pill">✦ ${profile.gold} GOLD</div><div class="skins">${cards}</div><button class="button secondary wide" data-action="home" type="button">← กลับล็อบบี้</button></section>`,'menu-overlay');
 }
