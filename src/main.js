@@ -5,7 +5,7 @@ import {COSMETICS,loadProfile,saveProfile,awardRun,unlockGoldCosmetic} from './s
 const $=id=>document.getElementById(id);
 const canvas=$('scene'),ctx=canvas.getContext('2d',{alpha:false});
 let profile=loadProfile(),game=createGame(73001),screen='lobby',paused=false,lastTime=0,accumulator=0,lastHud=0;
-const heldKeys=new Set();const touch={x:0,y:0,active:false,pointerId:null};
+const heldKeys=new Set();const touch={x:0,y:0,active:false,pointerId:null,originX:0,originY:0};
 let toastUntil=0;
 const profileSkin=()=>COSMETICS.find(x=>x.id===profile.skin)||COSMETICS[0];
 function persist(){if(!saveProfile(profile))notify('ไม่สามารถบันทึกข้อมูลในเบราว์เซอร์นี้ได้')}
@@ -97,15 +97,30 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden&&screen==='
 const joystick=$('joystick'),knob=$('knob');
 function moveTouch(e){
  if(touch.pointerId!==e.pointerId)return;
- const rect=joystick.getBoundingClientRect();const centerX=rect.left+rect.width/2,centerY=rect.top+rect.height/2;
- const dx=e.clientX-centerX,dy=e.clientY-centerY;const magnitude=Math.hypot(dx,dy)||1,range=rect.width*.32;
+ const dx=e.clientX-touch.originX,dy=e.clientY-touch.originY;
+ const magnitude=Math.hypot(dx,dy)||1,range=joystick.getBoundingClientRect().width*.32;
  const scale=Math.min(1,range/magnitude),mx=dx*scale,my=dy*scale;
  touch.x=mx/range;touch.y=my/range;knob.style.transform=`translate(${mx}px,${my}px)`;
 }
-function releaseTouch(e){if(e&&touch.pointerId!==e.pointerId)return;touch.active=false;touch.pointerId=null;touch.x=0;touch.y=0;knob.style.transform='translate(0,0)'}
-joystick.addEventListener('pointerdown',e=>{if(screen!=='play'||touch.active)return;e.preventDefault();touch.pointerId=e.pointerId;touch.active=true;joystick.setPointerCapture(e.pointerId);moveTouch(e)});
-joystick.addEventListener('pointermove',e=>{if(touch.active)moveTouch(e)});
-joystick.addEventListener('pointerup',releaseTouch);joystick.addEventListener('pointercancel',releaseTouch);joystick.addEventListener('lostpointercapture',releaseTouch);
+function releaseTouch(e){
+ if(e&&touch.pointerId!==e.pointerId)return;
+ touch.active=false;touch.pointerId=null;touch.x=0;touch.y=0;
+ knob.style.transform='translate(0px,0px)';joystick.classList.remove('active');
+}
+// The point where a drag begins is the joystick origin; the canvas owns pointer capture.
+canvas.addEventListener('pointerdown',e=>{
+ if(screen!=='play'||touch.active||(e.pointerType==='mouse'&&e.button!==0))return;
+ e.preventDefault();
+ const rect=canvas.getBoundingClientRect();
+ touch.pointerId=e.pointerId;touch.active=true;touch.originX=e.clientX;touch.originY=e.clientY;
+ joystick.style.left=`${e.clientX-rect.left}px`;joystick.style.top=`${e.clientY-rect.top}px`;
+ joystick.classList.add('active');
+ canvas.setPointerCapture(e.pointerId);moveTouch(e);
+});
+canvas.addEventListener('pointermove',e=>{if(touch.active)moveTouch(e)});
+canvas.addEventListener('pointerup',releaseTouch);
+canvas.addEventListener('pointercancel',releaseTouch);
+canvas.addEventListener('lostpointercapture',releaseTouch);
 function inputVector(){let x=touch.x,y=touch.y;for(const key of heldKeys){const [vx,vy]=movingKeys[key];x+=vx;y+=vy}return {x,y}}
 function frame(ts){
  const delta=lastTime?Math.min(.05,(ts-lastTime)/1000):0;lastTime=ts;

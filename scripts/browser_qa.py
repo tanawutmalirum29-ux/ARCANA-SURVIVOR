@@ -57,21 +57,26 @@ def scenario(browser, browser_name, mode, size, html=None, main=None):
         page.locator('[data-action="start"]').click()
         assert page.locator('#overlay').is_hidden()
         assert page.locator('#hud').is_visible()
-        assert page.locator('#joystick').is_visible() == touch_enabled, (browser_name, w, h, 'unexpected joystick visibility')
+        assert page.locator('#joystick').is_visible(), (browser_name, w, h, 'missing joystick layer')
+        assert page.locator('#joystick').evaluate("(el) => getComputedStyle(el).opacity === '0'"), (browser_name, w, h, 'idle joystick not hidden')
         for selector in ('#hud', '#pause-btn'):
             bounds_ok(page, selector, w, h)
-        if touch_enabled:
-            bounds_ok(page, '#joystick', w, h)
-            # Pointer capture and touch emulation; this is NOT physical iOS/Android evidence.
-            stick = page.locator('#joystick').bounding_box()
-            x, y = stick['x'] + stick['width'] / 2, stick['y'] + stick['height'] / 2
+        # Verify floating origins at different positions on both desktop and mobile.
+        # Browser pointer/touch emulation is not physical iOS/Android evidence.
+        for x, y in ((w * .72, h * .60), (w * .30, h * .72)):
             page.mouse.move(x, y)
             page.mouse.down()
+            assert page.locator('#joystick').evaluate("(el) => el.classList.contains('active')"), 'joystick did not activate'
+            stick = page.locator('#joystick').bounding_box()
+            assert abs(stick['x'] + stick['width'] / 2 - x) < 2, 'joystick origin x not floating'
+            assert abs(stick['y'] + stick['height'] / 2 - y) < 2, 'joystick origin y not floating'
             page.mouse.move(x + min(22, stick['width'] * .20), y, steps=3)
             assert 'translate' in page.locator('#knob').get_attribute('style'), 'joystick drag did not update knob'
             page.mouse.up()
+            assert not page.locator('#joystick').evaluate("(el) => el.classList.contains('active')"), 'joystick did not hide'
             assert 'translate(0px, 0px)' in page.locator('#knob').get_attribute('style'), 'joystick did not release'
-            page.touchscreen.tap(x, y)
+        if touch_enabled:
+            page.touchscreen.tap(w * .72, h * .65)
         page.keyboard.down('ArrowRight')
         page.wait_for_timeout(200)
         page.keyboard.up('ArrowRight')
