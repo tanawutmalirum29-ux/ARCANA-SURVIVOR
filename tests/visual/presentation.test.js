@@ -38,6 +38,17 @@ test('locked premium, event, season and craft skins cannot equip or claim', () =
   assert.equal(getSkinPreview('apprentice', basic).canEquip, false);
 });
 
+test('forged premium ownership remains locked with no purchase or equip', () => {
+  const forged = { ...basic, skin: 'crimson', owned: ['apprentice','crimson','celestial'] };
+  for (const id of ['crimson','celestial']) {
+    const item = getSkinPreview(id, forged);
+    assert.equal(item.owned, false);
+    assert.equal(item.equipped, false);
+    assert.equal(item.canEquip, false);
+    assert.equal(item.premiumPreview, true);
+  }
+});
+
 test('only inventory ownership determines equip eligibility', () => {
   const inconsistentProfile = { ...basic, skin: 'crimson', owned: ['apprentice'] };
   const locked = getSkinPreview('crimson', inconsistentProfile);
