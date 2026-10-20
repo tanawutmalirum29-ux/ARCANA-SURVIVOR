@@ -237,8 +237,6 @@ test("key validation is bounded and catalog is not vulnerable to prototype IDs",
     const r = applyEconomyCommand(s, {
       type: "EARN_GOLD", idempotencyKey: key, sourceRef: "test:fixture", amount: 10
     });
-    // Plain '../path' is allowed as an opaque stable ID; it is never used as a file path.
-    if (key === "../path") assert.equal(r.result.code, "APPLIED");
-    else assert.equal(r.result.code, "INVALID_COMMAND");
+    assert.equal(r.result.code, "INVALID_COMMAND");
   }
 });
