@@ -34,12 +34,13 @@ function backdrop(ctx, w,h,cam,s,t){
  ctx.restore();
 }
 function glow(ctx,x,y,color,r=25,intensity=.5){
+ if(intensity<=0)return;
  const g=ctx.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,color);g.addColorStop(1,'transparent');ctx.globalAlpha=intensity;ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,r,0,PI2);ctx.fill();ctx.globalAlpha=1;
 }
 function playerAvatar(ctx,x,y,profile,s,t,options){
  const skin=COSMETICS.find(x=>x.id===profile.skin)||COSMETICS[0];
  const motion=options.reducedMotion?0:Math.sin(t*4)*3;
- ctx.save();ctx.translate(x,y);ctx.globalAlpha=s.player.invuln>0 && s.player.invuln%8<4?.45:1;
+ ctx.save();ctx.translate(x,y);ctx.globalAlpha=options.reducedMotion?1:(s.player.invuln>0 && s.player.invuln%8<4?.45:1);
  ellipse(ctx,0,15,21,9,'rgba(0,0,0,.42)');glow(ctx,0,0,skin.glow,50,.35*options.glow);
  if(options.particles>0){
    const tier=options.quality==='high'?({COMMON:3,EPIC:5,LEGENDARY:7,MYTHIC:9}[skin.rarity]||3):3;
@@ -53,8 +54,8 @@ function playerAvatar(ctx,x,y,profile,s,t,options){
  diamond(ctx,0,-9+motion*.3,6,GOLD);ring(ctx,0,-13+motion*.3,18,skin.glow,1.6);
  ctx.restore();
 }
-function enemyAvatar(ctx,e,t){
- ctx.save();ctx.translate(e.x,e.y);const flash=e.flash>0;
+function enemyAvatar(ctx,e,t,reducedMotion=false){
+ ctx.save();ctx.translate(e.x,e.y);const flash=e.flash>0&&!reducedMotion;
  const config={swarmer:['#b86cce','#72429d'],brute:['#ef8577','#993f63'],cultist:['#6fa7d8','#356297'],boss:['#e9c37d','#8f639e']}[e.type];
  const [light,dark]=config;
  ellipse(ctx,0,e.radius*.75,e.radius*1.1,e.radius*.4,'#0104177f');
@@ -84,7 +85,7 @@ export function drawScene(canvas,ctx,s,profile,time=0){
  backdrop(ctx,w,h,cam,s,options.reducedMotion?0:time);
  ctx.save();ctx.translate(-cam.x,-cam.y);
  for(const o of s.pickups){glow(ctx,o.x,o.y,'#61dcc9',26,.24*options.glow);diamond(ctx,o.x,o.y,7,'#6de7e0');diamond(ctx,o.x,o.y,3,'#fff9dc')}
- for(const e of s.enemies)enemyAvatar(ctx,e,options.reducedMotion?0:time);
+ for(const e of s.enemies)enemyAvatar(ctx,e,options.reducedMotion?0:time,options.reducedMotion);
  for(const b of s.shots){glow(ctx,b.x,b.y,skin.glow,options.quality==='high'?27:15,.4*options.glow);ring(ctx,b.x,b.y,b.radius+1,skin.projectile,3);diamond(ctx,b.x,b.y,5,skin.color)}
  for(const b of s.hostileShots){glow(ctx,b.x,b.y,'#ff587e',30,.3*options.glow);ring(ctx,b.x,b.y,b.radius,'#ff9c9f',4)}
  for(const f of s.flashes){
