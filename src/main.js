@@ -1,4 +1,4 @@
-import {createGame,step,chooseUpgrade,formatTime,getReward,UPGRADE_DESCRIPTIONS} from './engine.js';
+import {createGame,step,chooseUpgrade,formatTime,getReward,UPGRADE_DESCRIPTIONS,BOSS_AT} from './engine.js';
 import {drawScene} from './render.js';
 import {COSMETICS,loadProfile,saveProfile,awardRun,unlockGoldCosmetic} from './storage.js';
 
@@ -49,7 +49,7 @@ function showSettings(from='lobby'){
 }
 function startRun(){
  game=createGame(73001+profile.runs*79);screen='play';paused=false;accumulator=0;heldKeys.clear();touch.x=touch.y=0;touch.active=false;
- hideOverlay();setPlayingUI(true);updateHud();notify('เอาชีวิตรอดจนบอสปรากฏตัวที่ 01:10');
+ hideOverlay();setPlayingUI(true);updateHud();notify(`เอาชีวิตรอดจนบอสปรากฏตัวที่ ${formatTime(BOSS_AT * 60)}`);
 }
 function showUpgrade(){heldKeys.clear();releaseTouch();screen='upgrade';const cards=game.upgrades.map(k=>{const [name,description]=UPGRADE_DESCRIPTIONS[k];return `<button class="upgrade-option" type="button" data-action="upgrade" data-id="${k}"><span class="upgrade-sigil">✧</span><span><b>${name}</b><small>${description}</small></span><span class="chevron">›</span></button>`}).join('');
  panel(`<section class="main-card menu-card upgrade-card"><div class="eyebrow">LEVEL UP — LV ${game.player.level}</div><h2>CHOOSE YOUR POWER</h2><p class="muted">เลือกพรเวทมนตร์ 1 อย่างเพื่อสู้ต่อ</p><div class="upgrade-list">${cards}</div></section>`,'upgrade-overlay');
