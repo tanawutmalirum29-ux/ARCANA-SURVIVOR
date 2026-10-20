@@ -40,7 +40,7 @@ export function auditSeasonEventContent(season, catalog) {
     const tokenSum = tokenRewards.reduce((total, amount) => total + amount, 0);
     if (!Number.isSafeInteger(tokenSum)) errors.push(label + ': unsafe token reward sum');
     if (tokenSum && tokenSum > event.earning_cap) {
-      // Core currently caps against unspent balance; spending must not bypass a cumulative cap.
+      // Conservative fixture budget gate; core v2 additionally enforces cumulative minted caps.
       errors.push(label + ': configured token rewards exceed safe cumulative earning cap');
     }
     if (event.event_shop?.length) {

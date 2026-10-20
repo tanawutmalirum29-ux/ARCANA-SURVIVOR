@@ -76,10 +76,67 @@ export function validateEventCatalog(catalog){
   }
   return {valid:errors.length===0,errors};
 }
-export function createEventState(){return {schemaVersion:1,progress:{},claims:{},tokens:{},purchases:{}};}
+/** v2 stores durable global replay ids and cumulative minted event tokens (offline only). */
+export function createEventState(){
+  return {schemaVersion:2,progress:{},claims:{},tokens:{},purchases:{},
+    seenEventIds:[],mintedTokens:{}};
+}
+/**
+ * Explicit v1 -> v2 migration. Only no-token-history v1 snapshots are provably safe:
+ * old v1 claims did not record token quantities, so even a zero current balance
+ * might conceal spent tokens. Never infer a historic mint balance from remaining cash.
+ * Returns a new object; the caller must persist it before processing new events.
+ */
+export function migrateEventStateV1(legacy){
+  if(!obj(legacy)||legacy.schemaVersion!==1||!['progress','claims','tokens','purchases'].every(k=>obj(legacy[k])))
+    throw new TypeError('Invalid legacy event save');
+  if(Object.keys(legacy.purchases).length||Object.values(legacy.tokens).some(v=>v!==0)||
+    Object.values(legacy.claims).some(c=>!obj(c)||c.kind==='EVENT_TOKEN'))
+    throw new Error('LEGACY_TOKEN_HISTORY_UNKNOWN: keep previous save; offline rewards activation blocked');
+  const ids=[];
+  for(const record of Object.values(legacy.progress)){
+    if(!obj(record)||!Array.isArray(record.seen)||record.seen.some(id=>typeof id!=='string'||!id))
+      throw new TypeError('Invalid legacy progress: replay history unavailable');
+    for(const id of record.seen)if(!ids.includes(id))ids.push(id);
+  }
+  return stateCopy({...clone(legacy),schemaVersion:2,seenEventIds:ids,mintedTokens:{}});
+}
 function stateCopy(s){
-  if(!obj(s)||s.schemaVersion!==1||!['progress','claims','tokens','purchases'].every(k=>obj(s[k])))
-    throw new TypeError('Invalid event save: explicit migration required');
+  if(!obj(s)||s.schemaVersion!==2||!['progress','claims','tokens','purchases','mintedTokens'].every(k=>obj(s[k]))||
+    !Array.isArray(s.seenEventIds)||s.seenEventIds.some(id=>typeof id!=='string'||!id)||
+    new Set(s.seenEventIds).size!==s.seenEventIds.length)
+    throw new TypeError('Invalid event save v2: explicit migration required');
+  const spent={},claimed={};
+  for(const [key,p] of Object.entries(s.purchases)){
+    const split=key.lastIndexOf('#shop_');
+    if(split<=0||!obj(p)||!positive(p.cost))throw new TypeError('Invalid event purchase ledger');
+    const period=key.slice(0,split);
+    spent[period]=(spent[period]||0)+p.cost;
+    if(!Number.isSafeInteger(spent[period]))throw new TypeError('Unsafe purchase total');
+  }
+  for(const [key,c] of Object.entries(s.claims)){
+    if(!obj(c))throw new TypeError('Invalid reward claim ledger');
+    if(c.kind==='EVENT_TOKEN'){
+      const split=key.lastIndexOf('#');
+      if(split<=0||!nonnegative(c.tokensEarned))throw new TypeError('Invalid token claim history');
+      const period=key.slice(0,split);
+      claimed[period]=(claimed[period]||0)+c.tokensEarned;
+      if(!Number.isSafeInteger(claimed[period]))throw new TypeError('Unsafe token claim total');
+    }
+  }
+  for(const period of new Set([...Object.keys(s.tokens),...Object.keys(s.mintedTokens),
+    ...Object.keys(spent),...Object.keys(claimed)])){
+    const balance=s.tokens[period]??0,minted=s.mintedTokens[period]??0;
+    if(!nonnegative(balance)||!nonnegative(minted)||!Number.isSafeInteger(balance+(spent[period]||0))||
+      minted!==balance+(spent[period]||0)||minted!==(claimed[period]||0))
+      throw new TypeError('Inconsistent cumulative event token ledger');
+  }
+  for(const p of Object.values(s.progress)){
+    if(!obj(p)||!Array.isArray(p.seen)||p.seen.some(id=>typeof id!=='string'||!id))
+      throw new TypeError('Invalid progress replay history');
+    if(p.seen.some(id=>!s.seenEventIds.includes(id)))
+      throw new TypeError('Missing global event replay history');
+  }
   return clone(s);
 }
 function at(utc){const n=parseUtc(utc);if(!Number.isFinite(n))throw new TypeError('UTC timestamp required');return n;}
@@ -108,15 +165,23 @@ export function advanceEventProgress(state,domainEvent,catalog,nowUtc){
   if(!obj(domainEvent)||typeof domainEvent.eventId!=='string'||!domainEvent.eventId||
     !SIGNALS.has(domainEvent.type)||!nonnegative(domainEvent.tick)||!obj(domainEvent.payload||{}))
     throw new TypeError('Invalid domain event');
+  // A domain event may satisfy several active campaigns in its first occurrence,
+  // but must never satisfy *new* daily/weekly periods when replayed later.
+  const replay=next.seenEventIds.includes(domainEvent.eventId);
+  let matchedAny=false;
   for(const e of catalog.events){
     const w=windowAt(e,now);if(!w)continue;
     let record=next.progress[w.key];
+    if(record?.revision!==undefined&&record.revision!==e.revision)
+      throw new Error('Event '+e.id+' revision changed mid-instance; migration required');
+    if(record?.definition!==undefined&&record.definition!==JSON.stringify(e))
+      throw new Error('Event '+e.id+' catalog changed without a revision/migration');
+    if(replay)continue; // do not create a new window or award replay progress
     if(!record){
       record={eventId:e.id,revision:e.revision,definition:JSON.stringify(e),earningCap:e.earning_cap,
         from:w.from,end:w.to,claimUntil:w.claimUntil,seen:[],objectives:{}};
       for(const o of e.objectives)record.objectives[o.id]={count:0,goal:o.goal,reward:clone(o.reward)};
-    }else if(record.revision!==e.revision)throw new Error('Event '+e.id+' revision changed mid-instance; migration required');
-    else if(record.definition!==JSON.stringify(e))throw new Error('Event '+e.id+' catalog changed without a revision/migration');
+    }
     if(record.seen.includes(domainEvent.eventId))continue;
     let matched=false;
     for(const o of e.objectives){
@@ -125,8 +190,9 @@ export function advanceEventProgress(state,domainEvent,catalog,nowUtc){
       const target=record.objectives[o.id];
       target.count=Math.min(target.goal,target.count+1);matched=true;
     }
-    if(matched){record.seen.push(domainEvent.eventId);next.progress[w.key]=record;}
+    if(matched){record.seen.push(domainEvent.eventId);next.progress[w.key]=record;matchedAny=true;}
   }
+  if(matchedAny)next.seenEventIds.push(domainEvent.eventId);
   return {state:next,claimable:claimables(next,now)};
 }
 function intent(reward,id,amount=reward.amount??1){
@@ -145,12 +211,15 @@ export function claimEventReward(state,rewardId,nowUtc){
   if(now>record.claimUntil||now<record.from)return {state:next,rewardIntent:null,status:'EXPIRED'};
   let amount=o.reward.amount??1;
   if(o.reward.kind==='EVENT_TOKEN'){
-    const current=next.tokens[key]||0;
-    amount=Math.max(0,Math.min(amount,(record.earningCap??Number.MAX_SAFE_INTEGER)-current));
+    const current=next.tokens[key]||0,minted=next.mintedTokens[key]||0;
+    // Spending reduces current balance, never the lifetime-earning cap.
+    amount=Math.max(0,Math.min(amount,record.earningCap-minted));
+    next.mintedTokens[key]=minted+amount;
     next.tokens[key]=current+amount;
   }
   const rewardIntent=o.reward.kind==='EVENT_TOKEN'?null:intent(o.reward,rewardId,amount);
-  next.claims[rewardId]={claimedAt:new Date(now).toISOString(),kind:o.reward.kind,intent:rewardIntent,delivered:rewardIntent===null};
+  next.claims[rewardId]={claimedAt:new Date(now).toISOString(),kind:o.reward.kind,intent:rewardIntent,
+    delivered:rewardIntent===null,...(o.reward.kind==='EVENT_TOKEN'?{tokensEarned:amount}:{})};
   return {state:next,rewardIntent,status:'CLAIMED',...(o.reward.kind==='EVENT_TOKEN'?{tokensEarned:amount}:{})};
 }
 export function redeemEventOffer(state,offerId,catalog,nowUtc){
