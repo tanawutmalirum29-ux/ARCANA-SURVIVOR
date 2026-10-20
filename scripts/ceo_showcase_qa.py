@@ -44,6 +44,48 @@ def check(browser,engine,w,h,origin):
     assert not errors,(engine,w,h,errors)
     print('PASS',engine,f'{w}x{h}','showcase lock, preview, quality, motion, persistence, equip')
     page.close()
+def keyboard_and_system_motion(browser,engine,w,h,origin):
+    page=browser.new_page(viewport={'width':w,'height':h},has_touch=True,is_mobile=True,
+                          device_scale_factor=1,reduced_motion='reduce')
+    errors=[]
+    page.on('pageerror',lambda e:errors.append(str(e)))
+    page.goto(origin,wait_until='networkidle')
+    assert page.evaluate("matchMedia('(prefers-reduced-motion: reduce)').matches")
+    # Count scheduled Canvas preview frames, not the game's own 'frame' callback.
+    page.evaluate("""() => {
+      window.__vfxFrames = 0;
+      const native = window.requestAnimationFrame.bind(window);
+      window.requestAnimationFrame = fn => {
+        if (fn.name === 'draw') window.__vfxFrames++;
+        return native(fn);
+      };
+    }""")
+    page.locator('[data-action="wardrobe"]').focus()
+    page.keyboard.press('Enter')
+    page.locator('[data-action="preview"][data-id="apprentice"]').focus()
+    page.keyboard.press('Space')
+    assert page.locator('.vfx-showcase').is_visible()
+    assert page.evaluate('window.__vfxFrames')==0,(engine,w,h,'OS reduced motion scheduled preview frames')
+    # Keyboard activation of low-visibility, last-in-gallery card must preserve focus/scroll.
+    last=page.locator('[data-vfx-skin="celestial"]')
+    last.focus()
+    before=page.locator('.vfx-showcase').evaluate('(el) => el.scrollTop')
+    page.keyboard.press('Enter')
+    focused=page.evaluate("document.activeElement?.getAttribute('data-vfx-skin')")
+    after=page.locator('.vfx-showcase').evaluate('(el) => el.scrollTop')
+    assert focused=='celestial',(engine,w,h,'catalog keyboard focus lost',focused)
+    assert abs(after-before)<=8,(engine,w,h,'catalog scroll position lost',before,after)
+    page.locator('[data-vfx-quality="low"]').focus()
+    page.keyboard.press('Space')
+    assert page.evaluate("document.activeElement?.getAttribute('data-vfx-quality')")=='low',(engine,w,h,'quality focus lost')
+    assert page.evaluate('window.__vfxFrames')==0,(engine,w,h,'OS reduced motion was not respected')
+    page.keyboard.press('Escape')
+    assert page.locator('.vfx-showcase').count()==0
+    assert page.get_by_text('WARDROBE').count()>=1
+    assert not errors,(engine,w,h,errors)
+    page.close()
+    print('PASS',engine,f'{w}x{h}','OS reduced-motion, keyboard, focus/scroll, Escape')
+
 def main():
     ap=argparse.ArgumentParser()
     ap.add_argument('--browsers',nargs='+',default=['chromium','webkit'])
@@ -55,5 +97,9 @@ def main():
                 browser=getattr(p,engine).launch(headless=True)
                 try:check(browser,engine,w,h,origin)
                 finally:browser.close()
-    print('SHOWCASE QA COMPLETE',len(args.browsers)*len(SIZES))
+            for w,h in [(320,568),(844,390)]:
+                browser=getattr(p,engine).launch(headless=True)
+                try:keyboard_and_system_motion(browser,engine,w,h,origin)
+                finally:browser.close()
+    print('SHOWCASE QA COMPLETE',len(args.browsers)*(len(SIZES)+2))
 if __name__=='__main__':main()
