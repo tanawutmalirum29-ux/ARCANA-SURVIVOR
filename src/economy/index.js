@@ -9,7 +9,7 @@ const own = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);
 const plain = value => value !== null && typeof value === "object" && !Array.isArray(value);
 const validAmount = value => Number.isSafeInteger(value) && value > 0 && value <= MAX_AMOUNT;
 const validBalance = value => Number.isSafeInteger(value) && value >= 0 && value <= MAX_EARNED_BALANCE;
-const validKey = value => typeof value === "string" && KEY_PATTERN.test(value);
+const validKey = value => typeof value === "string" && value.length <= 144 && KEY_PATTERN.test(value);
 const validSource = value => validKey(value);
 const knownCosmetic = id => typeof id === "string" && own(FREE_COSMETICS, id);
 const uniqueStrings = (value, check) =>
