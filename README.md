@@ -6,7 +6,7 @@
 Features: arena combat, auto-targeting, 3 enemy archetypes, 4 upgradeable skills, boss encounter, keyboard/touch controls, offline unlockable visual-only skins, settings and local save. **No real payments, online events, seasonal shop, multiplayer or backend yet.** See [implementation status](docs/IMPLEMENTATION_STATUS.md) for QA scope, limitations, and technical stack decision.
 
 
-**สถานะ: PRE-PRODUCTION / DOCUMENTATION BASELINE** — กำหนดทิศทางโครงการแล้ว แต่ยังไม่มีระบบเกมที่พัฒนาเสร็จหรือเปิดขายเงินจริง
+**สถานะ: OFFLINE PROTOTYPE IN MAIN / PARALLEL DEVELOPMENT** — ตัวเกมทดลองเล่นออฟไลน์ได้แล้ว แต่ยังไม่เปิดขายเงินจริงหรือ LiveOps จริง
 
 ARCANA SURVIVOR เป็นเกม 2D fantasy bullet-heaven / survivor สำหรับ Web และมือถือ: ผู้เล่นเดินหลบศัตรู ตัวละครโจมตีอัตโนมัติ เลือกสกิลระหว่างรอบ ต่อสู้กับบอส และสะสมเครื่องแต่งกาย/เอฟเฟกต์ที่สวยงาม
 
@@ -28,6 +28,8 @@ ARCANA SURVIVOR เป็นเกม 2D fantasy bullet-heaven / survivor สำ
 | [แผนพัฒนาและ backlog](docs/ROADMAP_BACKLOG.md) | Phase, dependency, acceptance gates, issues |
 | [QA และ LiveOps](docs/QA_LIVEOPS.md) | ทดสอบมือถือ ความเสี่ยง metrics การปล่อยคอนเทนต์ |
 | [กฎทำงานร่วมกัน](docs/GOVERNANCE.md) | Branch, PR, ownership, คำสั่งงานแบบสั้น |
+| [คู่มือทีมขนาน](docs/TEAM_EXECUTION.md) | ทีม, Role Issues, file ownership, CEO integration, startup messages |
+| [สัญญาเชื่อมโมดูล](docs/TEAM_API_CONTRACT.md) | ESM domain events, rewards, event schedule, CEO wiring |
 
 ## หลักที่ต้องรักษา
 1. เกมเปล่าต้องสนุกก่อนทำร้านค้า; P0 เล่นได้โดยไม่พึ่ง server
@@ -40,4 +42,4 @@ ARCANA SURVIVOR เป็นเกม 2D fantasy bullet-heaven / survivor สำ
 
 [เปิดกระดานงาน GitHub Issues](https://github.com/tanawutmalirum29-ux/ARCANA-SURVIVOR/issues)
 
-**Next action:** เริ่ม Phase 0-1 ตาม [ROADMAP_BACKLOG](docs/ROADMAP_BACKLOG.md) และ GitHub Issues ในรีโปนี้; ยังไม่เปิดระบบขายจริงจนกว่า Payment Gate ผ่าน
+**Next action:** ให้แต่ละแชทผู้รับเริ่มงานด้วยข้อความ `ROLE: AP-ROLE #<issue> <issue-url>` ตาม [TEAM_EXECUTION](docs/TEAM_EXECUTION.md); CEO ตรวจ PR รวมเข้า `main` หลัง QA ผ่าน; การขายเงินจริงยัง HOLD
