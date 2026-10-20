@@ -52,7 +52,7 @@ function interactiveHost() {
           },
           getBoundingClientRect() {
             // The modal may scroll far enough for the last collection item.
-            const top = 130 + ordinal * 48 - card.scrollTop;
+            const top = 130 + ordinal * 30 - card.scrollTop;
             return { top, bottom: top + 40 };
           },
         });
@@ -92,18 +92,18 @@ test('LOW/MEDIUM/HIGH and reduced-motion changes retain focus/scroll and callbac
   const profile = {skin:'apprentice',owned:['apprentice'],settings:{vfx:'high',reduceMotion:false}};
   const before = JSON.stringify(profile);
   const controller = mountSkinShowcase({host,profile,onSettingsChange: settings=>changes.push(settings)});
-  host.card.scrollTop = 230;
+  host.card.scrollTop = 0;
   const quality = host.find('data-vfx-quality','medium');
   quality.focus({preventScroll:true});
   host.dispatch(quality);
   assert.equal(host.activeElement?.getAttribute('data-vfx-quality'),'medium');
   assert.equal(controller.getQuality(),'medium');
-  assert.equal(host.card.scrollTop,230);
+  assert.equal(host.card.scrollTop,0);
   const motion = host.find('data-vfx-motion');
   motion.focus({preventScroll:true});
   host.dispatch(motion);
   assert.equal(host.activeElement?.hasAttribute('data-vfx-motion'),true);
-  assert.equal(host.card.scrollTop,230);
+  assert.equal(host.card.scrollTop,0);
   assert.deepEqual(changes,[
     {vfx:'medium',reduceMotion:false},
     {vfx:'medium',reduceMotion:true},
