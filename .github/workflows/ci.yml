@@ -4,6 +4,7 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+
 jobs:
   unit-and-build:
     runs-on: ubuntu-latest
@@ -20,3 +21,34 @@ jobs:
         run: npm run build
       - name: Validate generated entrypoint
         run: test -s dist/index.html && test -s dist/src/engine.js
+
+  browser-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Playwright and browser dependencies
+        run: |
+          python -m pip install playwright==1.57.0
+          python -m playwright install --with-deps chromium webkit
+      - name: Start real HTTP server
+        run: |
+          node scripts/dev-server.mjs > /tmp/arcana-dev-server.log 2>&1 &
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:4173/ > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/arcana-dev-server.log
+          exit 1
+      - name: Chromium + WebKit on five viewport sizes
+        run: python scripts/browser_qa.py --served --browsers chromium webkit
