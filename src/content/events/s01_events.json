@@ -1,0 +1,263 @@
+{
+  "schema_version": 1,
+  "demo_only": true,
+  "simulation_notice": "Not launch dates; 2030 UTC is a deterministic test calendar only.",
+  "cosmetic_ids": [
+    "cosmetic_star_lantern_trail",
+    "cosmetic_moonlit_petal",
+    "cosmetic_lantern_aura",
+    "cosmetic_warden_halo",
+    "cosmetic_wardenbreaker_title",
+    "cosmetic_comet_ring_aura",
+    "cosmetic_comet_champion_frame"
+  ],
+  "events": [
+    {
+      "id": "event_arcane_orders",
+      "display_name_key": "event.arcane_orders",
+      "type": "daily",
+      "revision": 1,
+      "start_at": "2030-01-07T00:00:00.000Z",
+      "end_at": "2030-04-01T00:00:00.000Z",
+      "claim_until": "2030-04-02T00:00:00.000Z",
+      "grace_hours": 24,
+      "earning_cap": 0,
+      "objectives": [
+        {
+          "id": "finish_run",
+          "signal": "RUN_FINISHED",
+          "goal": 1,
+          "reward": {
+            "kind": "SEASON_XP",
+            "amount": 40
+          }
+        },
+        {
+          "id": "upgrade_skill",
+          "signal": "SKILL_UPGRADED",
+          "goal": 2,
+          "reward": {
+            "kind": "GOLD",
+            "amount": 100
+          }
+        },
+        {
+          "id": "defeat_enemies",
+          "signal": "ENEMY_KILLED",
+          "goal": 15,
+          "reward": {
+            "kind": "DUST",
+            "amount": 10
+          }
+        }
+      ]
+    },
+    {
+      "id": "event_weekly_trials",
+      "display_name_key": "event.weekly_trials",
+      "type": "weekly",
+      "revision": 1,
+      "start_at": "2030-01-07T00:00:00.000Z",
+      "end_at": "2030-04-01T00:00:00.000Z",
+      "claim_until": "2030-04-02T00:00:00.000Z",
+      "grace_hours": 24,
+      "earning_cap": 0,
+      "objectives": [
+        {
+          "id": "win_three",
+          "signal": "RUN_FINISHED",
+          "goal": 3,
+          "reward": {
+            "kind": "SEASON_XP",
+            "amount": 180
+          },
+          "when": {
+            "result": "won"
+          }
+        },
+        {
+          "id": "finish_five",
+          "signal": "RUN_FINISHED",
+          "goal": 5,
+          "reward": {
+            "kind": "DUST",
+            "amount": 25
+          }
+        },
+        {
+          "id": "defeat_boss",
+          "signal": "BOSS_DEFEATED",
+          "goal": 1,
+          "reward": {
+            "kind": "SEASON_XP",
+            "amount": 80
+          }
+        },
+        {
+          "id": "upgrade_twelve",
+          "signal": "SKILL_UPGRADED",
+          "goal": 12,
+          "reward": {
+            "kind": "DUST",
+            "amount": 20
+          }
+        },
+        {
+          "id": "slay_hundred",
+          "signal": "ENEMY_KILLED",
+          "goal": 100,
+          "reward": {
+            "kind": "GOLD",
+            "amount": 350
+          }
+        }
+      ]
+    },
+    {
+      "id": "event_astral_lantern",
+      "display_name_key": "event.astral_lantern",
+      "type": "once",
+      "revision": 1,
+      "start_at": "2030-01-14T00:00:00.000Z",
+      "end_at": "2030-01-28T00:00:00.000Z",
+      "claim_until": "2030-01-29T00:00:00.000Z",
+      "grace_hours": 24,
+      "earning_cap": 250,
+      "objectives": [
+        {
+          "id": "gather_sparks",
+          "signal": "ENEMY_KILLED",
+          "goal": 60,
+          "reward": {
+            "kind": "EVENT_TOKEN",
+            "amount": 100
+          }
+        },
+        {
+          "id": "complete_five_runs",
+          "signal": "RUN_FINISHED",
+          "goal": 5,
+          "reward": {
+            "kind": "EVENT_TOKEN",
+            "amount": 100
+          }
+        },
+        {
+          "id": "constellation_quests",
+          "signal": "SKILL_UPGRADED",
+          "goal": 5,
+          "reward": {
+            "kind": "EVENT_TOKEN",
+            "amount": 50
+          }
+        }
+      ],
+      "event_shop": [
+        {
+          "id": "trail",
+          "cost": 180,
+          "limit": 1,
+          "reward": {
+            "kind": "COSMETIC",
+            "item_id": "cosmetic_star_lantern_trail"
+          }
+        },
+        {
+          "id": "aura",
+          "cost": 40,
+          "limit": 1,
+          "reward": {
+            "kind": "COSMETIC",
+            "item_id": "cosmetic_lantern_aura"
+          }
+        },
+        {
+          "id": "recolor",
+          "cost": 30,
+          "limit": 1,
+          "reward": {
+            "kind": "COSMETIC",
+            "item_id": "cosmetic_moonlit_petal"
+          }
+        }
+      ]
+    },
+    {
+      "id": "event_echoes_warden",
+      "display_name_key": "event.echoes_warden",
+      "type": "once",
+      "revision": 1,
+      "start_at": "2030-02-04T00:00:00.000Z",
+      "end_at": "2030-02-18T00:00:00.000Z",
+      "claim_until": "2030-02-19T00:00:00.000Z",
+      "grace_hours": 24,
+      "earning_cap": 0,
+      "objectives": [
+        {
+          "id": "defeat_once",
+          "signal": "BOSS_DEFEATED",
+          "goal": 1,
+          "reward": {
+            "kind": "COSMETIC",
+            "item_id": "cosmetic_wardenbreaker_title"
+          }
+        },
+        {
+          "id": "defeat_three",
+          "signal": "BOSS_DEFEATED",
+          "goal": 3,
+          "reward": {
+            "kind": "COSMETIC",
+            "item_id": "cosmetic_warden_halo"
+          }
+        },
+        {
+          "id": "defeat_five",
+          "signal": "BOSS_DEFEATED",
+          "goal": 5,
+          "reward": {
+            "kind": "DUST",
+            "amount": 100
+          }
+        }
+      ]
+    },
+    {
+      "id": "event_comet_trials",
+      "display_name_key": "event.comet_trials",
+      "type": "once",
+      "revision": 1,
+      "start_at": "2030-02-25T00:00:00.000Z",
+      "end_at": "2030-03-11T00:00:00.000Z",
+      "claim_until": "2030-03-12T00:00:00.000Z",
+      "grace_hours": 24,
+      "earning_cap": 0,
+      "objectives": [
+        {
+          "id": "challenge_three",
+          "signal": "RUN_FINISHED",
+          "goal": 3,
+          "reward": {
+            "kind": "COSMETIC",
+            "item_id": "cosmetic_comet_ring_aura"
+          },
+          "when": {
+            "mode": "comet_ladder"
+          }
+        },
+        {
+          "id": "challenge_five",
+          "signal": "RUN_FINISHED",
+          "goal": 5,
+          "reward": {
+            "kind": "COSMETIC",
+            "item_id": "cosmetic_comet_champion_frame"
+          },
+          "when": {
+            "mode": "comet_ladder"
+          }
+        }
+      ]
+    }
+  ]
+}
