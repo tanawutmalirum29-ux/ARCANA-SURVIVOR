@@ -113,6 +113,25 @@ test('local-only event SEASON_XP intent cannot be wallet-granted/ACKed',()=>{
  assert.equal(settlePersistedGrant(o).status,'LOCAL_ENGINE_ONLY');
  assert.equal(o.listPending(o.outboxStore.read()).length,1);
 });
+test('daily Event GOLD reward survives post-wallet crash with original event ACK key',()=>{
+ let state=createEventState();
+ for(let i=0;i<2;i++) {
+   state=advanceEventProgress(state,{eventId:'run:event:skill:'+i,runId:'run:event',type:'SKILL_UPGRADED',tick:300+i,payload:{}},events,at).state;
+ }
+ const rewardId='event_arcane_orders@2030-01-07T00:00:00.000Z#upgrade_skill';
+ const claim=claimEventReward(state,rewardId,at);
+ assert.equal(claim.status,'CLAIMED');
+ const o={walletStore:storage(createEconomyState()),outboxStore:storage(claim.state),
+   listPending:listPendingEventGrantIntents,acknowledge:acknowledgeEventGrant,
+   idempotencyKey:claim.rewardIntent.idempotencyKey};
+ assert.throws(()=>settlePersistedGrant({...o,checkpoint:phase=>phase==='after_wallet_write'&&boom()}),/SIMULATED_POWER_LOSS/);
+ assert.equal(o.walletStore.read().balances.gold,100);
+ assert.equal(o.listPending(o.outboxStore.read()).length,1);
+ const recovered=recoverPersistedGrants(o);
+ assert.equal(recovered[0].status,'ALREADY_APPLIED');assert.equal(recovered[0].acknowledged,true);
+ assert.equal(o.walletStore.read().balances.gold,100);
+ assert.equal(o.listPending(o.outboxStore.read()).length,0);
+});
 test('malformed store contract or injected ACK failure does not falsely mark delivered',()=>{
  assert.equal(settlePersistedGrant({}).status,'INVALID_ARGUMENTS');
  const o=options();
