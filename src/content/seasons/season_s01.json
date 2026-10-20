@@ -1,0 +1,742 @@
+{
+  "schema_version": 1,
+  "demo_only": true,
+  "season_id": "season_s01",
+  "display_name_key": "season.starfall_awake",
+  "theme": "STARFALL AWAKENING",
+  "simulation_notice": "2030 dates are test-fixture UTC, not a launch announcement.",
+  "start_at": "2030-01-07T00:00:00.000Z",
+  "end_at": "2030-04-01T00:00:00.000Z",
+  "claim_until": "2030-04-02T00:00:00.000Z",
+  "xp_per_tier": 100,
+  "xp_playtest_budget": {
+    "runs_per_week": 3,
+    "xp_per_run": 80,
+    "weekly_missions_xp": 180,
+    "weeks": 12,
+    "note": "3 x 80 + 180 = 420 XP/week; 12 weeks = 5040 XP; casual player can reach tier 50."
+  },
+  "catchup_rules": {
+    "late_join_mission_xp": 300,
+    "week11_mission_xp": 240,
+    "late_join_mission_once": true,
+    "no_login_streak_required": true
+  },
+  "acts": [
+    {
+      "act": 1,
+      "start_week": 1,
+      "end_week": 3,
+      "chapter_key": "s01.act_1",
+      "brief": "The Falling Star - Astral Ruins awaken"
+    },
+    {
+      "act": 2,
+      "start_week": 4,
+      "end_week": 6,
+      "chapter_key": "s01.act_2",
+      "brief": "Echoes of the Warden - new sky order"
+    },
+    {
+      "act": 3,
+      "start_week": 7,
+      "end_week": 9,
+      "chapter_key": "s01.act_3",
+      "brief": "Shards of the Comet - unstable rifts"
+    },
+    {
+      "act": 4,
+      "start_week": 10,
+      "end_week": 12,
+      "chapter_key": "s01.act_4",
+      "brief": "Firstfall Finale - defeat the Starfall Warden"
+    }
+  ],
+  "event_slots": [
+    {
+      "weeks": [
+        2,
+        3
+      ],
+      "event_id": "event_astral_lantern"
+    },
+    {
+      "weeks": [
+        5,
+        6
+      ],
+      "event_id": "event_echoes_warden"
+    },
+    {
+      "weeks": [
+        8,
+        9
+      ],
+      "event_id": "event_comet_trials"
+    }
+  ],
+  "cosmetic_ids": [
+    "cosmetic_apprentice_azure",
+    "cosmetic_stardust_trail",
+    "cosmetic_starfall_frame",
+    "cosmetic_astral_emote",
+    "cosmetic_astral_title",
+    "cosmetic_starbound_adept",
+    "cosmetic_firstfall_badge",
+    "cosmetic_s01_preview_tier_01",
+    "cosmetic_s01_preview_tier_02",
+    "cosmetic_s01_preview_tier_03",
+    "cosmetic_s01_preview_tier_04",
+    "cosmetic_s01_preview_tier_05",
+    "cosmetic_s01_preview_tier_06",
+    "cosmetic_s01_preview_tier_07",
+    "cosmetic_s01_preview_tier_08",
+    "cosmetic_s01_preview_tier_09",
+    "cosmetic_s01_preview_tier_10",
+    "cosmetic_s01_preview_tier_11",
+    "cosmetic_s01_preview_tier_12",
+    "cosmetic_s01_preview_tier_13",
+    "cosmetic_s01_preview_tier_14",
+    "cosmetic_s01_preview_tier_15",
+    "cosmetic_s01_preview_tier_16",
+    "cosmetic_s01_preview_tier_17",
+    "cosmetic_s01_preview_tier_18",
+    "cosmetic_s01_preview_tier_19",
+    "cosmetic_s01_preview_tier_20",
+    "cosmetic_s01_preview_tier_21",
+    "cosmetic_s01_preview_tier_22",
+    "cosmetic_s01_preview_tier_23",
+    "cosmetic_s01_preview_tier_24",
+    "cosmetic_s01_preview_tier_25",
+    "cosmetic_s01_preview_tier_26",
+    "cosmetic_s01_preview_tier_27",
+    "cosmetic_s01_preview_tier_28",
+    "cosmetic_s01_preview_tier_29",
+    "cosmetic_s01_preview_tier_30",
+    "cosmetic_s01_preview_tier_31",
+    "cosmetic_s01_preview_tier_32",
+    "cosmetic_s01_preview_tier_33",
+    "cosmetic_s01_preview_tier_34",
+    "cosmetic_s01_preview_tier_35",
+    "cosmetic_s01_preview_tier_36",
+    "cosmetic_s01_preview_tier_37",
+    "cosmetic_s01_preview_tier_38",
+    "cosmetic_s01_preview_tier_39",
+    "cosmetic_s01_preview_tier_40",
+    "cosmetic_s01_preview_tier_41",
+    "cosmetic_s01_preview_tier_42",
+    "cosmetic_s01_preview_tier_43",
+    "cosmetic_s01_preview_tier_44",
+    "cosmetic_s01_preview_tier_45",
+    "cosmetic_s01_preview_tier_46",
+    "cosmetic_s01_preview_tier_47",
+    "cosmetic_s01_preview_tier_48",
+    "cosmetic_s01_preview_tier_49",
+    "cosmetic_s01_preview_tier_50"
+  ],
+  "reward_levels": [
+    {
+      "level": 1,
+      "xp_required": 100,
+      "free_reward": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_apprentice_azure"
+      },
+      "premium_preview": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_s01_preview_tier_01"
+      }
+    },
+    {
+      "level": 2,
+      "xp_required": 200,
+      "free_reward": {
+        "kind": "GOLD",
+        "amount": 120
+      },
+      "premium_preview": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_s01_preview_tier_02"
+      }
+    },
+    {
+      "level": 3,
+      "xp_required": 300,
+      "free_reward": {
+        "kind": "DUST",
+        "amount": 15
+      },
+      "premium_preview": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_s01_preview_tier_03"
+      }
+    },
+    {
+      "level": 4,
+      "xp_required": 400,
+      "free_reward": {
+        "kind": "GOLD",
+        "amount": 140
+      },
+      "premium_preview": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_s01_preview_tier_04"
+      }
+    },
+    {
+      "level": 5,
+      "xp_required": 500,
+      "free_reward": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_stardust_trail"
+      },
+      "premium_preview": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_s01_preview_tier_05"
+      }
+    },
+    {
+      "level": 6,
+      "xp_required": 600,
+      "free_reward": {
+        "kind": "DUST",
+        "amount": 15
+      },
+      "premium_preview": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_s01_preview_tier_06"
+      }
+    },
+    {
+      "level": 7,
+      "xp_required": 700,
+      "free_reward": {
+        "kind": "GOLD",
+        "amount": 170
+      },
+      "premium_preview": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_s01_preview_tier_07"
+      }
+    },
+    {
+      "level": 8,
+      "xp_required": 800,
+      "free_reward": {
+        "kind": "GOLD",
+        "amount": 180
+      },
+      "premium_preview": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_s01_preview_tier_08"
+      }
+    },
+    {
+      "level": 9,
+      "xp_required": 900,
+      "free_reward": {
+        "kind": "DUST",
+        "amount": 15
+      },
+      "premium_preview": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_s01_preview_tier_09"
+      }
+    },
+    {
+      "level": 10,
+      "xp_required": 1000,
+      "free_reward": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_starfall_frame"
+      },
+      "premium_preview": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_s01_preview_tier_10"
+      }
+    },
+    {
+      "level": 11,
+      "xp_required": 1100,
+      "free_reward": {
+        "kind": "GOLD",
+        "amount": 210
+      },
+      "premium_preview": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_s01_preview_tier_11"
+      }
+    },
+    {
+      "level": 12,
+      "xp_required": 1200,
+      "free_reward": {
+        "kind": "DUST",
+        "amount": 20
+      },
+      "premium_preview": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_s01_preview_tier_12"
+      }
+    },
+    {
+      "level": 13,
+      "xp_required": 1300,
+      "free_reward": {
+        "kind": "GOLD",
+        "amount": 230
+      },
+      "premium_preview": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_s01_preview_tier_13"
+      }
+    },
+    {
+      "level": 14,
+      "xp_required": 1400,
+      "free_reward": {
+        "kind": "GOLD",
+        "amount": 240
+      },
+      "premium_preview": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_s01_preview_tier_14"
+      }
+    },
+    {
+      "level": 15,
+      "xp_required": 1500,
+      "free_reward": {
+        "kind": "DUST",
+        "amount": 20
+      },
+      "premium_preview": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_s01_preview_tier_15"
+      }
+    },
+    {
+      "level": 16,
+      "xp_required": 1600,
+      "free_reward": {
+        "kind": "GOLD",
+        "amount": 260
+      },
+      "premium_preview": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_s01_preview_tier_16"
+      }
+    },
+    {
+      "level": 17,
+      "xp_required": 1700,
+      "free_reward": {
+        "kind": "GOLD",
+        "amount": 270
+      },
+      "premium_preview": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_s01_preview_tier_17"
+      }
+    },
+    {
+      "level": 18,
+      "xp_required": 1800,
+      "free_reward": {
+        "kind": "DUST",
+        "amount": 20
+      },
+      "premium_preview": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_s01_preview_tier_18"
+      }
+    },
+    {
+      "level": 19,
+      "xp_required": 1900,
+      "free_reward": {
+        "kind": "GOLD",
+        "amount": 290
+      },
+      "premium_preview": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_s01_preview_tier_19"
+      }
+    },
+    {
+      "level": 20,
+      "xp_required": 2000,
+      "free_reward": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_astral_emote"
+      },
+      "premium_preview": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_s01_preview_tier_20"
+      }
+    },
+    {
+      "level": 21,
+      "xp_required": 2100,
+      "free_reward": {
+        "kind": "DUST",
+        "amount": 25
+      },
+      "premium_preview": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_s01_preview_tier_21"
+      }
+    },
+    {
+      "level": 22,
+      "xp_required": 2200,
+      "free_reward": {
+        "kind": "GOLD",
+        "amount": 320
+      },
+      "premium_preview": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_s01_preview_tier_22"
+      }
+    },
+    {
+      "level": 23,
+      "xp_required": 2300,
+      "free_reward": {
+        "kind": "GOLD",
+        "amount": 330
+      },
+      "premium_preview": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_s01_preview_tier_23"
+      }
+    },
+    {
+      "level": 24,
+      "xp_required": 2400,
+      "free_reward": {
+        "kind": "DUST",
+        "amount": 25
+      },
+      "premium_preview": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_s01_preview_tier_24"
+      }
+    },
+    {
+      "level": 25,
+      "xp_required": 2500,
+      "free_reward": {
+        "kind": "GOLD",
+        "amount": 350
+      },
+      "premium_preview": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_s01_preview_tier_25"
+      }
+    },
+    {
+      "level": 26,
+      "xp_required": 2600,
+      "free_reward": {
+        "kind": "GOLD",
+        "amount": 360
+      },
+      "premium_preview": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_s01_preview_tier_26"
+      }
+    },
+    {
+      "level": 27,
+      "xp_required": 2700,
+      "free_reward": {
+        "kind": "DUST",
+        "amount": 25
+      },
+      "premium_preview": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_s01_preview_tier_27"
+      }
+    },
+    {
+      "level": 28,
+      "xp_required": 2800,
+      "free_reward": {
+        "kind": "GOLD",
+        "amount": 380
+      },
+      "premium_preview": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_s01_preview_tier_28"
+      }
+    },
+    {
+      "level": 29,
+      "xp_required": 2900,
+      "free_reward": {
+        "kind": "GOLD",
+        "amount": 390
+      },
+      "premium_preview": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_s01_preview_tier_29"
+      }
+    },
+    {
+      "level": 30,
+      "xp_required": 3000,
+      "free_reward": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_astral_title"
+      },
+      "premium_preview": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_s01_preview_tier_30"
+      }
+    },
+    {
+      "level": 31,
+      "xp_required": 3100,
+      "free_reward": {
+        "kind": "GOLD",
+        "amount": 410
+      },
+      "premium_preview": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_s01_preview_tier_31"
+      }
+    },
+    {
+      "level": 32,
+      "xp_required": 3200,
+      "free_reward": {
+        "kind": "GOLD",
+        "amount": 420
+      },
+      "premium_preview": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_s01_preview_tier_32"
+      }
+    },
+    {
+      "level": 33,
+      "xp_required": 3300,
+      "free_reward": {
+        "kind": "DUST",
+        "amount": 30
+      },
+      "premium_preview": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_s01_preview_tier_33"
+      }
+    },
+    {
+      "level": 34,
+      "xp_required": 3400,
+      "free_reward": {
+        "kind": "GOLD",
+        "amount": 440
+      },
+      "premium_preview": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_s01_preview_tier_34"
+      }
+    },
+    {
+      "level": 35,
+      "xp_required": 3500,
+      "free_reward": {
+        "kind": "GOLD",
+        "amount": 450
+      },
+      "premium_preview": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_s01_preview_tier_35"
+      }
+    },
+    {
+      "level": 36,
+      "xp_required": 3600,
+      "free_reward": {
+        "kind": "DUST",
+        "amount": 30
+      },
+      "premium_preview": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_s01_preview_tier_36"
+      }
+    },
+    {
+      "level": 37,
+      "xp_required": 3700,
+      "free_reward": {
+        "kind": "GOLD",
+        "amount": 470
+      },
+      "premium_preview": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_s01_preview_tier_37"
+      }
+    },
+    {
+      "level": 38,
+      "xp_required": 3800,
+      "free_reward": {
+        "kind": "GOLD",
+        "amount": 480
+      },
+      "premium_preview": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_s01_preview_tier_38"
+      }
+    },
+    {
+      "level": 39,
+      "xp_required": 3900,
+      "free_reward": {
+        "kind": "DUST",
+        "amount": 30
+      },
+      "premium_preview": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_s01_preview_tier_39"
+      }
+    },
+    {
+      "level": 40,
+      "xp_required": 4000,
+      "free_reward": {
+        "kind": "GOLD",
+        "amount": 500
+      },
+      "premium_preview": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_s01_preview_tier_40"
+      }
+    },
+    {
+      "level": 41,
+      "xp_required": 4100,
+      "free_reward": {
+        "kind": "GOLD",
+        "amount": 510
+      },
+      "premium_preview": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_s01_preview_tier_41"
+      }
+    },
+    {
+      "level": 42,
+      "xp_required": 4200,
+      "free_reward": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_starbound_adept"
+      },
+      "premium_preview": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_s01_preview_tier_42"
+      }
+    },
+    {
+      "level": 43,
+      "xp_required": 4300,
+      "free_reward": {
+        "kind": "GOLD",
+        "amount": 530
+      },
+      "premium_preview": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_s01_preview_tier_43"
+      }
+    },
+    {
+      "level": 44,
+      "xp_required": 4400,
+      "free_reward": {
+        "kind": "GOLD",
+        "amount": 540
+      },
+      "premium_preview": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_s01_preview_tier_44"
+      }
+    },
+    {
+      "level": 45,
+      "xp_required": 4500,
+      "free_reward": {
+        "kind": "DUST",
+        "amount": 35
+      },
+      "premium_preview": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_s01_preview_tier_45"
+      }
+    },
+    {
+      "level": 46,
+      "xp_required": 4600,
+      "free_reward": {
+        "kind": "GOLD",
+        "amount": 560
+      },
+      "premium_preview": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_s01_preview_tier_46"
+      }
+    },
+    {
+      "level": 47,
+      "xp_required": 4700,
+      "free_reward": {
+        "kind": "GOLD",
+        "amount": 570
+      },
+      "premium_preview": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_s01_preview_tier_47"
+      }
+    },
+    {
+      "level": 48,
+      "xp_required": 4800,
+      "free_reward": {
+        "kind": "DUST",
+        "amount": 35
+      },
+      "premium_preview": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_s01_preview_tier_48"
+      }
+    },
+    {
+      "level": 49,
+      "xp_required": 4900,
+      "free_reward": {
+        "kind": "GOLD",
+        "amount": 590
+      },
+      "premium_preview": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_s01_preview_tier_49"
+      }
+    },
+    {
+      "level": 50,
+      "xp_required": 5000,
+      "free_reward": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_firstfall_badge"
+      },
+      "premium_preview": {
+        "kind": "COSMETIC",
+        "item_id": "cosmetic_s01_preview_tier_50"
+      }
+    }
+  ],
+  "premium_policy": "DISPLAY_PREVIEW_ONLY; no purchase, entitlement, checkout, or paid unlock in offline prototype.",
+  "archive_policy": "Reward return/re-run requires an announced future policy; never imply permanently unobtainable.",
+  "free_featured_cosmetic_id": "cosmetic_starbound_adept"
+}
