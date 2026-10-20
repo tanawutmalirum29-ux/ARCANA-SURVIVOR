@@ -1,5 +1,6 @@
 import {createGame,step,chooseUpgrade,formatTime,getReward,UPGRADE_DESCRIPTIONS,BOSS_AT} from './engine.js';
 import {drawScene} from './render.js';
+import {createGameAudio} from './audio.js';
 import {COSMETICS,loadProfile,saveProfile,awardRun,unlockGoldCosmetic} from './storage.js';
 
 const $=id=>document.getElementById(id);
@@ -7,6 +8,7 @@ const canvas=$('scene'),ctx=canvas.getContext('2d',{alpha:false});
 let profile=loadProfile(),game=createGame(73001),screen='lobby',paused=false,lastTime=0,accumulator=0,lastHud=0;
 const heldKeys=new Set();const touch={x:0,y:0,active:false,pointerId:null,originX:0,originY:0};
 let toastUntil=0;
+const sound=createGameAudio();
 const profileSkin=()=>COSMETICS.find(x=>x.id===profile.skin)||COSMETICS[0];
 function persist(){if(!saveProfile(profile))notify('ไม่สามารถบันทึกข้อมูลในเบราว์เซอร์นี้ได้')}
 function notify(msg){$('toast').textContent=msg;$('toast').classList.remove('hidden');toastUntil=performance.now()+2800}
@@ -45,24 +47,26 @@ function showWardrobe(){screen='wardrobe';setPlayingUI(false);
 }
 function showSettings(from='lobby'){
  screen='settings';window.__returnTo=from;
- panel(`<section class="main-card menu-card"><div class="eyebrow">GAME OPTIONS</div><h2>SETTINGS</h2><div class="setting-row"><div><b>คุณภาพเอฟเฟกต์</b><small>ปรับความสวยให้เหมาะกับอุปกรณ์</small></div><button class="button secondary" type="button" data-action="vfx">${profile.settings.vfx==='high'?'HIGH':'LOW'}</button></div><div class="setting-row"><div><b>ลดการเคลื่อนไหว</b><small>ปิดการขยับตกแต่งและแสงมากเกินไป</small></div><button class="button secondary" type="button" data-action="motion">${profile.settings.reduceMotion?'ON':'OFF'}</button></div><div class="tip">เดินด้วย WASD / ลูกศร หรือจอยสัมผัส<br>กด Esc เพื่อหยุดเกม · ระบบบันทึกในเครื่องนี้</div><button class="button primary wide" type="button" data-action="back">เสร็จสิ้น</button></section>`,'menu-overlay');
+ panel(`<section class="main-card menu-card"><div class="eyebrow">GAME OPTIONS</div><h2>SETTINGS</h2><div class="setting-row"><div><b>คุณภาพเอฟเฟกต์</b><small>ปรับความสวยให้เหมาะกับอุปกรณ์</small></div><button class="button secondary" type="button" data-action="vfx">${profile.settings.vfx==='high'?'HIGH':'LOW'}</button></div><div class="setting-row"><div><b>ลดการเคลื่อนไหว</b><small>ปิดการขยับตกแต่งและแสงมากเกินไป</small></div><button class="button secondary" type="button" data-action="motion">${profile.settings.reduceMotion?'ON':'OFF'}</button></div><div class="setting-row"><div><b>เสียงเวทมนตร์และเพลง</b><small>สังเคราะห์ในเครื่อง · เล่นออฟไลน์</small></div><button class="button secondary" type="button" data-action="sound">${sound.isEnabled()?'SOUND ON':'SOUND OFF'}</button></div><div class="tip">เดินด้วย WASD / ลูกศร หรือจอยสัมผัส<br>กด Esc เพื่อหยุดเกม · ระบบบันทึกในเครื่องนี้</div><button class="button primary wide" type="button" data-action="back">เสร็จสิ้น</button></section>`,'menu-overlay');
 }
 function startRun(){
+ sound.unlock();sound.play('start');
  game=createGame(73001+profile.runs*79);screen='play';paused=false;accumulator=0;heldKeys.clear();touch.x=touch.y=0;touch.active=false;
  hideOverlay();setPlayingUI(true);updateHud();notify(`เอาชีวิตรอดจนบอสปรากฏตัวที่ ${formatTime(BOSS_AT * 60)}`);
 }
-function showUpgrade(){heldKeys.clear();releaseTouch();screen='upgrade';const cards=game.upgrades.map(k=>{const [name,description]=UPGRADE_DESCRIPTIONS[k];return `<button class="upgrade-option" type="button" data-action="upgrade" data-id="${k}"><span class="upgrade-sigil">✧</span><span><b>${name}</b><small>${description}</small></span><span class="chevron">›</span></button>`}).join('');
+function showUpgrade(){sound.play('level');heldKeys.clear();releaseTouch();screen='upgrade';const cards=game.upgrades.map(k=>{const [name,description]=UPGRADE_DESCRIPTIONS[k];return `<button class="upgrade-option" type="button" data-action="upgrade" data-id="${k}"><span class="upgrade-sigil">✧</span><span><b>${name}</b><small>${description}</small></span><span class="chevron">›</span></button>`}).join('');
  panel(`<section class="main-card menu-card upgrade-card"><div class="eyebrow">LEVEL UP — LV ${game.player.level}</div><h2>CHOOSE YOUR POWER</h2><p class="muted">เลือกพรเวทมนตร์ 1 อย่างเพื่อสู้ต่อ</p><div class="upgrade-list">${cards}</div></section>`,'upgrade-overlay');
 }
 function finishRun(){
  if(screen==='result')return;heldKeys.clear();releaseTouch();screen='result';setPlayingUI(false);
+ sound.play(game.phase==='won'?'victory':'defeat');
  const reward=getReward(game);profile=awardRun(profile,{gold:reward,kills:game.kills,seconds:game.tick/60});persist();const won=game.phase==='won';
  panel(`<section class="main-card menu-card result-card"><div class="eyebrow">${won?'THE STARS ARE YOURS':'THE FALLEN SHALL RISE'}</div><h2>${won?'VICTORY':'DEFEAT'}</h2><div class="result-icon">${won?'✦':'◇'}</div><p class="muted">${won?'คุณเอาชนะผู้พิทักษ์แห่งดาวตกได้แล้ว':'การเดินทางยังไม่สิ้นสุด ลองใหม่อีกครั้ง'}</p><div class="result-stats"><div><small>TIME</small><b>${formatTime(game.tick)}</b></div><div><small>DEFEATED</small><b>${game.kills}</b></div><div><small>REWARD</small><b>+${reward} ✦</b></div></div><button class="button primary wide" type="button" data-action="start">เล่นอีกครั้ง</button><button class="button secondary wide" type="button" data-action="home">กลับล็อบบี้</button></section>`,'menu-overlay');
 }
-function showPause(){if(screen!=='play')return;heldKeys.clear();releaseTouch();paused=true;screen='pause';
+function showPause(){if(screen!=='play')return;sound.play('pause');heldKeys.clear();releaseTouch();paused=true;screen='pause';
  panel(`<section class="main-card menu-card pause-card"><div class="eyebrow">TIME FROZEN</div><h2>PAUSED</h2><p class="muted">เวลาหยุดระหว่างพัก</p><button class="button primary wide" type="button" data-action="resume">เล่นต่อ</button><button class="button secondary wide" type="button" data-action="settings">ตั้งค่า</button><button class="button secondary wide" type="button" data-action="home">ออกสู่ล็อบบี้</button></section>`,'menu-overlay');
 }
-function resume(){screen='play';paused=false;accumulator=0;lastTime=0;hideOverlay()}
+function resume(){sound.unlock();sound.play('resume');screen='play';paused=false;accumulator=0;lastTime=0;hideOverlay()}
 function handleAction(action,id){
  if(action==='home')return showLobby();
  if(action==='start')return startRun();
@@ -71,6 +75,7 @@ function handleAction(action,id){
  if(action==='back')return window.__returnTo==='pause'?showPauseFromSettings():showLobby();
  if(action==='vfx'){profile.settings.vfx=profile.settings.vfx==='high'?'low':'high';persist();return showSettings(window.__returnTo)}
  if(action==='motion'){profile.settings.reduceMotion=!profile.settings.reduceMotion;persist();return showSettings(window.__returnTo)}
+ if(action==='sound'){sound.setEnabled(!sound.isEnabled());if(sound.isEnabled()){sound.unlock();sound.play('menu')}return showSettings(window.__returnTo)}
  if(action==='pause')return showPause();
  if(action==='resume')return resume();
  if(action==='upgrade') {if(chooseUpgrade(game,id)){screen='play';hideOverlay();updateHud()}return;}
@@ -127,13 +132,21 @@ function frame(ts){
  if(screen==='play'&&!paused){
    accumulator+=delta;
    for(let i=0;i<5&&accumulator>=1/60;i++){
+     const beforeHp=game.player.hp,beforeXp=game.player.xp;
+     const beforeKills=game.kills,beforeShots=game.shots.length,beforeBoss=game.bossSpawned;
      step(game,inputVector());accumulator-=1/60;
+     if(game.player.hp<beforeHp)sound.play('hurt');
+     if(game.kills>beforeKills)sound.play('kill');
+     if(game.player.xp>beforeXp)sound.play('pickup');
+     if(game.shots.length>beforeShots)sound.play('cast');
+     if(!beforeBoss&&game.bossSpawned)sound.play('boss');
      if(game.phase!=='running'){
        if(game.phase==='upgrade')showUpgrade();else finishRun();accumulator=0;break;
      }
    }
    if(ts-lastHud>90){updateHud();lastHud=ts;}
  }
+ sound.update(screen==='play'&&!paused&&!document.hidden);
  drawScene(canvas,ctx,game,profile,ts/1000);
  if(toastUntil&&ts>toastUntil){$('toast').classList.add('hidden');toastUntil=0}
  requestAnimationFrame(frame);
