@@ -50,7 +50,7 @@ test('cosmetics catalog contains no gameplay-power fields and unshipped premium 
   assert.equal(injected.skin, 'apprentice');
 });
 
-test('boss is spawned once at 70 seconds and victory freezes simulation', () => {
+test('boss is spawned once at its configured threshold and victory freezes simulation', () => {
   const game = createGame(2244);
   game.tick = BOSS_AT * 60 - 1;
   step(game);
