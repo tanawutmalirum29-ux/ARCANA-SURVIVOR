@@ -8,11 +8,11 @@ Baseline: `ae1c5706f22ca05a60f4cf4201e6ad3ed63b18fd` (2026-10-20).
 ## Ready-to-run parallel lanes
 | Role | Appointment | Git branch | Owned files | Scope |
 |---|---|---|---|---|
-| ENGINEER-GAME | [#22](../issues/22) | `feat/team-gameplay-balance` | `src/engine.js`, `tests/engine.test.js`, `src/gameplay/**`, `tests/gameplay/**` | Combat #3, skills #4, boss #5 |
-| ENGINEER-VFX | [#23](../issues/23) | `feat/team-visual-skins` | `src/render.js`, `src/styles.css`, `src/visual/**`, `assets/**`, `tests/visual/**` | Skin preview #20, VFX #7, wardrobe #8 |
-| ENGINEER-ECONOMY | [#24](../issues/24) | `feat/team-economy-free` | `src/economy/**`, `src/content/economy/**`, `tests/economy/**`, `docs/ECONOMY_IMPLEMENTATION.md` | Local earned-only Gold/Dust/craft #9, save schema proposal #6 |
-| ENGINEER-EVENTS | [#25](../issues/25) | `feat/team-events-season` | `src/events/**`, `src/content/events/**`, `src/content/seasons/**`, `tests/events/**`, `docs/EVENTS_IMPLEMENTATION.md` | Daily/weekly #10, S01 content #15, 50-level pass prototype #11 |
-| QA-REVIEWER | [#26](../issues/26) | `test/team-qa-regression` | `scripts/browser_qa.py`, `tests/qa/**`, `docs/QA_TEAM_REPORT.md` | independent QA #14 and mobile #2 |
+| ENGINEER-GAME | [#22](https://github.com/tanawutmalirum29-ux/ARCANA-SURVIVOR/issues/22) | `feat/team-gameplay-balance` | `src/engine.js`, `tests/engine.test.js`, `src/gameplay/**`, `tests/gameplay/**` | Combat #3, skills #4, boss #5 |
+| ENGINEER-VFX | [#23](https://github.com/tanawutmalirum29-ux/ARCANA-SURVIVOR/issues/23) | `feat/team-visual-skins` | `src/render.js`, `src/styles.css`, `src/visual/**`, `assets/**`, `tests/visual/**` | Skin preview #20, VFX #7, wardrobe #8 |
+| ENGINEER-ECONOMY | [#24](https://github.com/tanawutmalirum29-ux/ARCANA-SURVIVOR/issues/24) | `feat/team-economy-free` | `src/economy/**`, `src/content/economy/**`, `tests/economy/**`, `docs/ECONOMY_IMPLEMENTATION.md` | Local earned-only Gold/Dust/craft #9, save schema proposal #6 |
+| ENGINEER-EVENTS | [#25](https://github.com/tanawutmalirum29-ux/ARCANA-SURVIVOR/issues/25) | `feat/team-events-season` | `src/events/**`, `src/content/events/**`, `src/content/seasons/**`, `tests/events/**`, `docs/EVENTS_IMPLEMENTATION.md` | Daily/weekly #10, S01 content #15, 50-level pass prototype #11 |
+| QA-REVIEWER | [#26](https://github.com/tanawutmalirum29-ux/ARCANA-SURVIVOR/issues/26) | `test/team-qa-regression` | `scripts/browser_qa.py`, `tests/qa/**`, `docs/QA_TEAM_REPORT.md` | independent QA #14 and mobile #2 |
 
 **CEO-only shared wiring:** `src/main.js`, `src/storage.js`, `index.html`, `package.json`, `.github/workflows/ci.yml` and source-wide architecture refactors. No engineer touches these without an explicit CEO-issued scope revision and an integration lock.
 
