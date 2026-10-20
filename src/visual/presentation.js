@@ -35,7 +35,10 @@ export function visualBudget(quality, reducedMotion = false) {
 export function getSkinPreview(skinId, profile = {}, catalog = COSMETICS) {
   const skin = catalog.find(item => item.id === skinId) || catalog[0];
   if (!skin) return null;
-  const owned = Array.isArray(profile?.owned) && profile.owned.includes(skin.id);
+  // Offline demo never treats a premium preview as an owned entitlement,
+  // even if an unsanitized caller supplies a forged profile.
+  const previewOnly = skin.source.includes('PREMIUM');
+  const owned = !previewOnly && Array.isArray(profile?.owned) && profile.owned.includes(skin.id);
   const equipped = owned && profile.skin === skin.id;
   const route = ROUTES[skin.source] || { label: 'UNKNOWN', availability: 'Unavailable', detail: 'No unlock path is configured.' };
   // Only cosmetic fields are exposed. Preview does not mutate profile or save entitlements.
@@ -44,7 +47,7 @@ export function getSkinPreview(skinId, profile = {}, catalog = COSMETICS) {
     color: skin.color, glow: skin.glow, projectile: skin.projectile, theme: skin.vfx,
     source: route.label, availability: route.availability, sourceDetail: route.detail,
     description: skin.desc, owned, equipped, canEquip: owned && !equipped,
-    premiumPreview: skin.source.includes('PREMIUM'),
+    premiumPreview: previewOnly,
   });
 }
 
