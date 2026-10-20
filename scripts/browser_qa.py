@@ -4,6 +4,7 @@ Neither test mode is a substitute for real phone hardware QA.
 """
 import argparse
 import os
+import subprocess
 from base64 import b64encode
 from pathlib import Path
 from playwright.sync_api import sync_playwright
@@ -31,7 +32,8 @@ def bounds_ok(page, selector, w, h):
 
 def scenario(browser, browser_name, mode, size, html=None, main=None):
     for w, h in [size]:
-        page = browser.new_page(viewport={'width': w, 'height': h}, has_touch=True, is_mobile=True, device_scale_factor=1)
+        touch_enabled = w < 1000  # 1440x900 exercises actual desktop pointer/keyboard mode.
+        page = browser.new_page(viewport={'width': w, 'height': h}, has_touch=touch_enabled, is_mobile=touch_enabled, device_scale_factor=1)
         errors = []
         page.on('pageerror', lambda e: errors.append(str(e)))
         page.on('console', lambda m: errors.append(m.text) if m.type == 'error' else None)
@@ -41,6 +43,10 @@ def scenario(browser, browser_name, mode, size, html=None, main=None):
             page.set_content(html)
             page.add_script_tag(type='module', content=f'import "{main}"')
         page.locator('[data-action="start"]').wait_for()
+        page.locator('[data-action="start"]').focus()
+        assert page.evaluate("document.activeElement?.dataset.action") == 'start', (browser_name, w, h, 'keyboard focus unavailable')
+        assert page.evaluate("() => { const style = getComputedStyle(document.body); return style.userSelect === 'none' || style.webkitUserSelect === 'none'; }"), (browser_name, w, h, 'OS text selection not prevented')
+        assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1"), (browser_name, w, h, 'horizontal overflow')
         bounds_ok(page, '.main-card', w, h)
         page.locator('[data-action="settings"]').click()
         page.locator('[data-action="vfx"]').click()
@@ -51,22 +57,29 @@ def scenario(browser, browser_name, mode, size, html=None, main=None):
         page.locator('[data-action="start"]').click()
         assert page.locator('#overlay').is_hidden()
         assert page.locator('#hud').is_visible()
-        assert page.locator('#joystick').is_visible(), (browser_name, w, h, 'joystick invisible')
-        for selector in ('#hud', '#pause-btn', '#joystick'):
+        assert page.locator('#joystick').is_visible() == touch_enabled, (browser_name, w, h, 'unexpected joystick visibility')
+        for selector in ('#hud', '#pause-btn'):
             bounds_ok(page, selector, w, h)
-        # Actual pointer events + pointer capture. This is emulation, not physical touch hardware.
-        stick = page.locator('#joystick').bounding_box()
-        x, y = stick['x'] + stick['width'] / 2, stick['y'] + stick['height'] / 2
-        page.mouse.move(x, y)
-        page.mouse.down()
-        page.mouse.move(x + min(22, stick['width'] * .20), y, steps=3)
-        assert 'translate' in page.locator('#knob').get_attribute('style'), 'joystick drag did not update knob'
-        page.mouse.up()
-        assert 'translate(0px, 0px)' in page.locator('#knob').get_attribute('style'), 'joystick did not release'
-        page.touchscreen.tap(x, y)
+        if touch_enabled:
+            bounds_ok(page, '#joystick', w, h)
+            # Pointer capture and touch emulation; this is NOT physical iOS/Android evidence.
+            stick = page.locator('#joystick').bounding_box()
+            x, y = stick['x'] + stick['width'] / 2, stick['y'] + stick['height'] / 2
+            page.mouse.move(x, y)
+            page.mouse.down()
+            page.mouse.move(x + min(22, stick['width'] * .20), y, steps=3)
+            assert 'translate' in page.locator('#knob').get_attribute('style'), 'joystick drag did not update knob'
+            page.mouse.up()
+            assert 'translate(0px, 0px)' in page.locator('#knob').get_attribute('style'), 'joystick did not release'
+            page.touchscreen.tap(x, y)
         page.keyboard.down('ArrowRight')
         page.wait_for_timeout(200)
         page.keyboard.up('ArrowRight')
+        # Keyboard-only pause/resume path is independent of tapping pause button.
+        page.keyboard.press('Escape')
+        assert page.get_by_text('PAUSED', exact=True).count() == 1
+        page.keyboard.press('Escape')
+        assert page.locator('#overlay').is_hidden(), (browser_name, w, h, 'Escape resume failed')
         page.locator('#pause-btn').click()
         assert page.get_by_text('PAUSED', exact=True).count() == 1
         bounds_ok(page, '.main-card', w, h)
@@ -79,7 +92,7 @@ def scenario(browser, browser_name, mode, size, html=None, main=None):
         bounds_ok(page, '.main-card', w, h)
         page.locator('[data-action="home"]').click()
         assert not errors, (browser_name, w, h, errors)
-        print('PASS', browser_name, f'{w}x{h}', 'responsive, simulated touch, joystick, keyboard, settings, pause, wardrobe')
+        print('PASS', browser_name, f'{w}x{h}', 'responsive, touch emulation (mobile only), desktop keyboard/focus, settings, pause, wardrobe')
         page.close()
 
 
@@ -90,6 +103,8 @@ def main():
     parser.add_argument('--browsers', nargs='+', default=['chromium', 'webkit'])
     args = parser.parse_args()
     assert args.served != args.embedded, 'Choose exactly one of --served or --embedded'
+    # npm test currently covers tests/*.test.js only; include QA-owned nested Node regressions here.
+    subprocess.run(['node', '--test', 'tests/qa/regression.test.js'], cwd=ROOT, check=True)
     html, module = (None, None) if args.served else modules_and_html()
     with sync_playwright() as p:
         for name in args.browsers:
