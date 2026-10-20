@@ -103,7 +103,10 @@ test('LOW/MEDIUM/HIGH and reduced-motion changes retain focus/scroll and callbac
   motion.focus({preventScroll:true});
   host.dispatch(motion);
   assert.equal(host.activeElement?.hasAttribute('data-vfx-motion'),true);
-  assert.equal(host.card.scrollTop,0);
+  // When the newly focused control starts below the modal, reveal only the
+  // missing portion; retaining scroll=0 here would violate keyboard access.
+  assert.ok(host.card.scrollTop > 0);
+  assert.ok(host.card.scrollTop < 60);
   assert.deepEqual(changes,[
     {vfx:'medium',reduceMotion:false},
     {vfx:'medium',reduceMotion:true},
