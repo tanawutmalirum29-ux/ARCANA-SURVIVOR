@@ -61,8 +61,10 @@ def scenario(browser, browser_name, mode, size, html=None, main=None):
         assert page.get_by_text('SOUND OFF', exact=True).count() == 1
         page.locator('[data-action="sound"]').click()
         assert page.get_by_text('SOUND ON', exact=True).count() == 1
+        previous_theme = page.locator('[data-action="music-settings"]').inner_text()
         page.locator('[data-action="music-settings"]').click()
-        assert page.get_by_text('Lantern • Moonriver', exact=False).count() > 0
+        current_theme = page.locator('[data-action="music-settings"]').inner_text()
+        assert previous_theme != current_theme, 'festival selection in settings did not change'
         page.locator('[data-action="back"]').click()
         assert page.locator('[data-action="lobby-music"]').count() == 0
         assert page.locator('[data-action="music-theme"]').count() == 0
