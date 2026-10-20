@@ -71,3 +71,5 @@ jobs:
           exit 1
       - name: Chromium + WebKit on five viewport sizes
         run: python scripts/browser_qa.py --served --browsers chromium webkit
+      - name: Mounted showcase Chromium + WebKit full viewport gate
+        run: python scripts/ceo_showcase_qa.py --browsers chromium webkit
