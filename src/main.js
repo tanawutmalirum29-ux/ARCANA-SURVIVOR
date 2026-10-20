@@ -1,19 +1,22 @@
 import {createGame,step,chooseUpgrade,formatTime,getReward,UPGRADE_DESCRIPTIONS,BOSS_AT} from './engine.js';
 import {drawScene} from './render.js';
+import {mountSkinShowcase} from './visual/showcase.js';
 import {createGameAudio,captureAudioState,getStepSounds} from './audio.js';
-import {COSMETICS,loadProfile,saveProfile,awardRun,unlockGoldCosmetic} from './storage.js';
+import {COSMETICS,loadProfile,saveProfile,sanitizeProfile,awardRun,unlockGoldCosmetic} from './storage.js';
 
 const $=id=>document.getElementById(id);
 const canvas=$('scene'),ctx=canvas.getContext('2d',{alpha:false});
 let profile=loadProfile(),game=createGame(73001),screen='lobby',paused=false,lastTime=0,accumulator=0,lastHud=0;
 const heldKeys=new Set();const touch={x:0,y:0,active:false,pointerId:null,originX:0,originY:0};
 let toastUntil=0;
+let showcaseController=null;
+function disposeShowcase(){if(showcaseController){showcaseController.dispose();showcaseController=null;}}
 const sound=createGameAudio();
 const profileSkin=()=>COSMETICS.find(x=>x.id===profile.skin)||COSMETICS[0];
 function persist(){if(!saveProfile(profile))notify('ไม่สามารถบันทึกข้อมูลในเบราว์เซอร์นี้ได้')}
 function notify(msg){$('toast').textContent=msg;$('toast').classList.remove('hidden');toastUntil=performance.now()+2800}
-function panel(inner,extra=''){$('overlay').className=`overlay ${extra}`;$('overlay').innerHTML=inner;$('overlay').classList.remove('hidden')}
-function hideOverlay(){$('overlay').classList.add('hidden');$('overlay').innerHTML=''}
+function panel(inner,extra=''){disposeShowcase();$('overlay').className=`overlay ${extra}`;$('overlay').innerHTML=inner;$('overlay').classList.remove('hidden')}
+function hideOverlay(){disposeShowcase();$('overlay').classList.add('hidden');$('overlay').innerHTML=''}
 function updateHud(){
  const p=game.player;
  $('clock').textContent=formatTime(game.tick);
@@ -41,13 +44,38 @@ function showLobby(){
 function showWardrobe(){screen='wardrobe';setPlayingUI(false);
  const cards=COSMETICS.map(s=>{const owned=profile.owned.includes(s.id),equipped=profile.skin===s.id;
    const buy=s.id==='ember'&&!owned&&profile.gold>=120;
-   return `<div class="skin-card ${equipped?'active':''}" style="--skin-color:${s.glow}"><div class="skin-dot" style="background:${s.color}"></div><div class="skin-info"><b>${s.name}</b><small>${s.th} · ${s.rarity} · ${s.source}</small><span>${s.desc}</span></div><button class="button tiny ${equipped?'accent':'secondary'}" type="button" ${!owned&&!buy?'disabled':''} data-action="${owned?'equip':buy?'unlock':'locked'}" data-id="${s.id}">${equipped?'สวมอยู่':owned?'สวมใส่':buy?'120 GOLD':'ล็อก'}</button></div>`;
+   return `<div class="skin-card ${equipped?'active':''}" style="--skin-color:${s.glow}"><div class="skin-dot" style="background:${s.color}"></div><div class="skin-info"><b>${s.name}</b><small>${s.th} · ${s.rarity} · ${s.source}</small><span>${s.desc}</span></div><button class="button tiny secondary" type="button" data-action="preview" data-id="${s.id}">PREVIEW</button><button class="button tiny ${equipped?'accent':'secondary'}" type="button" ${!owned&&!buy?'disabled':''} data-action="${owned?'equip':buy?'unlock':'locked'}" data-id="${s.id}">${equipped?'สวมอยู่':owned?'สวมใส่':buy?'120 GOLD':'ล็อก'}</button></div>`;
  }).join('');
  panel(`<section class="main-card menu-card"><div class="eyebrow">COLLECTION</div><h2>WARDROBE</h2><p class="muted">ทุกชุดมีค่าพลังเท่ากัน · รับสกินได้ฟรีจากการเล่น</p><div class="currency-pill">✦ ${profile.gold} GOLD</div><div class="skins">${cards}</div><button class="button secondary wide" data-action="home" type="button">← กลับล็อบบี้</button></section>`,'menu-overlay');
 }
+function showSkinShowcase(id){
+ if(!COSMETICS.some(s=>s.id===id))return;
+ heldKeys.clear();releaseTouch();screen='showcase';setPlayingUI(false);disposeShowcase();
+ const safe=sanitizeProfile(profile),host=$('overlay');
+ host.className='overlay menu-overlay';host.classList.remove('hidden');
+ showcaseController=mountSkinShowcase({
+   host,profile:safe,initialSkinId:id,quality:safe.settings.vfx,
+   // Honor the OS accessibility preference unless the user explicitly changes
+   // the showcase's reduction control. The preview component owns that toggle.
+   reducedMotion:safe.settings.reduceMotion||window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches===true,
+   onClose:()=>{disposeShowcase();showWardrobe()},
+   onEquip:nextId=>{
+     const actual=sanitizeProfile(profile),item=COSMETICS.find(s=>s.id===nextId);
+     if(!item||item.source.includes('PREMIUM')||!actual.owned.includes(nextId))return;
+     profile=actual;profile.skin=nextId;persist();sound.play('equip');disposeShowcase();showWardrobe();
+   },
+   onSettingsChange:settings=>{
+     if(!['low','medium','high'].includes(settings.vfx))return;
+     const current=sanitizeProfile(profile);
+     current.settings.vfx=settings.vfx;
+     current.settings.reduceMotion=settings.reduceMotion===true;
+     profile=current;persist();
+   }
+ });
+}
 function showSettings(from='lobby'){
  screen='settings';window.__returnTo=from;
- panel(`<section class="main-card menu-card"><div class="eyebrow">GAME OPTIONS</div><h2>SETTINGS</h2><div class="setting-row"><div><b>คุณภาพเอฟเฟกต์</b><small>ปรับความสวยให้เหมาะกับอุปกรณ์</small></div><button class="button secondary" type="button" data-action="vfx">${profile.settings.vfx==='high'?'HIGH':'LOW'}</button></div><div class="setting-row"><div><b>ลดการเคลื่อนไหว</b><small>ปิดการขยับตกแต่งและแสงมากเกินไป</small></div><button class="button secondary" type="button" data-action="motion">${profile.settings.reduceMotion?'ON':'OFF'}</button></div><div class="setting-row"><div><b>เสียงเวทมนตร์และเพลง</b><small>สังเคราะห์ในเครื่อง · เล่นออฟไลน์</small></div><button class="button secondary" type="button" data-action="sound">${sound.isEnabled()?'SOUND ON':'SOUND OFF'}</button></div><div class="setting-row"><div><b>เพลงล็อบบี้ตามเทศกาล</b><small>เปลี่ยนอัตโนมัติตามวันที่หรือเลือกธีมเองได้</small></div><button class="button secondary" type="button" data-action="music-settings">${sound.musicChoices().find(c=>c.id===sound.getMusicChoice())?.label} ↻</button></div><div class="tip">เดินด้วย WASD / ลูกศร หรือจอยสัมผัส<br>กด Esc เพื่อหยุดเกม · ระบบบันทึกในเครื่องนี้</div><button class="button primary wide" type="button" data-action="back">เสร็จสิ้น</button></section>`,'menu-overlay');
+ panel(`<section class="main-card menu-card"><div class="eyebrow">GAME OPTIONS</div><h2>SETTINGS</h2><div class="setting-row"><div><b>คุณภาพเอฟเฟกต์</b><small>ปรับความสวยให้เหมาะกับอุปกรณ์</small></div><button class="button secondary" type="button" data-action="vfx">${profile.settings.vfx.toUpperCase()}</button></div><div class="setting-row"><div><b>ลดการเคลื่อนไหว</b><small>ปิดการขยับตกแต่งและแสงมากเกินไป</small></div><button class="button secondary" type="button" data-action="motion">${profile.settings.reduceMotion?'ON':'OFF'}</button></div><div class="setting-row"><div><b>เสียงเวทมนตร์และเพลง</b><small>สังเคราะห์ในเครื่อง · เล่นออฟไลน์</small></div><button class="button secondary" type="button" data-action="sound">${sound.isEnabled()?'SOUND ON':'SOUND OFF'}</button></div><div class="setting-row"><div><b>เพลงล็อบบี้ตามเทศกาล</b><small>เปลี่ยนอัตโนมัติตามวันที่หรือเลือกธีมเองได้</small></div><button class="button secondary" type="button" data-action="music-settings">${sound.musicChoices().find(c=>c.id===sound.getMusicChoice())?.label} ↻</button></div><div class="tip">เดินด้วย WASD / ลูกศร หรือจอยสัมผัส<br>กด Esc เพื่อหยุดเกม · ระบบบันทึกในเครื่องนี้</div><button class="button primary wide" type="button" data-action="back">เสร็จสิ้น</button></section>`,'menu-overlay');
 }
 function startRun(){
  sound.unlock();sound.play('start');
@@ -74,9 +102,10 @@ function handleAction(action,id){
  if(action==='home'){sound.play('menuBack');return showLobby()}
  if(action==='start')return startRun();
  if(action==='wardrobe'){sound.unlock();sound.play('menuOpen');return showWardrobe()}
+ if(action==='preview'){sound.unlock();sound.play('menuOpen');return showSkinShowcase(id)}
  if(action==='settings'){sound.unlock();sound.play('menuOpen');return showSettings(screen==='play'?'pause':screen)}
  if(action==='back'){sound.play('menuBack');return window.__returnTo==='pause'?showPauseFromSettings():showLobby()}
- if(action==='vfx'){sound.play('switch');profile.settings.vfx=profile.settings.vfx==='high'?'low':'high';persist();return showSettings(window.__returnTo)}
+ if(action==='vfx'){sound.play('switch');profile.settings.vfx=profile.settings.vfx==='high'?'low':profile.settings.vfx==='low'?'medium':'high';persist();return showSettings(window.__returnTo)}
  if(action==='motion'){sound.play('switch');profile.settings.reduceMotion=!profile.settings.reduceMotion;persist();return showSettings(window.__returnTo)}
  if(action==='sound'){sound.setEnabled(!sound.isEnabled());if(sound.isEnabled()){sound.unlock();sound.play('menu')}return showSettings(window.__returnTo)}
  if(action==='music-settings'){
@@ -102,8 +131,8 @@ $('overlay').addEventListener('click',event=>{
 $('pause-btn').addEventListener('click',showPause);
 const movingKeys={ArrowUp:[0,-1],KeyW:[0,-1],ArrowDown:[0,1],KeyS:[0,1],ArrowLeft:[-1,0],KeyA:[-1,0],ArrowRight:[1,0],KeyD:[1,0]};
 window.addEventListener('keydown',e=>{
- if(Object.hasOwn(movingKeys,e.code)){heldKeys.add(e.code);e.preventDefault()}
- if(e.code==='Escape'&&!e.repeat){if(screen==='play')showPause();else if(screen==='pause')resume()}
+ if(screen==='play'&&Object.hasOwn(movingKeys,e.code)){heldKeys.add(e.code);e.preventDefault()}
+ if(e.code==='Escape'&&!e.repeat){if(screen==='play')showPause();else if(screen==='pause')resume();else if(screen==='showcase'){disposeShowcase();showWardrobe()}}
 });
 window.addEventListener('keyup',e=>heldKeys.delete(e.code));
 window.addEventListener('blur',()=>{heldKeys.clear();releaseTouch();if(screen==='play')showPause()});
@@ -150,7 +179,7 @@ function frame(ts){
    }
    if(ts-lastHud>90){updateHud();lastHud=ts;}
  }
- const lobbyVisible=screen==='lobby'||screen==='wardrobe'||
+ const lobbyVisible=screen==='lobby'||screen==='wardrobe'||screen==='showcase'||
    (screen==='settings'&&window.__returnTo!=='pause');
  const musicMode=document.hidden?false:
    screen==='play'&&!paused?'play':lobbyVisible?'lobby':false;

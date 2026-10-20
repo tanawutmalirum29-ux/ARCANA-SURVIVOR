@@ -19,7 +19,7 @@ export function sanitizeProfile(raw) {
   const validIds = DEMO_GRANTABLE;
   const owned = [...new Set(['apprentice', ...(Array.isArray(raw.owned) ? raw.owned : [])].filter(x => validIds.has(x)))];
   const num = n => Number.isFinite(n) ? Math.max(0, Math.min(999999, Math.floor(n))) : 0;
-  const settings = { vfx: raw.settings?.vfx === 'low' ? 'low' : 'high', reduceMotion: raw.settings?.reduceMotion === true };
+  const settings = { vfx: ['low','medium','high'].includes(raw.settings?.vfx) ? raw.settings.vfx : 'high', reduceMotion: raw.settings?.reduceMotion === true };
   return { version: 1, gold: num(raw.gold), totalKills: num(raw.totalKills), runs: num(raw.runs), bestSeconds: num(raw.bestSeconds), skin: owned.includes(raw.skin) ? raw.skin : 'apprentice', owned, settings };
 }
 export function loadProfile(storage) {
