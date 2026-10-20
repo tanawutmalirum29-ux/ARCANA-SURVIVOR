@@ -136,3 +136,75 @@ test('invalid store contract must fail closed without throwing or writing',()=>{
  assert.equal(prepareStoredEventState({}).status,'INVALID_ARGUMENTS');
  assert.equal(commitStoredEventTransition({store:{},transition:()=>({})}).status,'INVALID_ARGUMENTS');
 });
+
+test('transient undefined read must not reset an existing replay ledger or pending claim',()=>{
+ const prior=step(createEventState(),'important:run').state;
+ const rewardId=listClaimableEventRewards(prior,at).find(x=>x.rewardId.includes('#finish_run')).rewardId;
+ const claimed=claimEventReward(prior,rewardId,at).state;
+ const s=store(claimed),initial=copy(s.read());
+ let reads=0;
+ const originalRead=s.read.bind(s);
+ s.read=()=>++reads===1?undefined:originalRead();
+ const outcome=prepareStoredEventState({store:s});
+ assert.equal(outcome.ok,false);
+ assert.equal(outcome.status,'READ_FAILED');
+ assert.equal(s.writes,0);
+ assert.deepEqual(s.persisted,initial);
+ assert.deepEqual(s.read().seenEventIds,['important:run']);
+ assert.equal(listPendingEventGrantIntents(s.read()).length,1);
+ const retried=prepareStoredEventState({store:s});
+ assert.equal(retried.status,'LOADED');
+ assert.deepEqual(retried.state,initial);
+});
+test('repeated undefined reads are errors, never a reason to create a new snapshot',()=>{
+ const prior=step(createEventState(),'idempotent:run').state;
+ const s=store(prior);
+ s.read=()=>undefined;
+ for(let i=0;i<3;i++){
+  const out=prepareStoredEventState({store:s});
+  assert.equal(out.ok,false);
+  assert.equal(out.status,'READ_FAILED');
+ }
+ assert.equal(s.writes,0);
+ assert.deepEqual(s.persisted,prior);
+});
+test('undefined read prevents transition callback and saves zero bytes',()=>{
+ const s=store(step(createEventState(),'important:run').state);
+ s.read=()=>undefined;
+ let transitioned=0;
+ const outcome=commitStoredEventTransition({store:s,transition:state=>{
+  transitioned++;
+  return step(state,'untrusted:run',after);
+ }});
+ assert.equal(outcome.status,'READ_FAILED');
+ assert.equal(transitioned,0);
+ assert.equal(s.writes,0);
+});
+test('thrown/parse read errors and unexpected primitive save types fail closed',()=>{
+ const saved=step(createEventState(),'guarded:run').state;
+ for(const exception of [new Error('decode error'),new Error('quota blocked')]){
+  const s=store(saved);
+  s.read=()=>{throw exception};
+  const out=prepareStoredEventState({store:s});
+  assert.equal(out.status,'READ_FAILED');
+  assert.equal(s.writes,0);
+  assert.deepEqual(s.persisted,saved);
+ }
+ for(const response of ['null',0,false,[],42]){
+  const s=store(saved);
+  s.read=()=>response;
+  const out=prepareStoredEventState({store:s});
+  assert.equal(out.ok,false);
+  assert.equal(out.status,'INVALID_SAVE');
+  assert.equal(s.writes,0);
+  assert.deepEqual(s.persisted,saved);
+ }
+});
+test('trusted null is exclusively verified absence and can initialize safely',()=>{
+ const s=store();
+ const out=prepareStoredEventState({store:s});
+ assert.equal(out.ok,true);
+ assert.equal(out.status,'INITIALIZED');
+ assert.equal(s.writes,1);
+ assert.deepEqual(s.read(),createEventState());
+});
