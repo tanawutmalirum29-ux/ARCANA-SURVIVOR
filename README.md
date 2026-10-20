@@ -43,3 +43,7 @@ ARCANA SURVIVOR เป็นเกม 2D fantasy bullet-heaven / survivor สำ
 [เปิดกระดานงาน GitHub Issues](https://github.com/tanawutmalirum29-ux/ARCANA-SURVIVOR/issues)
 
 **Next action:** ให้แต่ละแชทผู้รับเริ่มงานด้วยข้อความ `ROLE: AP-ROLE #<issue> <issue-url>` ตาม [TEAM_EXECUTION](docs/TEAM_EXECUTION.md); CEO ตรวจ PR รวมเข้า `main` หลัง QA ผ่าน; การขายเงินจริงยัง HOLD
+
+## AWS Amplify Hosting
+
+ตั้งค่า Deploy เว็บเกมผ่าน AWS Amplify Hosting ได้จาก GitHub สาขา `main` โดยใช้ไฟล์ `amplify.yml` และเผยแพร่ไฟล์ใน `dist/` ดูขั้นตอนที่ [คู่มือ Deploy AWS Amplify](docs/DEPLOY_AWS_AMPLIFY.md)
