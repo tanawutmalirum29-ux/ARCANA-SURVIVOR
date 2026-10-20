@@ -27,3 +27,17 @@ Run `node --test tests/events/*.test.js`. The current CEO-owned `package.json` r
 **Not verified:** project-wide npm build, browser/physical devices, gameplay integration, published assets/music/license clearance, content freeze, season staging rehearsal, live server clock, security, paid purchases. This is a self-contained deterministic test prototype, not a live event deployment. Future production requires server-authoritative user identity, signed reward records, payment gates, audit trail, rollback, and archive/rerun policy.
 
 Refs #10 #11 #15; appointment #25; CEO #21.
+
+## Independent config audit after module-only merge (2026-10-20)
+
+The Events source from superseded PR #32 is already in main via CEO PR #34, still **dormant** (no wallet/shop/season UI activation or server-authoritative rewards). This review does not touch the safety-held Economy catalog or create substitute cosmetic mappings.
+
+**New optional static validator:** `auditSeasonEventContent(season,catalog)` from `src/events/contentAudit.js`. It checks the 2030 UTC calendar: full-season recurring ranges, campaign W02–03 / W05–06 / W08–09, campaign grace within season, free casual XP targets, catch-up with no login streak, duplicate cosmetic identifiers, and cap-safe Token Festival reward fixture totals. Returns `{valid,errors}`, never creates grants. CEO must explicitly integrate this audit into a CI/content gate before activation. Run `node --test tests/events/contentAudit.test.js`.
+
+**KNOWN ISSUE — recurrence replay, not fixed by this scoped content audit:** The current daily/weekly engine deduplicates events only inside each recurrence-window `record.seen`. The same stable `domainEvent.eventId` can be counted again after UTC midnight/Monday. Existing `tests/events/core.test.js` reuses `eventId: 'a'` across periods and does not protect against replay. Remains **INERT_OFFLINE_ONLY**. CEO must separately authorize reducer/global-source replay guard plus save migration/boundary tests before activation.
+
+**KNOWN ISSUE — token cap after spending, not fixed in core:** `claimEventReward` bounds token minting against **current unspent balance**, not cumulative lifetime tokens earned. New content audit disallows demonstration configs whose full potential `EVENT_TOKEN` rewards exceed `earning_cap`, reducing risk in S01 fixtures only. Future token shops require authorized earned-total ledger and spend-before-claim regression before activation; arbitrary configs are still unsafe without the audit gate.
+
+**Other holds:** Economy grants require explicit adapters for stable `GOLD`/`DUST`/`COSMETIC` intent types and persistent idempotency keys; unknown cosmetic IDs remain `CONTENT_NOT_AVAILABLE`, never substituted. Economy catalog and its rejected changes are not modified or reproduced. Premium remains display-only; no server, checkout, live grant, real money or launch permission. Independent QA/physical touch and browser integration required.
+
+**Updated root test discovery:** The current CEO-owned `package.json` now runs `node --test` and includes nested tests. The old root-only glob warning in the original verification section above is historical.
