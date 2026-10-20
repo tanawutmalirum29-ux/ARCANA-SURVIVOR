@@ -208,3 +208,27 @@ test('trusted null is exclusively verified absence and can initialize safely',()
  assert.equal(s.writes,1);
  assert.deepEqual(s.read(),createEventState());
 });
+
+test('one transient false-null must never reset existing v2 replay and claim state',()=>{
+ const old=step(createEventState(),'important:existing').state;
+ const claimKey=listClaimableEventRewards(old,at).find(x=>x.rewardId.includes('#finish_run')).rewardId;
+ const saved=claimEventReward(old,claimKey,at).state;
+ const storeInstance=store(saved);const originalRead=storeInstance.read.bind(storeInstance);
+ let calls=0;storeInstance.read=()=>++calls===1?null:originalRead();
+ const result=prepareStoredEventState({store:storeInstance});
+ assert.equal(result.status,'READ_FAILED');assert.equal(result.ok,false);
+ assert.equal(storeInstance.writes,0);
+ assert.deepEqual(storeInstance.persisted,saved);
+ assert.equal(listPendingEventGrantIntents(originalRead()).length,1);
+ assert.equal(prepareStoredEventState({store:storeInstance}).status,'LOADED');
+});
+test('null first read with an undefined or throwing confirmation cannot initialize',()=>{
+ for(const second of [undefined,new Error('decoder failed')]){
+  let count=0;const s=store(step(createEventState(),'guarded:1').state);
+  s.read=()=>{if(++count===1)return null;if(second instanceof Error)throw second;return second};
+  const result=prepareStoredEventState({store:s});
+  assert.equal(result.status,'READ_FAILED');assert.equal(result.ok,false);
+  assert.equal(s.writes,0);
+  assert.deepEqual(s.persisted.seenEventIds,['guarded:1']);
+ }
+});
