@@ -80,3 +80,63 @@ test('unsupported audio and denied persistence never break the game', () => {
   assert.equal(sound.setEnabled(false), false);
   sound.update(true);
 });
+
+test('every extended audio cue synthesizes sound, and cools down under spam', () => {
+  const sound = createGameAudio({ ContextClass: FakeAudioContext, storage: fakeStorage() });
+  sound.unlock();
+  const ctx = FakeAudioContext.last;
+  const cues = [
+    'impact', 'nova', 'chain', 'orbit', 'bossWarning', 'bossAttack',
+    'enemyCast', 'lowHealth', 'upgradeSelect', 'heal', 'equip', 'unlock',
+    'menuOpen', 'menuBack', 'switch'
+  ];
+  for (const cue of cues) {
+    ctx.currentTime += 2;
+    const before = ctx.tones;
+    assert.equal(sound.play(cue), true, cue);
+    assert.ok(ctx.tones > before, cue);
+    assert.equal(sound.play(cue), false, cue + ' ignores cooldown');
+  }
+});
+
+test('passive event bridge observes abilities, boss telegraphs, projectiles and XP without touching state', async () => {
+  const { captureAudioState, getStepSounds } = await import('../src/audio.js');
+  const { createGame, spawnEnemy, step } = await import('../src/engine.js');
+  const game = createGame(616);
+  const plain = captureAudioState(game);
+  const stable = JSON.stringify(game);
+  assert.deepEqual(getStepSounds(plain, game), []);
+  assert.equal(JSON.stringify(game), stable, 'audio cue detection mutated combat');
+
+  game.player.xp = 18;
+  game.pickups.push({id: game.nextId + 1, x: game.player.x, y: game.player.y, xp: 3});
+  game.nextId++;
+  const beforeLevel = captureAudioState(game);
+  step(game);
+  assert.ok(getStepSounds(beforeLevel, game).includes('pickup'), 'pickup at level boundary was silent');
+
+  const withBoss = createGame(99);
+  withBoss.tick = 9 * 60 * 60 - 1;
+  const beforeBoss = captureAudioState(withBoss);
+  step(withBoss);
+  assert.ok(getStepSounds(beforeBoss, withBoss).includes('boss'));
+
+  const prev = captureAudioState(withBoss);
+  withBoss.nextId++;
+  withBoss.flashes.push({ id: withBoss.nextId, type: 'warning' });
+  withBoss.nextId++;
+  withBoss.flashes.push({ id: withBoss.nextId, type: 'nova' });
+  withBoss.nextId++;
+  withBoss.flashes.push({ id: withBoss.nextId, type: 'chain' });
+  withBoss.nextId++;
+  withBoss.hostileShots.push({ id: withBoss.nextId });
+  assert.deepEqual(getStepSounds(prev, withBoss).filter(s => ['bossWarning','nova','chain','enemyCast'].includes(s)),
+    ['bossWarning','nova','chain','enemyCast']);
+
+  const warning = createGame(89);
+  const weak = spawnEnemy(warning, 'brute', warning.player.x + 200, warning.player.y);
+  weak.speed = 0;
+  const beforeDamage = captureAudioState(warning);
+  warning.player.hp = 29;
+  assert.deepEqual(getStepSounds(beforeDamage, warning).filter(s => s === 'hurt' || s === 'lowHealth'), ['hurt','lowHealth']);
+});

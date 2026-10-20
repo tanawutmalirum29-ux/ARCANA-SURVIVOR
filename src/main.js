@@ -1,7 +1,7 @@
 import {createGame,step,chooseUpgrade,formatTime,getReward,UPGRADE_DESCRIPTIONS,BOSS_AT} from './engine.js';
 import {drawScene} from './render.js';
 import {mountSkinShowcase} from './visual/showcase.js';
-import {createGameAudio} from './audio.js';
+import {createGameAudio,captureAudioState,getStepSounds} from './audio.js';
 import {COSMETICS,loadProfile,saveProfile,sanitizeProfile,awardRun,unlockGoldCosmetic} from './storage.js';
 
 const $=id=>document.getElementById(id);
@@ -60,7 +60,7 @@ function showSkinShowcase(id){
    onEquip:nextId=>{
      const actual=sanitizeProfile(profile),item=COSMETICS.find(s=>s.id===nextId);
      if(!item||item.source.includes('PREMIUM')||!actual.owned.includes(nextId))return;
-     profile=actual;profile.skin=nextId;persist();disposeShowcase();showWardrobe();
+     profile=actual;profile.skin=nextId;persist();sound.play('equip');disposeShowcase();showWardrobe();
    },
    onSettingsChange:settings=>{
      if(!['low','medium','high'].includes(settings.vfx))return;
@@ -86,7 +86,10 @@ function showUpgrade(){sound.play('level');heldKeys.clear();releaseTouch();scree
 function finishRun(){
  if(screen==='result')return;heldKeys.clear();releaseTouch();screen='result';setPlayingUI(false);
  sound.play(game.phase==='won'?'victory':'defeat');
- const reward=getReward(game);profile=awardRun(profile,{gold:reward,kills:game.kills,seconds:game.tick/60});persist();const won=game.phase==='won';
+ const reward=getReward(game),hadMoon=profile.owned.includes('moon');
+ profile=awardRun(profile,{gold:reward,kills:game.kills,seconds:game.tick/60});persist();
+ if(!hadMoon&&profile.owned.includes('moon'))sound.play('unlock');
+ const won=game.phase==='won';
  panel(`<section class="main-card menu-card result-card"><div class="eyebrow">${won?'THE STARS ARE YOURS':'THE FALLEN SHALL RISE'}</div><h2>${won?'VICTORY':'DEFEAT'}</h2><div class="result-icon">${won?'✦':'◇'}</div><p class="muted">${won?'คุณเอาชนะผู้พิทักษ์แห่งดาวตกได้แล้ว':'การเดินทางยังไม่สิ้นสุด ลองใหม่อีกครั้ง'}</p><div class="result-stats"><div><small>TIME</small><b>${formatTime(game.tick)}</b></div><div><small>DEFEATED</small><b>${game.kills}</b></div><div><small>REWARD</small><b>+${reward} ✦</b></div></div><button class="button primary wide" type="button" data-action="start">เล่นอีกครั้ง</button><button class="button secondary wide" type="button" data-action="home">กลับล็อบบี้</button></section>`,'menu-overlay');
 }
 function showPause(){if(screen!=='play')return;sound.play('pause');heldKeys.clear();releaseTouch();paused=true;screen='pause';
@@ -94,22 +97,22 @@ function showPause(){if(screen!=='play')return;sound.play('pause');heldKeys.clea
 }
 function resume(){sound.unlock();sound.play('resume');screen='play';paused=false;accumulator=0;lastTime=0;hideOverlay()}
 function handleAction(action,id){
- if(action==='home')return showLobby();
+ if(action==='home'){sound.play('menuBack');return showLobby()}
  if(action==='start')return startRun();
- if(action==='wardrobe')return showWardrobe();
- if(action==='preview')return showSkinShowcase(id);
- if(action==='settings')return showSettings(screen==='play'?'pause':screen);
- if(action==='back')return window.__returnTo==='pause'?showPauseFromSettings():showLobby();
- if(action==='vfx'){profile.settings.vfx=profile.settings.vfx==='high'?'low':profile.settings.vfx==='low'?'medium':'high';persist();return showSettings(window.__returnTo)}
- if(action==='motion'){profile.settings.reduceMotion=!profile.settings.reduceMotion;persist();return showSettings(window.__returnTo)}
+ if(action==='wardrobe'){sound.unlock();sound.play('menuOpen');return showWardrobe()}
+ if(action==='preview'){sound.unlock();sound.play('menuOpen');return showSkinShowcase(id)}
+ if(action==='settings'){sound.unlock();sound.play('menuOpen');return showSettings(screen==='play'?'pause':screen)}
+ if(action==='back'){sound.play('menuBack');return window.__returnTo==='pause'?showPauseFromSettings():showLobby()}
+ if(action==='vfx'){sound.play('switch');profile.settings.vfx=profile.settings.vfx==='high'?'low':profile.settings.vfx==='low'?'medium':'high';persist();return showSettings(window.__returnTo)}
+ if(action==='motion'){sound.play('switch');profile.settings.reduceMotion=!profile.settings.reduceMotion;persist();return showSettings(window.__returnTo)}
  if(action==='sound'){sound.setEnabled(!sound.isEnabled());if(sound.isEnabled()){sound.unlock();sound.play('menu')}return showSettings(window.__returnTo)}
  if(action==='pause')return showPause();
  if(action==='resume')return resume();
- if(action==='upgrade') {if(chooseUpgrade(game,id)){screen='play';hideOverlay();updateHud()}return;}
- if(action==='equip'&&profile.owned.includes(id)){profile.skin=id;persist();return showWardrobe()}
+ if(action==='upgrade') {if(chooseUpgrade(game,id)){sound.play(id==='heal'?'heal':'upgradeSelect');screen='play';hideOverlay();updateHud()}return;}
+ if(action==='equip'&&profile.owned.includes(id)){sound.play('equip');profile.skin=id;persist();return showWardrobe()}
  if(action==='unlock'){
    const next=unlockGoldCosmetic(profile,id,120);
-   if(next){profile=next;persist();notify('ปลดล็อกสกินสำเร็จ');showWardrobe()}
+   if(next){sound.play('unlock');profile=next;persist();notify('ปลดล็อกสกินสำเร็จ');showWardrobe()}
    return;
  }
 }
@@ -159,14 +162,9 @@ function frame(ts){
  if(screen==='play'&&!paused){
    accumulator+=delta;
    for(let i=0;i<5&&accumulator>=1/60;i++){
-     const beforeHp=game.player.hp,beforeXp=game.player.xp;
-     const beforeKills=game.kills,beforeShots=game.shots.length,beforeBoss=game.bossSpawned;
+     const beforeAudio=captureAudioState(game);
      step(game,inputVector());accumulator-=1/60;
-     if(game.player.hp<beforeHp)sound.play('hurt');
-     if(game.kills>beforeKills)sound.play('kill');
-     if(game.player.xp>beforeXp)sound.play('pickup');
-     if(game.shots.length>beforeShots)sound.play('cast');
-     if(!beforeBoss&&game.bossSpawned)sound.play('boss');
+     for(const cue of getStepSounds(beforeAudio,game))sound.play(cue);
      if(game.phase!=='running'){
        if(game.phase==='upgrade')showUpgrade();else finishRun();accumulator=0;break;
      }
