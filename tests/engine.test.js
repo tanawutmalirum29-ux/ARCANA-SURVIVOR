@@ -175,3 +175,35 @@ test('sample win and loss routes are deterministic and cannot be advanced after 
   step(loss);assert.equal(loss.phase,'lost');
   const frozenLoss=structuredClone(loss);step(loss);assert.deepEqual(loss,frozenLoss);
 });
+
+test('seed 8472: reproducible full-duration combat route wins between 8–12 minutes', () => {
+  const s = createGame(8472);
+  const waypoints = [[190,180],[2000,180],[2000,1320],[190,1320]];
+  const priorities = ['heal','bolt','nova','orbit','chain','haste','power','speed'];
+  let waypoint = 0;
+  for (let frame = 0; frame < 12*60*60 && (s.phase === 'running' || s.phase === 'upgrade'); frame++) {
+    if (s.phase === 'upgrade') {
+      const selected = priorities.find(key => s.upgrades.includes(key));
+      assert.equal(chooseUpgrade(s, selected), true);
+      continue;
+    }
+    const [tx, ty] = waypoints[waypoint];
+    const dx = tx - s.player.x, dy = ty - s.player.y;
+    if (Math.hypot(dx, dy) < 32) waypoint = (waypoint + 1) % waypoints.length;
+    step(s, {x: dx, y: dy});
+  }
+  assert.equal(s.phase, 'won', 'a repeatable waypoint-and-upgrade run must reach victory');
+  assert.ok(s.tick >= 8*60*60 && s.tick <= 12*60*60);
+  assert.equal(s.bossDefeated,true);
+});
+
+test('seed 16: stationary full simulation reaches an ordinary damage loss', () => {
+  const s = createGame(16);
+  for(let frame=0; frame<10000 && (s.phase==='running'||s.phase==='upgrade');frame++){
+    if(s.phase==='upgrade') chooseUpgrade(s,s.upgrades[0]);
+    else step(s);
+  }
+  assert.equal(s.phase,'lost');
+  assert.equal(s.player.hp,0);
+  assert.ok(s.tick < BOSS_AT*60);
+});
