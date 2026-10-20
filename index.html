@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#070b1c" />
+  <meta name="description" content="ARCANA SURVIVOR — เกมเอาชีวิตรอดเวทมนตร์ เล่นฟรีบนเว็บ" />
+  <title>ARCANA SURVIVOR — The Starfall Awaits</title>
+  <link rel="stylesheet" href="./src/styles.css" />
+</head>
+<body>
+<div id="app">
+  <canvas id="scene" aria-label="สนามต่อสู้ Arcana Survivor"></canvas>
+  <div id="stage-vignette" aria-hidden="true"></div>
+  <header class="hud hidden" id="hud">
+    <div class="hud-left">
+      <div class="run-top"><span class="run-tag">✦ ASTRAL RUINS</span><span id="clock">00:00</span></div>
+      <div class="meter hp"><div id="hp-fill"></div><span id="hp-text">100 / 100</span></div>
+      <div class="meter exp"><div id="exp-fill"></div><span id="exp-text">LV 1</span></div>
+    </div>
+    <div class="hud-right"><span id="kill-count">0 ✧</span><button id="pause-btn" class="hud-button" type="button" aria-label="หยุดเกม">Ⅱ</button></div>
+  </header>
+  <div class="boss-bar hidden" id="boss-hud"><div class="boss-name">STARFALL WARDEN</div><div class="boss-meter"><div id="boss-fill"></div></div></div>
+  <div class="toast hidden" id="toast" aria-live="polite"></div>
+  <div id="joystick" class="joystick hidden" aria-label="ควบคุมการเดินด้วยการลาก"><span id="knob"></span></div>
+  <main id="overlay" aria-live="polite"></main>
+  <footer class="build-mark">ARCANA SURVIVOR <span>PRE-ALPHA • OFFLINE DEMO</span></footer>
+</div>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
