@@ -47,7 +47,7 @@ test('before season nothing earns; first UTC midnight starts; signal IDs dedupli
 test('UTC daily/weekly recurring period rollover',()=>{
  let st=createEventState();
  st=send(st,signal('a','RUN_FINISHED'),'2030-01-13T23:59:59.999Z');
- st=send(st,signal('a','RUN_FINISHED'),'2030-01-14T00:00:00.000Z');
+ st=send(st,signal('b','RUN_FINISHED'),'2030-01-14T00:00:00.000Z');
  assert.equal(Object.keys(st.progress).filter(k=>k.startsWith('event_arcane_orders')).length,2);
  assert.equal(Object.keys(st.progress).filter(k=>k.startsWith('event_weekly_trials')).length,2);
 });
