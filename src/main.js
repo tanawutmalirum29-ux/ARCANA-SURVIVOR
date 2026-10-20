@@ -75,7 +75,7 @@ function showSkinShowcase(id){
 }
 function showSettings(from='lobby'){
  screen='settings';window.__returnTo=from;
- panel(`<section class="main-card menu-card"><div class="eyebrow">GAME OPTIONS</div><h2>SETTINGS</h2><div class="setting-row"><div><b>คุณภาพเอฟเฟกต์</b><small>ปรับความสวยให้เหมาะกับอุปกรณ์</small></div><button class="button secondary" type="button" data-action="vfx">${profile.settings.vfx.toUpperCase()}</button></div><div class="setting-row"><div><b>ลดการเคลื่อนไหว</b><small>ปิดการขยับตกแต่งและแสงมากเกินไป</small></div><button class="button secondary" type="button" data-action="motion">${profile.settings.reduceMotion?'ON':'OFF'}</button></div><div class="setting-row"><div><b>เสียงเวทมนตร์และเพลง</b><small>สังเคราะห์ในเครื่อง · เล่นออฟไลน์</small></div><button class="button secondary" type="button" data-action="sound">${sound.isEnabled()?'SOUND ON':'SOUND OFF'}</button></div><div class="tip">เดินด้วย WASD / ลูกศร หรือจอยสัมผัส<br>กด Esc เพื่อหยุดเกม · ระบบบันทึกในเครื่องนี้</div><button class="button primary wide" type="button" data-action="back">เสร็จสิ้น</button></section>`,'menu-overlay');
+ panel(`<section class="main-card menu-card"><div class="eyebrow">GAME OPTIONS</div><h2>SETTINGS</h2><div class="setting-row"><div><b>คุณภาพเอฟเฟกต์</b><small>ปรับความสวยให้เหมาะกับอุปกรณ์</small></div><button class="button secondary" type="button" data-action="vfx">${profile.settings.vfx.toUpperCase()}</button></div><div class="setting-row"><div><b>ลดการเคลื่อนไหว</b><small>ปิดการขยับตกแต่งและแสงมากเกินไป</small></div><button class="button secondary" type="button" data-action="motion">${profile.settings.reduceMotion?'ON':'OFF'}</button></div><div class="setting-row"><div><b>เสียงเวทมนตร์และเพลง</b><small>สังเคราะห์ในเครื่อง · เล่นออฟไลน์</small></div><button class="button secondary" type="button" data-action="sound">${sound.isEnabled()?'SOUND ON':'SOUND OFF'}</button></div><div class="setting-row"><div><b>เพลงล็อบบี้ตามเทศกาล</b><small>เปลี่ยนอัตโนมัติตามวันที่หรือเลือกธีมเองได้</small></div><button class="button secondary" type="button" data-action="music-settings">${sound.musicChoices().find(c=>c.id===sound.getMusicChoice())?.label} ↻</button></div><div class="tip">เดินด้วย WASD / ลูกศร หรือจอยสัมผัส<br>กด Esc เพื่อหยุดเกม · ระบบบันทึกในเครื่องนี้</div><button class="button primary wide" type="button" data-action="back">เสร็จสิ้น</button></section>`,'menu-overlay');
 }
 function startRun(){
  sound.unlock();sound.play('start');
@@ -108,6 +108,12 @@ function handleAction(action,id){
  if(action==='vfx'){sound.play('switch');profile.settings.vfx=profile.settings.vfx==='high'?'low':profile.settings.vfx==='low'?'medium':'high';persist();return showSettings(window.__returnTo)}
  if(action==='motion'){sound.play('switch');profile.settings.reduceMotion=!profile.settings.reduceMotion;persist();return showSettings(window.__returnTo)}
  if(action==='sound'){sound.setEnabled(!sound.isEnabled());if(sound.isEnabled()){sound.unlock();sound.play('menu')}return showSettings(window.__returnTo)}
+ if(action==='music-settings'){
+   const choices=sound.musicChoices(),idx=choices.findIndex(c=>c.id===sound.getMusicChoice());
+   sound.setMusicChoice(choices[(idx+1)%choices.length].id);
+   sound.unlock();sound.play('switch');
+   return showSettings(window.__returnTo);
+ }
  if(action==='pause')return showPause();
  if(action==='resume')return resume();
  if(action==='upgrade') {if(chooseUpgrade(game,id)){sound.play(id==='heal'?'heal':'upgradeSelect');screen='play';hideOverlay();updateHud()}return;}
@@ -173,9 +179,24 @@ function frame(ts){
    }
    if(ts-lastHud>90){updateHud();lastHud=ts;}
  }
- sound.update(screen==='play'&&!paused&&!document.hidden);
+ const lobbyVisible=screen==='lobby'||screen==='wardrobe'||screen==='showcase'||
+   (screen==='settings'&&window.__returnTo!=='pause');
+ const musicMode=document.hidden?false:
+   screen==='play'&&!paused?'play':lobbyVisible?'lobby':false;
+ sound.update(musicMode);
  drawScene(canvas,ctx,game,profile,ts/1000);
  if(toastUntil&&ts>toastUntil){$('toast').classList.add('hidden');toastUntil=0}
  requestAnimationFrame(frame);
 }
-showLobby();requestAnimationFrame(frame);
+// Start lobby music automatically whenever the browser permits autoplay.
+// Browsers that block sound until a user gesture unlock it on the first tap/key,
+// without requiring a dedicated play control.
+function unlockAudioOnInteraction() {
+ if(sound.isEnabled()&&!sound.isReady())sound.unlock();
+}
+window.addEventListener('pointerdown',unlockAudioOnInteraction,{capture:true});
+window.addEventListener('keydown',unlockAudioOnInteraction,{capture:true});
+window.addEventListener('touchstart',unlockAudioOnInteraction,{capture:true,passive:true});
+showLobby();
+sound.unlock();
+requestAnimationFrame(frame);
