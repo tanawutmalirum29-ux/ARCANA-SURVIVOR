@@ -55,7 +55,9 @@ function showSkinShowcase(id){
  host.className='overlay menu-overlay';host.classList.remove('hidden');
  showcaseController=mountSkinShowcase({
    host,profile:safe,initialSkinId:id,quality:safe.settings.vfx,
-   reducedMotion:safe.settings.reduceMotion,
+   // Honor the OS accessibility preference unless the user explicitly changes
+   // the showcase's reduction control. The preview component owns that toggle.
+   reducedMotion:safe.settings.reduceMotion||window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches===true,
    onClose:()=>{disposeShowcase();showWardrobe()},
    onEquip:nextId=>{
      const actual=sanitizeProfile(profile),item=COSMETICS.find(s=>s.id===nextId);
@@ -123,8 +125,8 @@ $('overlay').addEventListener('click',event=>{
 $('pause-btn').addEventListener('click',showPause);
 const movingKeys={ArrowUp:[0,-1],KeyW:[0,-1],ArrowDown:[0,1],KeyS:[0,1],ArrowLeft:[-1,0],KeyA:[-1,0],ArrowRight:[1,0],KeyD:[1,0]};
 window.addEventListener('keydown',e=>{
- if(Object.hasOwn(movingKeys,e.code)){heldKeys.add(e.code);e.preventDefault()}
- if(e.code==='Escape'&&!e.repeat){if(screen==='play')showPause();else if(screen==='pause')resume()}
+ if(screen==='play'&&Object.hasOwn(movingKeys,e.code)){heldKeys.add(e.code);e.preventDefault()}
+ if(e.code==='Escape'&&!e.repeat){if(screen==='play')showPause();else if(screen==='pause')resume();else if(screen==='showcase'){disposeShowcase();showWardrobe()}}
 });
 window.addEventListener('keyup',e=>heldKeys.delete(e.code));
 window.addEventListener('blur',()=>{heldKeys.clear();releaseTouch();if(screen==='play')showPause()});
