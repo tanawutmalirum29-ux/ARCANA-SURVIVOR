@@ -1,0 +1,19 @@
+# Dormant Event v2 origin-wide exclusive writer
+
+**STATUS: PROTOTYPE / NO PLAYER-FACING ACTIVATION.** This additive coordinator is not imported into `src/main.js` and does not enable Events/Season/Shop/Wallet. The Economy catalog change denied by tool safety in #24 has not been retried or relocated. Fictional 2030 fixtures are test data, not live events.
+
+## What is serialized
+
+`commitExclusiveEventTransition({locks,store,transition,checkpoint})` in `src/integration/eventExclusiveWriter.js` requests one exact Web Locks name `arcana-survivor:event-v2:exclusive-writer` in **exclusive mode**. Inside the acquired lock it invokes the existing `commitStoredEventTransition` and only there reads v1/v2 saved state, verifies its schema, advances the synchronous deterministic reducer, durably writes a complete single Events v2 JSON snapshot and rereads for verification. Waiting tabs compute from **fresh state acquired under the lock**, not an object created while waiting. Lock holders across same-origin tabs are coordinated by the browser when Web Locks is supported. If the manager is unavailable, access is denied, request fails, or callback is not granted a matching exclusive lock, the coordinator returns `ok:false` with explicit HOLD status and **never falls back to unlocked writes**.
+
+The adapter, original unguarded helper and localStorage are not changed by this PR. A future real player-facing runtime must ensure **every Events mutation and ack** uses this exclusive coordinator or an authoritative server; never mix the original unguarded helper into a concurrent session. The lock coordinates only cooperative same-origin clients using the identical lock name. It **does not** prevent old clients, other scripts or extensions from directly editing localStorage; it does not provide tamper resistance, an authoritative clock, actual entitlement security, or atomicity across separate stores such as wallet + outbox. Losing a tab after the Events write but before an outbox ACK may require idempotent resume. Browser sessions with no trusted Web Locks support remain inactive.
+
+## Tests
+
+`tests/integration/eventExclusiveWriter.test.js` covers concurrent queued mock writers, exclusive-only grants, missing/rejected manager, corrupted save, quota failure, and crash-after-write idempotent reload. These mocks characterize semantics but are not real inter-tab tests.
+
+`scripts/ceo_event_cross_tab_qa.py` runs on a served HTTP origin with **two actual same-origin pages** in Chromium and WebKit at 320×568 and 844×390. It holds the production lock, queues a different stable event ID from each tab, verifies neither writes before release, then verifies both durable IDs, a cross-UTC replay, concurrent duplicate reward claim (once only) and reload. Where a browser lacks Web Locks, the script records `HOLD_UNSUPPORTED` with zero writes; do **not** interpret this as that browser passing serialization or as permission to enable Events there. If a supported browser loses either ID or duplicates claim, CI must fail.
+
+The browser test covers two real tabs on one origin, but not adversarial legacy writers, background/mobile tab suspension, storage corruption during a multi-step wallet delivery, real-money checkout, multiple devices, server authority, or actual iOS/Android hardware. The separate QA characterization in `tests/qa/event_storage_race.test.js` remains a deliberately failing-design TODO for **unlocked** writers; this new wrapper does not remove that TODO or change the reducer.
+
+**Before any product activation:** independent exact-head QA, green main CI, explicit migration and lock-support policy, cross-tab wallet/outbox coordination, negative tests for non-cooperating writers, WebKit flake/root-cause diagnosis, trustworthy real-world calendar, and user-facing product acceptance. All real-money/premium grants remain prohibited.
