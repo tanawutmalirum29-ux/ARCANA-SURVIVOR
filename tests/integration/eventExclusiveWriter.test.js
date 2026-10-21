@@ -173,8 +173,8 @@ test('bad transition or missing synchronous reducer aborts and preserves save',a
   const idb=fakeIDB();
   await commit(idb,mark('base'),{allowInitialize:true});
   const failed=await commit(idb,()=>{throw Error('bad reducer')});
-  assert.equal(failed.status,'TRANSACTION_ABORTED');
+  assert.equal(failed.status,'TRANSITION_REFUSED');
   const asyncTransition=await commit(idb,async s=>({state:s}));
-  assert.equal(asyncTransition.status,'TRANSACTION_ABORTED');
+  assert.equal(asyncTransition.status,'TRANSITION_REFUSED');
   assert.deepEqual((await readExclusiveEventSnapshot({indexedDBFactory:idb})).state.seenEventIds,['base']);
 });
