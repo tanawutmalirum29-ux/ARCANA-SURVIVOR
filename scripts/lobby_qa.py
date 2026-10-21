@@ -1,8 +1,9 @@
 """Independent lobby/campaign integration gate on an actual HTTP origin.
 
 The layout matrix uses ordinary clicks and keyboard input. Transaction tests
-use explicitly labelled reducer fixtures, real IndexedDB, and separate pages;
-they do not claim physical phone, complete combat, or backend security evidence.
+use explicitly labelled reducer fixtures, real IndexedDB, and separate pages.
+The live-combat browser gate drives the actual game until its natural result;
+none of these tests claim physical phone or backend security evidence.
 """
 import argparse
 import json
@@ -115,8 +116,9 @@ def layout(browser, engine, size):
             assert page.evaluate('document.documentElement.scrollWidth<=innerWidth+1'), ('horizontal overflow', tab)
             for target in TABS:
                 visible_hit_target(page, f'[data-lobby-tab="{target}"]', size)
-            if size in [(390,844),(1440,900)]:
-                page.screenshot(path=f'/tmp/arcana-lobby-{engine}-{width}x{height}-{tab}.png')
+            # Save each tab on ALL five sizes: the CI layout assertion alone
+            # cannot substitute for independent pixel-level QA on short screens.
+            page.screenshot(path=f'/tmp/arcana-lobby-{engine}-{width}x{height}-{tab}.png')
         phase = 'keyboard'
         page.locator('[data-lobby-tab="adventure"]').focus()
         page.keyboard.press('Enter')
@@ -127,8 +129,32 @@ def layout(browser, engine, size):
         expect(page.locator('[data-lobby-panel="hero"]')).to_be_visible()
         phase = 'settings-return'
         page.locator('[data-action="settings"]').click()
+        if size in [(320,568),(844,390)]:
+            expect(page.locator('.menu-card')).to_be_visible()
+            page.screenshot(path=f'/tmp/arcana-lobby-{engine}-{width}x{height}-settings.png')
         page.locator('[data-action="back"]').click()
         expect(page.locator('[data-lobby-panel="hero"]')).to_be_visible()
+        if size in [(320,568),(844,390)]:
+            # Actual inventory modal: inspect scrolling, close button and safe area.
+            item = page.locator('[data-action="item"]').first
+            expect(item).to_be_visible()
+            item.click()
+            expect(page.get_by_role('dialog')).to_be_visible()
+            page.screenshot(path=f'/tmp/arcana-lobby-{engine}-{width}x{height}-item-modal.png')
+            close_modal(page)
+            page.locator('[data-lobby-tab="adventure"]').click()
+            page.locator('[data-action="start"]').click()
+            expect(page.locator('#overlay')).to_be_hidden()
+            page.locator('#pause-btn').click()
+            expect(page.locator('.pause-card')).to_be_visible()
+            page.screenshot(path=f'/tmp/arcana-lobby-{engine}-{width}x{height}-pause.png')
+            page.locator('[data-action="settings"]').click()
+            expect(page.locator('.menu-card')).to_be_visible()
+            page.screenshot(path=f'/tmp/arcana-lobby-{engine}-{width}x{height}-pause-settings.png')
+            page.locator('[data-action="back"]').click()
+            expect(page.locator('.pause-card')).to_be_visible()
+            page.locator('[data-action="home"]').click()
+            expect(page.locator('[data-lobby-panel="adventure"]')).to_be_visible()
         assert not errors, errors
         print('PASS', engine, f'{width}x{height}', 'five tabs, hit targets, overflow, keyboard, settings return', flush=True)
     except Exception as error:
