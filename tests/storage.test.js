@@ -34,3 +34,38 @@ test('catalog separates visual cosmetics from power and locks unreleased premium
  const injected=sanitizeProfile({version:1,owned:['apprentice','crimson','celestial','lantern'],skin:'crimson'});
  assert.deepEqual(injected.owned,['apprentice']);assert.equal(injected.skin,'apprentice');
 });
+
+test('unknown profile schema and malformed saves are preserved byte-for-byte', () => {
+ for (const raw of ['{bad json', 'null', '[]', '{"version":2,"futureInventory":["rare"]}', '{"version":999}', '']) {
+  const values=new Map([[SAVE_KEY,raw]]);
+  let writes=0;
+  const storage={getItem:k=>values.get(k)??null,setItem:(k,v)=>{writes++;values.set(k,v);}};
+  const result=saveProfile(defaultProfile(),storage);
+  assert.equal(result,false,'unsafe save should not overwrite existing bytes');
+  assert.equal(values.get(SAVE_KEY),raw);
+  assert.equal(writes,0);
+ }
+});
+
+test('missing storage support is failure, not a fake successful save', () => {
+ assert.equal(saveProfile(defaultProfile(),{}),false);
+ assert.equal(saveProfile(defaultProfile(),{getItem:()=>null}),false);
+ const noWrite={getItem:()=>null,setItem:()=>{}};
+ assert.equal(saveProfile(defaultProfile(),noWrite),false,'write silently discarded');
+});
+
+test('valid v1 profile can be overwritten and verified after restart', () => {
+ const state=new Map([[SAVE_KEY,JSON.stringify(defaultProfile())]]);
+ const store={getItem:k=>state.get(k)??null,setItem:(k,v)=>state.set(k,v)};
+ const p=defaultProfile();p.gold=123;p.runs=3;
+ assert.equal(saveProfile(p,store),true);
+ assert.equal(loadProfile(store).gold,123);
+ assert.equal(loadProfile(store).runs,3);
+});
+
+test('inaccessible stored save fails closed without attempting to overwrite', () => {
+ let writes=0;
+ const store={getItem(){throw Error('storage denied');},setItem(){writes++;}};
+ assert.equal(saveProfile(defaultProfile(),store),false);
+ assert.equal(writes,0);
+});
