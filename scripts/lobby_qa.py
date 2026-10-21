@@ -301,7 +301,7 @@ def progression_ui(browser,engine):
         expect(page.locator('.lb-notice[role="alert"]')).to_be_visible()
         expect(page.locator('.lb-saving')).to_have_count(0)
         assert stored(page)==before,'failed UI save changed durable resources'
-        page.evaluate('IDBObjectStore.prototype.put=window.__qaPut')
+        page.evaluate('() => { IDBObjectStore.prototype.put = window.__qaPut; }')
         ui_command(page,'UPGRADE_BUILDING',{'buildingId':'garden'})
         phase='snapshot-to-combat'
         page.locator('[data-lobby-tab="hero"]').click()
