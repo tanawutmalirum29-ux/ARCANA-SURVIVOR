@@ -79,7 +79,26 @@ export function paintBossWarning(ctx, flash, options = {}) {
     ctx.fillStyle = '#fff1d0';
     ctx.textAlign = 'center';
     ctx.font = 'bold 12px system-ui, sans-serif';
-    ctx.fillText(shape.label, 0, -shape.radius - 8);
+    // The label is decorative: keep it on-screen when an accurate danger arc
+    // extends beyond the camera on small or landscape displays. Geometry stays
+    // fixed in world space and never depends on effects quality or motion.
+    const viewport = options.viewport;
+    let labelX = 0, labelY = -shape.radius - 8;
+    if (viewport && [viewport.x, viewport.y, viewport.width, viewport.height].every(Number.isFinite)
+        && viewport.width > 0 && viewport.height > 0) {
+      const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
+      const marginX = Math.min(42, viewport.width / 2);
+      const labelWorldX = clamp(shape.x, viewport.x + marginX, viewport.x + viewport.width - marginX);
+      const labelWorldY = clamp(shape.y - shape.radius - 8,
+        viewport.y + Math.min(20, viewport.height / 2),
+        viewport.y + viewport.height - Math.min(16, viewport.height / 2));
+      labelX = labelWorldX - shape.x;
+      labelY = labelWorldY - shape.y;
+    }
+    ctx.strokeStyle = '#171227';
+    ctx.lineWidth = 3;
+    ctx.strokeText(shape.label, labelX, labelY);
+    ctx.fillText(shape.label, labelX, labelY);
   } finally {
     ctx.restore();
   }
