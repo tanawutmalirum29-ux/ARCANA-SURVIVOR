@@ -39,7 +39,7 @@ jobs:
       - name: Build static demo
         run: npm run build
       - name: Validate generated entrypoint
-        run: test -s dist/index.html && test -s dist/src/engine.js
+        run: test -s dist/index.html && test -s dist/src/engine.js && test -s dist/src/ui/lobby.js && test -s dist/src/progression/index.js && test -s dist/src/gameplay/run-config.js
 
   browser-qa:
     runs-on: ubuntu-latest
@@ -73,6 +73,8 @@ jobs:
         run: python scripts/browser_qa.py --served --browsers chromium webkit
       - name: Mounted showcase Chromium + WebKit full viewport gate
         run: python scripts/ceo_showcase_qa.py --browsers chromium webkit
+      - name: Campaign lobby, migration and real-tab atomic reward gate
+        run: python scripts/lobby_qa.py --browsers chromium webkit
       - name: Dormant Event v2 localStorage Chromium and WebKit fault gate
         run: python scripts/ceo_event_storage_qa.py
       - name: Dormant Event atomic IndexedDB real-tab concurrency gate
@@ -81,10 +83,12 @@ jobs:
       # QA_LAYOUT_FAILURE JSON remains in browser job logs. On crashed WebKit
       # processes screenshots might be unavailable; do not treat this as PASS.
       - name: Upload WebKit/Chromium layout failure screenshots
-        if: ${{ failure() }}
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: browser-layout-failure-${{ github.run_id }}-${{ github.run_attempt }}
-          path: /tmp/arcana-qa-layout-*.png
+          path: |
+            /tmp/arcana-qa-layout-*.png
+            /tmp/arcana-lobby-*.png
           if-no-files-found: ignore
           retention-days: 7

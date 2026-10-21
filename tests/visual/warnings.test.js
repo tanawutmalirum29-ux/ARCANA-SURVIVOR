@@ -75,3 +75,25 @@ test('boss mechanics retain deterministic state without rendering VFX', () => {
   }
   assert.deepEqual(a, b);
 });
+
+test('chapter-specific danger uses the exact queued projectile directions at every quality',()=>{
+ const cases=[
+  {pattern:0,angles:Array.from({length:10},(_,i)=>i/10*TAU+1.4)},
+  {pattern:1,angles:Array.from({length:7},(_,i)=>.8+(i-3)*.18)},
+  {pattern:2,angles:Array.from({length:12},(_,i)=>Math.PI/4+i/12*TAU)},
+ ];
+ for(const flash of cases){
+  const geometry=warningGeometry({...flash,x:50,y:60,radius:200});
+  assert.deepEqual(geometry.angles,flash.angles);
+  assert.notEqual(geometry.angles,flash.angles,'renderer must not mutate combat directions');
+  for(const quality of ['low','medium','high']){
+   const ctx=recorder();
+   assert.equal(paintBossWarning(ctx,flash,{quality,reducedMotion:true}).rays,flash.angles.length);
+   if(flash.pattern===1){
+    const arc=ctx.trace.find(call=>call[0]==='arc');
+    assert.equal(arc[4],flash.angles[0]);
+    assert.equal(arc[5],flash.angles.at(-1));
+   }
+  }
+ }
+});

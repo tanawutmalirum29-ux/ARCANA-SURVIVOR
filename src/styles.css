@@ -41,3 +41,7 @@
 @media(max-width:560px){.vfx-showcase-grid{grid-template-columns:minmax(0,1fr)}.vfx-showcase-head h2{font-size:20px}.vfx-showcase-canvas{height:210px}.vfx-preview-panel{padding:9px}.vfx-catalog{grid-template-columns:minmax(0,1fr)}}
 @media(max-height:460px) and (min-width:561px){.vfx-showcase{padding:8px 12px}.vfx-showcase-head{margin-bottom:6px}.vfx-showcase-canvas{height:165px}.vfx-preview-panel{padding:8px}.vfx-preview-panel h3{font-size:15px}.vfx-acquire{margin:4px 0;padding:7px}}
 @media(prefers-reduced-motion:reduce){.vfx-showcase *{animation:none!important;transition:none!important}}
+
+/* Battle goals remain readable in multi-stage and timed modes. */
+.run-tag{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:0}.run-top #clock{flex:none}.run-objective{font-size:10px;color:#d5daed;line-height:1.4;margin:2px 0 5px}.boss-bar{top:max(112px,calc(env(safe-area-inset-top) + 112px))}
+@media(max-height:520px){.run-objective{font-size:9px;margin:1px 0 3px}.boss-bar{top:94px}}

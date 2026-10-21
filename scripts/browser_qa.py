@@ -1,30 +1,13 @@
-"""Browser QA for ARCANA SURVIVOR.
---served: actual HTTP origin (CI); --embedded: sandbox-only injected modules.
-Neither test mode is a substitute for real phone hardware QA.
-"""
+"""Browser QA on an actual HTTP origin, not physical phone hardware evidence."""
 import argparse
 import json
 import os
 import subprocess
-from base64 import b64encode
 from pathlib import Path
-from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError, Error as PlaywrightError
+from playwright.sync_api import sync_playwright, expect, TimeoutError as PlaywrightTimeoutError, Error as PlaywrightError
 
 ROOT = Path(__file__).resolve().parents[1]
 SIZES = [(320, 568), (390, 844), (768, 1024), (844, 390), (1440, 900)]
-
-
-def modules_and_html():
-    def data_module(source):
-        return 'data:text/javascript;base64,' + b64encode(source.encode()).decode()
-    engine = data_module((ROOT / 'src/engine.js').read_text())
-    storage = data_module((ROOT / 'src/storage.js').read_text())
-    lobby_music = data_module((ROOT / 'src/lobbyMusic.js').read_text())
-    audio = data_module((ROOT / 'src/audio.js').read_text().replace("from './lobbyMusic.js'", f"from '{lobby_music}'"))
-    render = data_module((ROOT / 'src/render.js').read_text().replace("from './engine.js'", f"from '{engine}'").replace("from './storage.js'", f"from '{storage}'"))
-    main = data_module((ROOT / 'src/main.js').read_text().replace("from './engine.js'", f"from '{engine}'").replace("from './render.js'", f"from '{render}'").replace("from './storage.js'", f"from '{storage}'").replace("from './audio.js'", f"from '{audio}'"))
-    html = (ROOT / 'index.html').read_text().replace('<link rel="stylesheet" href="./src/styles.css" />', '<style>' + (ROOT / 'src/styles.css').read_text() + '</style>').replace('<script type="module" src="./src/main.js"></script>', '')
-    return html, main
 
 
 def report_layout_failure(page, selector, w, h, browser_name, reason, lifecycle):
@@ -212,7 +195,7 @@ def click_with_lifecycle_evidence(page, selector, browser_name, width, height,
         raise
 
 
-def scenario(browser, browser_name, mode, size, html=None, main=None):
+def scenario(browser, browser_name, size):
     for w, h in [size]:
         touch_enabled = w < 1000  # 1440x900 exercises actual desktop pointer/keyboard mode.
         page = browser.new_page(viewport={'width': w, 'height': h}, has_touch=touch_enabled, is_mobile=touch_enabled, device_scale_factor=1)
@@ -225,24 +208,22 @@ def scenario(browser, browser_name, mode, size, html=None, main=None):
         browser.on('disconnected', lambda _: lifecycle.append('BROWSER_DISCONNECTED'))
         page.on('pageerror', lambda e: errors.append(str(e)))
         page.on('console', lambda m: errors.append(m.text) if m.type == 'error' else None)
-        if mode == 'served':
-            page.goto(os.environ.get('ARCANA_QA_URL', 'http://127.0.0.1:4173'), wait_until='networkidle')
-        else:
-            page.set_content(html)
-            page.add_script_tag(type='module', content=f'import "{main}"')
+        page.goto(os.environ.get('ARCANA_QA_URL', 'http://127.0.0.1:4173'), wait_until='networkidle')
         page.locator('[data-action="start"]').wait_for()
         page.locator('[data-action="start"]').focus()
         assert page.evaluate("document.activeElement?.dataset.action") == 'start', (browser_name, w, h, 'keyboard focus unavailable')
         assert page.evaluate("() => { const style = getComputedStyle(document.body); return style.userSelect === 'none' || style.webkitUserSelect === 'none'; }"), (browser_name, w, h, 'OS text selection not prevented')
         assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1"), (browser_name, w, h, 'horizontal overflow')
-        bounds_ok(page, '.main-card', w, h, browser_name, lifecycle)
+        # The new lobby is a full shell; modal screens retain .main-card.
+        bounds_ok(page, '[data-lobby-tab="adventure"]', w, h, browser_name, lifecycle)
+        bounds_ok(page, '[data-action="start"]', w, h, browser_name, lifecycle)
         assert page.locator('[data-action="lobby-music"]').count() == 0, 'manual lobby play button remains'
         assert page.locator('[data-action="music-theme"]').count() == 0, 'lobby theme control remains'
         page.locator('[data-action="settings"]').click()
         page.locator('[data-action="vfx"]').click()
-        assert page.get_by_text('LOW', exact=True).count() == 1
+        expect(page.get_by_text('LOW', exact=True)).to_have_count(1)
         page.locator('[data-action="motion"]').click()
-        assert page.get_by_text('ON', exact=True).count() == 1
+        expect(page.get_by_text('ON', exact=True)).to_have_count(1)
         page.locator('[data-action="sound"]').click()
         assert page.get_by_text('SOUND OFF', exact=True).count() == 1
         page.locator('[data-action="sound"]').click()
@@ -260,7 +241,7 @@ def scenario(browser, browser_name, mode, size, html=None, main=None):
         assert page.locator('[data-action="lobby-music"]').count() == 0
         assert page.locator('[data-action="music-theme"]').count() == 0
         page.locator('[data-action="start"]').click()
-        assert page.locator('#overlay').is_hidden()
+        expect(page.locator('#overlay')).to_be_hidden()
         assert page.locator('#hud').is_visible()
         assert page.locator('#joystick').is_visible(), (browser_name, w, h, 'missing joystick layer')
         assert page.locator('#joystick').evaluate("(el) => getComputedStyle(el).opacity === '0'"), (browser_name, w, h, 'idle joystick not hidden')
@@ -299,6 +280,7 @@ def scenario(browser, browser_name, mode, size, html=None, main=None):
         click_with_lifecycle_evidence(page, '#pause-btn', browser_name,
                                       w, h, lifecycle, errors)
         page.locator('[data-action="home"]').click()
+        page.locator('[data-lobby-tab="hero"]').click()
         page.locator('[data-action="wardrobe"]').click()
         assert page.locator('.skin-card').count() == 8
         bounds_ok(page, '.main-card', w, h, browser_name, lifecycle)
@@ -311,23 +293,20 @@ def scenario(browser, browser_name, mode, size, html=None, main=None):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--served', action='store_true', help='Normal HTTP origin; requires running dev server')
-    parser.add_argument('--embedded', action='store_true', help='Sandbox fallback; not HTTP proof')
+    parser.add_argument('--embedded', action='store_true', help='Retired: campaign storage requires an HTTP origin')
     parser.add_argument('--browsers', nargs='+', default=['chromium', 'webkit'])
     args = parser.parse_args()
-    assert args.served != args.embedded, 'Choose exactly one of --served or --embedded'
-    # npm test currently covers tests/*.test.js only; include QA-owned nested Node regressions here.
+    if args.embedded or not args.served:
+        parser.error('Use --served with the dev server; IndexedDB campaign persistence requires an HTTP origin.')
+    # Also permit this script to be used independently of the npm test CI job.
     subprocess.run(['node', '--test', 'tests/qa/regression.test.js'], cwd=ROOT, check=True)
-    html, module = (None, None) if args.served else modules_and_html()
     with sync_playwright() as p:
         for name in args.browsers:
             # Isolate Canvas/GPU state between browser viewports to prevent WebKit crashes.
             for size in SIZES:
-                kwargs = {}
-                if name == 'chromium' and args.embedded and os.environ.get('ARCANA_CHROMIUM_PATH'):
-                    kwargs = {'executable_path': os.environ['ARCANA_CHROMIUM_PATH'], 'args': ['--no-sandbox']}
-                browser = getattr(p, name).launch(headless=True, **kwargs)
+                browser = getattr(p, name).launch(headless=True)
                 try:
-                    scenario(browser, name, 'served' if args.served else 'embedded', size, html, module)
+                    scenario(browser, name, size)
                 finally:
                     browser.close()
     print('QA COMPLETE:', len(args.browsers) * len(SIZES), 'browser/viewport combinations')

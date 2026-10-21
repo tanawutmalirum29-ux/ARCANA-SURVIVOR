@@ -1,45 +1,64 @@
-import {createGame,step,chooseUpgrade,formatTime,getReward,UPGRADE_DESCRIPTIONS,BOSS_AT} from './engine.js';
+import {createGame,step,chooseUpgrade,formatTime,UPGRADE_DESCRIPTIONS} from './engine.js';
 import {drawScene} from './render.js';
 import {mountSkinShowcase} from './visual/showcase.js';
 import {createGameAudio,captureAudioState,getStepSounds} from './audio.js';
-import {COSMETICS,loadProfile,saveProfile,sanitizeProfile,awardRun,unlockGoldCosmetic} from './storage.js';
+import {COSMETICS,defaultProfile} from './storage.js';
+import {createCampaignStore} from './campaignStore.js';
+import {createCampaignClient} from './campaignClient.js';
+import {CHAPTERS,MODES,ERROR_MESSAGES} from './progression/index.js';
+import {mountLobby} from './ui/lobby.js';
 
 const $=id=>document.getElementById(id);
 const canvas=$('scene'),ctx=canvas.getContext('2d',{alpha:false});
-let profile=loadProfile(),game=createGame(73001),screen='lobby',paused=false,lastTime=0,accumulator=0,lastHud=0;
+let profile=defaultProfile(),campaign=null,game=createGame(73001),screen='loading',paused=false,lastTime=0,accumulator=0,lastHud=0;
 const heldKeys=new Set();const touch={x:0,y:0,active:false,pointerId:null,originX:0,originY:0};
 let toastUntil=0;
-let showcaseController=null;
+let showcaseController=null,lobbyController=null,lobbyView=null,currentRunId=null,pendingFinish=null,starting=false,finishing=false;
+const campaignStore=createCampaignStore();
+let channel=null;
+try {if(typeof BroadcastChannel==='function')channel=new BroadcastChannel('arcana-campaign-updated');}catch{}
+const campaignClient=createCampaignClient({
+ store:campaignStore,
+ onChange:next=>{campaign=next;profile=next.profile;lobbyController?.update(next)},
+ onCommit:()=>{try{channel?.postMessage('updated')}catch{}},
+});
+if(channel)channel.onmessage=()=>campaignClient.load();
+window.addEventListener('focus',()=>{if(campaign)campaignClient.load()});
+function disposeLobby(){if(lobbyController){lobbyView=lobbyController.getViewState();lobbyController.dispose();lobbyController=null;}}
+function storageMessage(code){
+ if(code==='STALE_STATE')return 'ข้อมูลเปลี่ยนจากอีกแท็บแล้ว กรุณาตรวจยอดและลองอีกครั้ง';
+ if(['LEGACY_CORRUPT','CORRUPT_SAVE','LEGACY_UNSUPPORTED','UNSUPPORTED_SAVE'].includes(code))return 'อ่านเซฟนี้ไม่ได้ ข้อมูลเดิมยังอยู่ กรุณาใช้เวอร์ชันที่รองรับเซฟนี้';
+ return ERROR_MESSAGES[code]||'ไม่สามารถบันทึกข้อมูลในเบราว์เซอร์นี้ได้ กรุณาลองอีกครั้ง';
+}
+async function commitCommand(command){
+ const result=await campaignClient.dispatch(command);
+ if(!result.ok)notify(storageMessage(result.code));
+ return result;
+}
 function disposeShowcase(){if(showcaseController){showcaseController.dispose();showcaseController=null;}}
 const sound=createGameAudio();
-const profileSkin=()=>COSMETICS.find(x=>x.id===profile.skin)||COSMETICS[0];
-function persist(candidate=profile){if(!saveProfile(candidate)){notify('ไม่สามารถบันทึกข้อมูลในเบราว์เซอร์นี้ได้');return false}return true}
 function notify(msg){$('toast').textContent=msg;$('toast').classList.remove('hidden');toastUntil=performance.now()+2800}
-function panel(inner,extra=''){disposeShowcase();$('overlay').className=`overlay ${extra}`;$('overlay').innerHTML=inner;$('overlay').classList.remove('hidden')}
-function hideOverlay(){disposeShowcase();$('overlay').classList.add('hidden');$('overlay').innerHTML=''}
+function panel(inner,extra=''){disposeLobby();disposeShowcase();$('overlay').className=`overlay ${extra}`;$('overlay').innerHTML=inner;$('overlay').classList.remove('hidden')}
+function hideOverlay(){disposeLobby();disposeShowcase();$('overlay').classList.add('hidden');$('overlay').innerHTML=''}
 function updateHud(){
  const p=game.player;
  $('clock').textContent=formatTime(game.tick);
  $('hp-fill').style.width=`${100*p.hp/p.maxHp}%`; $('hp-text').textContent=`${Math.ceil(p.hp)} / ${p.maxHp}`;
  $('exp-fill').style.width=`${100*p.xp/p.nextXp}%`;$('exp-text').textContent=`LV ${p.level}`;
  $('kill-count').textContent=`✧ ${game.kills}`;
+ if(game.runConfig)$('run-objective').textContent=game.timeLimitTicks?`เอาชีวิตรอด · เหลือ ${formatTime(Math.max(0,game.timeLimitTicks-game.tick))}`:game.targetBosses>1?`บอส ${game.bossesDefeated}/${game.targetBosses} · ด่าน ${game.stage}`:game.runConfig.mode==='endless'?`ด่าน ${game.stage} · บอสที่ปราบ ${game.bossesDefeated}`:game.bossSpawned?'ปราบบอสเพื่อผ่านบท':`บอสใน ${formatTime(Math.max(0,game.bossAtTicks-game.tick))}`;
  const boss=game.enemies.find(e=>e.type==='boss'&&e.hp>0);
- $('boss-hud').classList.toggle('hidden',!boss);if(boss)$('boss-fill').style.width=`${100*boss.hp/boss.maxHp}%`;
+ $('boss-hud').classList.toggle('hidden',!boss);if(boss){$('boss-fill').style.width=`${100*boss.hp/boss.maxHp}%`;$('boss-hud').querySelector('.boss-name').textContent=boss.name||'STARFALL WARDEN'}
 }
 function setPlayingUI(active){$('hud').classList.toggle('hidden',!active);$('joystick').classList.toggle('hidden',!active);if(!active)$('boss-hud').classList.add('hidden')}
 function showLobby(){
- heldKeys.clear();releaseTouch();screen='lobby';paused=false;setPlayingUI(false);toastUntil=0;$('toast').classList.add('hidden');const skin=profileSkin();
- panel(`<section class="main-card lobby">
- <div class="eyebrow"><span class="starline">✧</span> A WORLD OF ARCANE WONDER <span class="starline">✧</span></div>
- <h1>ARCANA<br><em>SURVIVOR</em></h1>
- <p class="tagline">THE STARFALL AWAITS</p>
- <div class="ornament">◇ ───────── ✦ ───────── ◇</div>
- <div class="hero-preview"><div class="skin-halo" style="--skin-color:${skin.glow}"><div class="hero-portrait" style="--skin-main:${skin.color};--skin-shadow:${skin.glow}"><span class="hero-crown">✦</span></div></div><div class="skin-label">${skin.name}</div></div>
- <div class="lobby-stats"><div><b>${profile.gold}</b><small>GOLD ✦</small></div><div><b>${profile.runs}</b><small>RUNS</small></div><div><b>${profile.totalKills}</b><small>KILLS</small></div></div>
- <button type="button" data-action="start" class="button primary wide">✦ &nbsp; เข้าสู่สนามรบ &nbsp; ✦</button>
- <div class="action-row"><button type="button" data-action="wardrobe" class="button secondary">◇ คลังสกิน</button><button type="button" data-action="settings" class="button secondary">⚙ ตั้งค่า</button></div>
- <p class="legal-note">FREE TO PLAY · OFFLINE DEMO · NO REAL MONEY PURCHASES</p>
- </section>`,'lobby-overlay');
+ if(!campaign)return boot();
+ heldKeys.clear();releaseTouch();screen='lobby';paused=false;setPlayingUI(false);
+ panel('','lobby-overlay lobby-host');
+ lobbyController=mountLobby($('overlay'),{
+  campaign,viewState:lobbyView,onCommand:commitCommand,onStart:startRun,
+  onWardrobe:showWardrobe,onSettings:()=>showSettings('lobby'),onPreviewSkin:showSkinShowcase,
+ });
 }
 function showWardrobe(){screen='wardrobe';setPlayingUI(false);
  const cards=COSMETICS.map(s=>{const owned=profile.owned.includes(s.id),equipped=profile.skin===s.id;
@@ -50,8 +69,8 @@ function showWardrobe(){screen='wardrobe';setPlayingUI(false);
 }
 function showSkinShowcase(id){
  if(!COSMETICS.some(s=>s.id===id))return;
- heldKeys.clear();releaseTouch();screen='showcase';setPlayingUI(false);disposeShowcase();
- const safe=sanitizeProfile(profile),host=$('overlay');
+ heldKeys.clear();releaseTouch();screen='showcase';setPlayingUI(false);disposeLobby();disposeShowcase();
+ const safe=structuredClone(profile),host=$('overlay');
  host.className='overlay menu-overlay';host.classList.remove('hidden');
  showcaseController=mountSkinShowcase({
    host,profile:safe,initialSkinId:id,quality:safe.settings.vfx,
@@ -59,17 +78,14 @@ function showSkinShowcase(id){
    // the showcase's reduction control. The preview component owns that toggle.
    reducedMotion:safe.settings.reduceMotion||window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches===true,
    onClose:()=>{disposeShowcase();showWardrobe()},
-   onEquip:nextId=>{
-     const actual=sanitizeProfile(profile),item=COSMETICS.find(s=>s.id===nextId);
-     if(!item||item.source.includes('PREMIUM')||!actual.owned.includes(nextId))return;
-     profile=actual;profile.skin=nextId;persist();sound.play('equip');disposeShowcase();showWardrobe();
+   onEquip:async nextId=>{
+     const result=await commitCommand({type:'EQUIP_COSMETIC',cosmeticId:nextId});
+     if(result.ok){sound.play('equip');disposeShowcase();showWardrobe()}
    },
-   onSettingsChange:settings=>{
-     if(!['low','medium','high'].includes(settings.vfx))return;
-     const current=sanitizeProfile(profile);
-     current.settings.vfx=settings.vfx;
-     current.settings.reduceMotion=settings.reduceMotion===true;
-     profile=current;persist();
+   onSettingsChange:async settings=>{
+     const selected=showcaseController?.getSelection();
+     const result=await commitCommand({type:'PROFILE_SETTINGS',settings});
+     if(!result.ok&&screen==='showcase')showSkinShowcase(selected||id);
    }
  });
 }
@@ -77,36 +93,71 @@ function showSettings(from='lobby'){
  screen='settings';window.__returnTo=from;
  panel(`<section class="main-card menu-card"><div class="eyebrow">GAME OPTIONS</div><h2>SETTINGS</h2><div class="setting-row"><div><b>คุณภาพเอฟเฟกต์</b><small>ปรับความสวยให้เหมาะกับอุปกรณ์</small></div><button class="button secondary" type="button" data-action="vfx">${profile.settings.vfx.toUpperCase()}</button></div><div class="setting-row"><div><b>ลดการเคลื่อนไหว</b><small>ปิดการขยับตกแต่งและแสงมากเกินไป</small></div><button class="button secondary" type="button" data-action="motion">${profile.settings.reduceMotion?'ON':'OFF'}</button></div><div class="setting-row"><div><b>เสียงเวทมนตร์และเพลง</b><small>สังเคราะห์ในเครื่อง · เล่นออฟไลน์</small></div><button class="button secondary" type="button" data-action="sound">${sound.isEnabled()?'SOUND ON':'SOUND OFF'}</button></div><div class="setting-row"><div><b>เพลงล็อบบี้ตามเทศกาล</b><small>เปลี่ยนอัตโนมัติตามวันที่หรือเลือกธีมเองได้</small></div><button class="button secondary" type="button" data-action="music-settings">${sound.musicChoices().find(c=>c.id===sound.getMusicChoice())?.label} ↻</button></div><div class="tip">เดินด้วย WASD / ลูกศร หรือจอยสัมผัส<br>กด Esc เพื่อหยุดเกม · ระบบบันทึกในเครื่องนี้</div><button class="button primary wide" type="button" data-action="back">เสร็จสิ้น</button></section>`,'menu-overlay');
 }
-function startRun(){
- sound.unlock();sound.play('start');
- game=createGame(73001+profile.runs*79);screen='play';paused=false;accumulator=0;heldKeys.clear();touch.x=touch.y=0;touch.active=false;
- hideOverlay();setPlayingUI(true);updateHud();notify(`เอาชีวิตรอดจนบอสปรากฏตัวที่ ${formatTime(BOSS_AT * 60)}`);
+async function startRun(){
+ if(starting||finishing||pendingFinish)return;
+ starting=true;
+ try {
+  const loaded=await campaignClient.load();
+  if(!loaded.ok){notify(storageMessage(loaded.code));return}
+  let active=campaign.progression.activeRun;
+  if(!active){
+   const result=await commitCommand({type:'START_RUN',day:new Date().toISOString().slice(0,10)});
+   if(!result.ok)return;
+   active=campaign.progression.activeRun;
+  }
+  sound.unlock();sound.play('start');
+  if(currentRunId!==active.id||!['running','upgrade'].includes(game.phase)){
+   game=createGame(active.seed,active.runConfig);currentRunId=active.id;
+  }
+  screen='play';paused=false;accumulator=0;lastTime=0;heldKeys.clear();releaseTouch();
+  hideOverlay();setPlayingUI(true);updateHud();
+  const chapter=CHAPTERS.find(item=>item.id===active.chapterId),mode=MODES.find(item=>item.id===active.mode);
+  $('run-tag').textContent=`✦ ${chapter?.name||active.chapterId} · ${mode?.name||active.mode}`;
+  const bossName=$('boss-hud').querySelector('.boss-name');
+  bossName.textContent=chapter?.bossName||'STARFALL WARDEN';
+  notify(game.timeLimitTicks?`เอาชีวิตรอด ${formatTime(game.timeLimitTicks)}`:game.targetBosses>1?`เอาชนะบอส ${game.targetBosses} ตัว`:`เอาชีวิตรอดจนบอสปรากฏตัวที่ ${formatTime(game.bossAtTicks)}`);
+  if(game.phase==='upgrade')showUpgrade();
+ }finally{starting=false}
 }
 function showUpgrade(){sound.play('level');heldKeys.clear();releaseTouch();screen='upgrade';const cards=game.upgrades.map(k=>{const [name,description]=UPGRADE_DESCRIPTIONS[k];return `<button class="upgrade-option" type="button" data-action="upgrade" data-id="${k}"><span class="upgrade-sigil">✧</span><span><b>${name}</b><small>${description}</small></span><span class="chevron">›</span></button>`}).join('');
  panel(`<section class="main-card menu-card upgrade-card"><div class="eyebrow">LEVEL UP — LV ${game.player.level}</div><h2>CHOOSE YOUR POWER</h2><p class="muted">เลือกพรเวทมนตร์ 1 อย่างเพื่อสู้ต่อ</p><div class="upgrade-list">${cards}</div></section>`,'upgrade-overlay');
 }
-function finishRun(){
- if(screen==='result')return;heldKeys.clear();releaseTouch();screen='result';setPlayingUI(false);
- sound.play(game.phase==='won'?'victory':'defeat');
- const reward=getReward(game),hadMoon=profile.owned.includes('moon');
- profile=awardRun(profile,{gold:reward,kills:game.kills,seconds:game.tick/60});persist();
- if(!hadMoon&&profile.owned.includes('moon'))sound.play('unlock');
- const won=game.phase==='won';
- panel(`<section class="main-card menu-card result-card"><div class="eyebrow">${won?'THE STARS ARE YOURS':'THE FALLEN SHALL RISE'}</div><h2>${won?'VICTORY':'DEFEAT'}</h2><div class="result-icon">${won?'✦':'◇'}</div><p class="muted">${won?'คุณเอาชนะผู้พิทักษ์แห่งดาวตกได้แล้ว':'การเดินทางยังไม่สิ้นสุด ลองใหม่อีกครั้ง'}</p><div class="result-stats"><div><small>TIME</small><b>${formatTime(game.tick)}</b></div><div><small>DEFEATED</small><b>${game.kills}</b></div><div><small>REWARD</small><b>+${reward} ✦</b></div></div><button class="button primary wide" type="button" data-action="start">เล่นอีกครั้ง</button><button class="button secondary wide" type="button" data-action="home">กลับล็อบบี้</button></section>`,'menu-overlay');
+async function finishRun(){
+ if(finishing)return;
+ if(!pendingFinish){
+  if(screen==='result')return;
+  heldKeys.clear();releaseTouch();screen='result';setPlayingUI(false);
+  sound.play(game.phase==='won'?'victory':'defeat');
+  pendingFinish={type:'FINISH_RUN',runId:currentRunId,stats:{kills:game.kills,seconds:Math.floor(game.tick/60),won:game.phase==='won'}};
+ }
+ finishing=true;
+ panel('<section class="main-card menu-card"><h2>กำลังบันทึกรางวัล…</h2><p class="muted">รอสักครู่</p></section>','menu-overlay');
+ try {
+  const result=await commitCommand(pendingFinish);
+  const committed=result.ok||result.code==='ALREADY_CLAIMED';
+  const won=pendingFinish.stats.won;
+  const details=result.details||{};
+  const closedElsewhere=result.code==='ALREADY_CLAIMED';
+  const rewardText=closedElsewhere?'ไม่มีรางวัลเพิ่มเติม':`+${details.gold||0} ✦`;
+  panel(`<section class="main-card menu-card result-card"><div class="eyebrow">${committed?'RUN COMPLETE':'SAVE PENDING'}</div><h2>${closedElsewhere?'รอบนี้ถูกปิดแล้ว':committed?(won?'VICTORY':'DEFEAT'):'ยังบันทึกไม่สำเร็จ'}</h2><div class="result-icon">${won?'✦':'◇'}</div><p class="muted">${closedElsewhere?'รอบนี้จบหรือถูกยุติจากอีกแท็บแล้ว':committed?(won?'ผ่านด่านสำเร็จ เตรียมอุปกรณ์แล้วไปต่อกัน':'นำรางวัลไปพัฒนาตัวละครแล้วลองใหม่'):'รางวัลยังไม่ได้เข้าคลัง กดลองบันทึกอีกครั้ง รอบเดิมยังถูกเก็บไว้'}</p><div class="result-stats"><div><small>TIME</small><b>${formatTime(game.tick)}</b></div><div><small>DEFEATED</small><b>${game.kills}</b></div><div><small>REWARD</small><b>${committed?rewardText:'รอบันทึก'}</b></div></div>${committed?`<p class="muted">${details.essence?`เอสเซนซ์ +${details.essence} · `:''}${details.items?.length?`อุปกรณ์ +${details.items.length} · `:''}${details.firstClear?'ปลดล็อกความก้าวหน้าด่านใหม่':''}</p><button class="button primary wide" type="button" data-action="start">เล่นอีกครั้ง</button><button class="button secondary wide" type="button" data-action="home">กลับล็อบบี้</button>`:'<button class="button primary wide" type="button" data-action="retry-save">ลองบันทึกอีกครั้ง</button>'}</section>`,'menu-overlay');
+  if(committed){pendingFinish=null;currentRunId=null}
+ }finally{finishing=false}
 }
 function showPause(){if(screen!=='play')return;sound.play('pause');heldKeys.clear();releaseTouch();paused=true;screen='pause';
  panel(`<section class="main-card menu-card pause-card"><div class="eyebrow">TIME FROZEN</div><h2>PAUSED</h2><p class="muted">เวลาหยุดระหว่างพัก</p><button class="button primary wide" type="button" data-action="resume">เล่นต่อ</button><button class="button secondary wide" type="button" data-action="settings">ตั้งค่า</button><button class="button secondary wide" type="button" data-action="home">ออกสู่ล็อบบี้</button></section>`,'menu-overlay');
 }
 function resume(){sound.unlock();sound.play('resume');screen='play';paused=false;accumulator=0;lastTime=0;hideOverlay()}
-function handleAction(action,id){
+async function handleAction(action,id){
+ if(action==='retry-load')return boot();
+ if(action==='retry-save')return finishRun();
  if(action==='home'){sound.play('menuBack');return showLobby()}
  if(action==='start')return startRun();
  if(action==='wardrobe'){sound.unlock();sound.play('menuOpen');return showWardrobe()}
  if(action==='preview'){sound.unlock();sound.play('menuOpen');return showSkinShowcase(id)}
  if(action==='settings'){sound.unlock();sound.play('menuOpen');return showSettings(screen==='play'?'pause':screen)}
  if(action==='back'){sound.play('menuBack');return window.__returnTo==='pause'?showPauseFromSettings():showLobby()}
- if(action==='vfx'){sound.play('switch');profile.settings.vfx=profile.settings.vfx==='high'?'low':profile.settings.vfx==='low'?'medium':'high';persist();return showSettings(window.__returnTo)}
- if(action==='motion'){sound.play('switch');profile.settings.reduceMotion=!profile.settings.reduceMotion;persist();return showSettings(window.__returnTo)}
+ if(action==='vfx'){const vfx=profile.settings.vfx==='high'?'low':profile.settings.vfx==='low'?'medium':'high';if((await commitCommand({type:'PROFILE_SETTINGS',settings:{vfx}})).ok)sound.play('switch');return showSettings(window.__returnTo)}
+ if(action==='motion'){if((await commitCommand({type:'PROFILE_SETTINGS',settings:{reduceMotion:!profile.settings.reduceMotion}})).ok)sound.play('switch');return showSettings(window.__returnTo)}
  if(action==='sound'){sound.setEnabled(!sound.isEnabled());if(sound.isEnabled()){sound.unlock();sound.play('menu')}return showSettings(window.__returnTo)}
  if(action==='music-settings'){
    const choices=sound.musicChoices(),idx=choices.findIndex(c=>c.id===sound.getMusicChoice());
@@ -117,16 +168,19 @@ function handleAction(action,id){
  if(action==='pause')return showPause();
  if(action==='resume')return resume();
  if(action==='upgrade') {if(chooseUpgrade(game,id)){sound.play(id==='heal'?'heal':'upgradeSelect');screen='play';hideOverlay();updateHud()}return;}
- if(action==='equip'&&profile.owned.includes(id)){const next={...profile,skin:id};if(persist(next)){profile=next;sound.play('equip')}return showWardrobe()}
+ if(action==='equip'){
+   if((await commitCommand({type:'EQUIP_COSMETIC',cosmeticId:id})).ok)sound.play('equip');
+   return showWardrobe();
+ }
  if(action==='unlock'){
-   const next=unlockGoldCosmetic(profile,id,120);
-   if(next){if(persist(next)){profile=next;sound.play('unlock');notify('ปลดล็อกสกินสำเร็จ')}showWardrobe()}
-   return;
+   if((await commitCommand({type:'UNLOCK_COSMETIC',cosmeticId:id})).ok){sound.play('unlock');notify('ปลดล็อกสกินสำเร็จ')}
+   return showWardrobe();
  }
 }
 function showPauseFromSettings(){screen='play';showPause()}
 $('overlay').addEventListener('click',event=>{
- const button=event.target.closest('[data-action]');if(button&&!button.disabled)handleAction(button.dataset.action,button.dataset.id);
+ if(screen==='lobby')return;
+ const button=event.target.closest('[data-action]');if(button&&!button.disabled)handleAction(button.dataset.action,button.dataset.id).catch(()=>notify('เกิดข้อผิดพลาด กรุณาลองอีกครั้ง'));
 });
 $('pause-btn').addEventListener('click',showPause);
 const movingKeys={ArrowUp:[0,-1],KeyW:[0,-1],ArrowDown:[0,1],KeyS:[0,1],ArrowLeft:[-1,0],KeyA:[-1,0],ArrowRight:[1,0],KeyD:[1,0]};
@@ -204,6 +258,14 @@ function unlockAudioOnInteraction() {
 window.addEventListener('pointerdown',unlockAudioOnInteraction,{capture:true});
 window.addEventListener('keydown',unlockAudioOnInteraction,{capture:true});
 window.addEventListener('touchstart',unlockAudioOnInteraction,{capture:true,passive:true});
-showLobby();
+async function boot(){
+ screen='loading';setPlayingUI(false);
+ panel('<section class="main-card menu-card"><div class="eyebrow">ARCANA SURVIVOR</div><h2>กำลังโหลดการเดินทาง…</h2></section>','menu-overlay');
+ const result=await campaignClient.load();
+ if(result.ok){showLobby();return}
+ screen='storage-error';
+ panel(`<section class="main-card menu-card" role="alert" data-save-error="${result.code}"><h2>เปิดข้อมูลไม่สำเร็จ</h2><p class="muted">${storageMessage(result.code)}</p><p class="muted">ตรวจว่าเบราว์เซอร์อนุญาตให้บันทึกข้อมูลของเว็บไซต์นี้ แล้วลองใหม่</p><button type="button" class="button primary wide" data-action="retry-load">ลองอีกครั้ง</button></section>`,'menu-overlay');
+}
+boot();
 sound.unlock();
 requestAnimationFrame(frame);

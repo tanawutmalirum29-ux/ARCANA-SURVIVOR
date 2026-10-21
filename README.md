@@ -1,16 +1,14 @@
 # ARCANA SURVIVOR
 
-## Playable Demo (development)
-**P0/P1 prototype source is available in `main` after PR acceptance**; this is an offline local demo, not the commercial game. For local development use **Node 20+**: run `npm run dev` and open `http://localhost:4173`. Run `npm test` for deterministic core and save tests; `npm run build` for distributable static files in `dist/`.
+## Local campaign
 
-Features: arena combat, auto-targeting, 3 enemy archetypes, 4 upgradeable skills, boss encounter, keyboard/touch controls, offline unlockable visual-only skins, settings and local save. **No real payments, online events, seasonal shop, multiplayer or backend yet.** See [implementation status](docs/IMPLEMENTATION_STATUS.md) for QA scope, limitations, and technical stack decision.
+ล็อบบี้ 5 แท็บพร้อมฮีโร่ อุปกรณ์ Relics/Artifacts รูน ภูต ผู้พิทักษ์ วิจัย ฐาน ภารกิจและเส้นทางรางวัลฟรี เชื่อมกับการต่อสู้แบบ survivor ที่เดินและยิงอัตโนมัติ มี 3 บทและ 7 โหมด ดูวิธีเล่นและขอบเขตจริงใน [คู่มือ Campaign](docs/CAMPAIGN_GUIDE.md)
 
+ใช้ **Node 20+**: `npm run dev` แล้วเปิด `http://localhost:4173`; `npm test` ตรวจ simulation/progression/save; `npm run build` สร้างเว็บ static ใน `dist/`
 
-**สถานะ: OFFLINE PROTOTYPE IN MAIN / PARALLEL DEVELOPMENT** — ตัวเกมทดลองเล่นออฟไลน์ได้แล้ว แต่ยังไม่เปิดขายเงินจริงหรือ LiveOps จริง
+เซฟหลักใช้ IndexedDB พร้อมนำเข้าเซฟเดิมครั้งเดียว และรับรางวัลแบบ transaction ป้องกันรับซ้ำ สกินไม่มีค่าพลัง ไม่มีค่าพลังงานหรือการซื้อพลังด้วยเงินจริง **บัญชี cloud, multiplayer, public leaderboard และการชำระเงินยังไม่เปิด**
 
-ARCANA SURVIVOR เป็นเกม 2D fantasy bullet-heaven / survivor สำหรับ Web และมือถือ: ผู้เล่นเดินหลบศัตรู ตัวละครโจมตีอัตโนมัติ เลือกสกิลระหว่างรอบ ต่อสู้กับบอส และสะสมเครื่องแต่งกาย/เอฟเฟกต์ที่สวยงาม
-
-**หลักธุรกิจ: Free-to-Play, Cosmetics-Only, No Pay-to-Win.** สกินฟรี สกินกิจกรรม สกินจากผลงาน สกินคราฟต์ สกินซีซัน และสกินซื้อโดยตรงอยู่ร่วมกันได้ ไม่มีสกินเพิ่ม HP, DPS, ความเร็ว หรือโอกาสชนะ
+รายละเอียดสถาปัตยกรรมและหลักฐาน QA อยู่ใน [implementation status](docs/IMPLEMENTATION_STATUS.md) เอกสารวิสัยทัศน์ด้านล่างมีทั้งฟีเจอร์ปัจจุบันและแผนอนาคต ให้ใช้คู่มือ Campaign เป็นรายการฟีเจอร์ runtime
 
 ## เริ่มอ่าน
 | เอกสาร | เนื้อหา |
@@ -42,7 +40,7 @@ ARCANA SURVIVOR เป็นเกม 2D fantasy bullet-heaven / survivor สำ
 
 [เปิดกระดานงาน GitHub Issues](https://github.com/tanawutmalirum29-ux/ARCANA-SURVIVOR/issues)
 
-**Next action:** ให้แต่ละแชทผู้รับเริ่มงานด้วยข้อความ `ROLE: AP-ROLE #<issue> <issue-url>` ตาม [TEAM_EXECUTION](docs/TEAM_EXECUTION.md); CEO ตรวจ PR รวมเข้า `main` หลัง QA ผ่าน; การขายเงินจริงยัง HOLD
+กระดาน integration ปัจจุบัน: [#61](https://github.com/tanawutmalirum29-ux/ARCANA-SURVIVOR/issues/61) — รวมเข้า `main` หลัง unit/build, browser matrix และ independent QA ของ head เดียวกันผ่าน
 
 ## AWS Amplify Hosting
 

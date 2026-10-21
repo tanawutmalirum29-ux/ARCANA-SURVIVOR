@@ -1,4 +1,6 @@
 /* Deterministic, renderer-agnostic 60Hz simulation. No DOM, storage, network or cosmetic imports. */
+import { normalizeRunConfig, modeRules, bossIdentity } from './gameplay/run-config.js';
+import { updateSupports } from './gameplay/supports.js';
 export const STEP = 1 / 60;
 export const WORLD = { width: 2200, height: 1500 };
 export const BOSS_AT = 9 * 60;
@@ -15,9 +17,26 @@ const clamp = (n, low, high) => Math.max(low, Math.min(high, n));
 const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const unit = (dx, dy) => { const length = Math.hypot(dx, dy) || 1; return { x: dx / length, y: dy / length }; };
 function random(s) { let x = s.rng | 0; x ^= x << 13; x ^= x >>> 17; x ^= x << 5; s.rng = x >>> 0; return s.rng / 4294967296; }
+// Critical rolls cannot perturb wave positions or offered upgrade choices.
+function combatRandom(s) { let x = s.combatRng | 0; x ^= x << 13; x ^= x >>> 17; x ^= x << 5; s.combatRng = x >>> 0; return s.combatRng / 4294967296; }
 function id(s) { s.nextId += 1; return s.nextId; }
-export function createGame(seed = 2026) {
-  return {
+function heal(s, amount) { s.player.hp = Math.min(s.player.maxHp, s.player.hp + amount * s.player.healingMultiplier); }
+function finishBoss(s) {
+  s.bossesDefeated++;
+  if (s.targetBosses && s.bossesDefeated >= s.targetBosses) {
+    s.bossDefeated = true; s.phase = 'won'; return;
+  }
+  s.stage++;
+  s.bossSpawned = false;
+  const delay = s.runConfig.mode === 'bossRush' ? 15 : s.runConfig.mode === 'expedition' ? 45 : 120;
+  s.bossAtTicks = s.tick + delay * 60;
+  // A cleared stage grants a breathing interval; old boss projectiles cannot ambush the next stage.
+  s.hostileShots.length = 0;
+  heal(s, s.player.maxHp * .15);
+  s.statusText = `STAGE ${s.stage}`;
+}
+export function createGame(seed = 2026, runConfig) {
+  const state = {
     rng: (Number(seed) >>> 0) || 1, nextId: 0, tick: 0, phase: 'running',
     player: { x: WORLD.width / 2, y: WORLD.height / 2, radius: 14, hp: 100, maxHp: 100, speed: 230, level: 1, xp: 0, nextXp: 20, attack: 22, fireDelay: 24, fireTimer: 0, invuln: 0 },
     enemies: [], shots: [], hostileShots: [], pickups: [], flashes: [],
@@ -25,12 +44,42 @@ export function createGame(seed = 2026) {
     timers: { spawn: 35, nova: 0, chain: 0, bossShot: 110 },
     bossSpawned: false, bossDefeated: false, upgrades: [], statusText: '',
   };
+  // The unconfigured path intentionally preserves the original simulation, including RNG use.
+  if (runConfig !== undefined && runConfig !== null) {
+    const config = normalizeRunConfig(runConfig);
+    state.runConfig = config;
+    state.rules = modeRules(config);
+    Object.assign(state.player, config.stats, { hp: config.stats.maxHp, shield: 0, movingTicks: 0 });
+    Object.assign(state, {
+      bossAtTicks: state.rules.bossAtTicks, targetBosses: state.rules.targetBosses,
+      timeLimitTicks: state.rules.timeLimitTicks, objective: state.rules.objective,
+      bossesDefeated: 0, stage: 1, supportActors: [],
+      combatRng: ((Number(seed) >>> 0) ^ 0x9e3779b9) >>> 0 || 1,
+      damageDealt: 0, damageTaken: 0, criticalHits: 0,
+      supportTimers: { artifact: 90, guardian: 180, heroShield: 0, gearShield: 0 },
+    });
+    config.companions.forEach((companion, index) => state.supportActors.push({
+      ...companion, slot: index, x: state.player.x, y: state.player.y, timer: 25 + index * 35,
+    }));
+  }
+  return state;
 }
 export function spawnEnemy(s, type, x, y) {
   if (!TYPES[type]) throw new Error('Unknown enemy type');
   const t = TYPES[type];
   const enemy = { id: id(s), type, x: clamp(x, t.radius, WORLD.width - t.radius), y: clamp(y, t.radius, WORLD.height - t.radius), radius: t.radius, hp: t.hp, maxHp: t.hp, speed: t.speed, damage: t.damage, xp: t.xp, shotTimer: 80, slow: 0, flash: 0 };
   if (type === 'boss') Object.assign(enemy, { nextPattern: 0, pendingAttack: null, spawnTick: s.tick, enraged: false });
+  if (s.runConfig) {
+    const stageMultiplier = Math.min(12, 1 + (s.stage - 1) * (s.runConfig.mode === 'endless' ? .28 : .16));
+    const health = type === 'boss' ? s.runConfig.chapter.bossHpMultiplier * (s.runConfig.mode === 'hard' ? 1.35 : 1) : s.rules.healthMultiplier;
+    enemy.hp = enemy.maxHp = Math.round(t.hp * health * stageMultiplier);
+    enemy.damage *= s.rules.damageMultiplier * Math.min(3, stageMultiplier);
+    enemy.speed *= Math.min(1.4, 1 + (s.stage - 1) * .035);
+    if (type === 'boss') {
+      Object.assign(enemy, bossIdentity(s.runConfig, s.stage));
+      enemy.nextPattern = enemy.variant === 'grove' ? 1 : enemy.variant === 'citadel' ? 2 : 0;
+    }
+  }
   s.enemies.push(enemy); return enemy;
 }
 // Preserve an actual safe spawn distance, even when the player hugs arena edges.
@@ -51,7 +100,7 @@ function safeSpawnPosition(s, type, minRadius = 380, maxRadius = 550) {
     y: p.y < WORLD.height / 2 ? WORLD.height - r : r };
 }
 function spawnWave(s) {
-  if (s.enemies.length >= MAX_ENEMIES) return;
+  if (s.enemies.length >= MAX_ENEMIES - (s.runConfig && !s.bossSpawned ? 1 : 0)) return;
   const v = random(s);
   const type = s.tick / 60 < 14 || v < 0.64 ? 'swarmer' : v < 0.84 ? 'cultist' : 'brute';
   const pos = safeSpawnPosition(s, type);
@@ -60,19 +109,51 @@ function spawnWave(s) {
 function hurt(s, amount) {
   const p = s.player;
   if (p.invuln > 0 || s.phase !== 'running') return;
+  if (s.runConfig) {
+    amount *= 1 - p.armor;
+    if (s.sanctuary && distance(p, s.sanctuary) < s.sanctuary.radius) amount *= .8;
+    const absorbed = Math.min(p.shield, amount);
+    p.shield -= absorbed; amount -= absorbed;
+    s.damageTaken += Math.min(p.hp, amount);
+  }
   p.hp = Math.max(0, p.hp - amount);
   p.invuln = 46;
   s.flashes.push({ id: id(s), x: p.x, y: p.y, type: 'hurt', ttl: 16, radius: 42 });
-  if (p.hp === 0) s.phase = 'lost';
+  if (p.hp === 0) {
+    if (s.runConfig?.guardian?.id === 'phoenix' && !s.phoenixRevived) {
+      s.phoenixRevived = true;
+      p.hp = p.maxHp * Math.min(.6, .3 + (s.runConfig.guardian.level - 1) * .015);
+      p.invuln = 180;
+      s.flashes.push({ id: id(s), x: p.x, y: p.y, type: 'revive', radius: 150, ttl: 45 });
+      s.statusText = 'PHOENIX REVIVAL';
+    } else s.phase = 'lost';
+  }
 }
-function damageEnemy(s, enemy, amount) {
-  if (enemy.hp <= 0) return;
+function damageEnemy(s, enemy, amount, critical = true) {
+  if (enemy.hp <= 0 || (s.runConfig && s.phase !== 'running')) return;
+  if (s.runConfig) {
+    if (enemy.type === 'boss') amount *= s.player.bossDamageMultiplier;
+    if (critical && s.player.critChance > 0 && combatRandom(s) < s.player.critChance) {
+      amount *= s.player.critDamage; s.criticalHits++;
+      s.flashes.push({ id: id(s), x: enemy.x, y: enemy.y, radius: enemy.radius + 10, ttl: 10, type: 'critical' });
+    }
+    s.damageDealt += Math.min(enemy.hp, amount);
+  }
   enemy.hp = Math.max(0, enemy.hp - amount); enemy.flash = 8;
   if (enemy.hp === 0) {
     s.kills++;
-    s.pickups.push({ id: id(s), x: enemy.x, y: enemy.y, xp: enemy.xp });
+    if (s.runConfig && s.pickups.length >= 300) {
+      // Pool excess XP instead of allocating indefinitely during an endless run.
+      let nearest = s.pickups[0];
+      for (const orb of s.pickups) if (distance(orb, enemy) < distance(nearest, enemy)) nearest = orb;
+      nearest.xp += enemy.xp;
+    } else s.pickups.push({ id: id(s), x: enemy.x, y: enemy.y, xp: enemy.xp });
     s.flashes.push({ id: id(s), x: enemy.x, y: enemy.y, type: 'death', ttl: 20, radius: enemy.radius * 2.5 });
-    if (enemy.type === 'boss') { s.bossDefeated = true; s.phase = 'won'; }
+    if (s.runConfig && s.runConfig.modifiers.killHeal) heal(s, s.runConfig.modifiers.killHeal);
+    if (enemy.type === 'boss') {
+      if (s.runConfig) finishBoss(s);
+      else { s.bossDefeated = true; s.phase = 'won'; }
+    }
   }
 }
 const upgradePool = ['bolt', 'nova', 'orbit', 'chain', 'power', 'haste', 'speed', 'heal'];
@@ -93,7 +174,7 @@ export function chooseUpgrade(s, key) {
   else if (key === 'power') p.attack += 5;
   else if (key === 'haste') p.fireDelay = Math.max(8, p.fireDelay - 3);
   else if (key === 'speed') p.speed = Math.min(350, p.speed + 22);
-  else if (key === 'heal') p.hp = Math.min(p.maxHp, p.hp + 35);
+  else if (key === 'heal') p.hp = Math.min(p.maxHp, p.hp + 35 * (s.runConfig ? p.healingMultiplier : 1));
   s.upgrades = []; s.phase = 'running';
   // XP gained in a burst may cover multiple levels; queue the next choice, never discard XP.
   if (p.xp >= p.nextXp) gainXp(s, 0);
@@ -119,44 +200,66 @@ function targetNearest(s, origin, maxRange = 580) {
   return closest;
 }
 function shoot(s, x, y, direction, friendly, damage, speed = 450, radius = 5) {
+  if (s.runConfig && (friendly ? s.shots.length >= 160 : s.hostileShots.length >= 360)) return;
+  if (s.runConfig && !friendly) damage *= s.rules.damageMultiplier * Math.min(3, 1 + (s.stage - 1) * .16);
   const item = { id: id(s), x, y, vx: direction.x * speed, vy: direction.y * speed, damage, radius, life: 125, friendly };
   (friendly ? s.shots : s.hostileShots).push(item);
+  return item;
 }
 function updateSkills(s) {
   const p = s.player;
+  const configured = Boolean(s.runConfig);
+  const modifiers = configured ? s.runConfig.modifiers : null;
+  const spellScale = configured ? p.attack / 22 * p.skillMultiplier * (s.runConfig.heroId === 'mage' ? 1.1 : 1) : 1;
   p.fireTimer--;
   if (p.fireTimer <= 0) {
     const enemy = targetNearest(s, p);
     if (enemy) {
-      shoot(s, p.x, p.y, unit(enemy.x - p.x, enemy.y - p.y), true, p.attack * (1 + (s.skills.bolt - 1) * .24));
+      const rangerBonus = configured && s.runConfig.heroId === 'ranger' && p.movingTicks >= 60 ? 1.12 : 1;
+      const bolt = shoot(s, p.x, p.y, unit(enemy.x - p.x, enemy.y - p.y), true, p.attack * (1 + (s.skills.bolt - 1) * .24) * rangerBonus * (configured ? p.skillMultiplier : 1),
+        configured && s.runConfig.weaponEffect === 'rapid' ? 517.5 : 450);
+      if (bolt && configured && s.runConfig.weaponEffect === 'pierce') { bolt.pierce = 2; bolt.hitIds = []; }
       p.fireTimer = p.fireDelay;
     }
   }
   if (s.skills.nova) {
     s.timers.nova--;
     if (s.timers.nova <= 0) {
-      s.flashes.push({ id: id(s), x: p.x, y: p.y, radius: 175, ttl: 24, type: 'nova' });
-      for (const e of s.enemies) if (e.hp > 0 && distance(p, e) < 175) { damageEnemy(s, e, 12 + s.skills.nova * 8); e.slow = 110; }
+      const radius = 175 * (configured ? modifiers.novaRadius : 1);
+      s.flashes.push({ id: id(s), x: p.x, y: p.y, radius, ttl: 24, type: 'nova' });
+      for (const e of s.enemies) if (e.hp > 0 && distance(p, e) < radius) { damageEnemy(s, e, (12 + s.skills.nova * 8) * spellScale); e.slow = 110; }
       s.timers.nova = Math.max(100, 325 - s.skills.nova * 20);
     }
   }
   if (s.skills.orbit && s.tick % 22 === 0) {
-    for (const e of s.enemies) if (e.hp > 0 && distance(p, e) < 92 + s.skills.orbit * 7) damageEnemy(s, e, 8 + s.skills.orbit * 5);
+    for (const e of s.enemies) if (e.hp > 0 && distance(p, e) < (92 + s.skills.orbit * 7) * (configured ? modifiers.orbitRadius : 1)) damageEnemy(s, e, (8 + s.skills.orbit * 5) * spellScale);
   }
   if (s.skills.chain) {
     s.timers.chain--;
     if (s.timers.chain <= 0) {
-      const candidates = s.enemies.filter(e => e.hp > 0 && distance(p, e) < 340).sort((a, b) => distance(a, p) - distance(b, p) || a.id - b.id).slice(0, 1 + s.skills.chain);
+      const candidates = s.enemies.filter(e => e.hp > 0 && distance(p, e) < 340).sort((a, b) => distance(a, p) - distance(b, p) || a.id - b.id).slice(0, 1 + s.skills.chain + (configured ? modifiers.chainTargets : 0));
       let prev = p;
       for (const e of candidates) {
         s.flashes.push({ id: id(s), x: e.x, y: e.y, x2: prev.x, y2: prev.y, type: 'chain', ttl: 14, radius: 8 });
-        damageEnemy(s, e, 18 + s.skills.chain * 8); prev = e;
+        damageEnemy(s, e, (18 + s.skills.chain * 8) * spellScale); prev = e;
       }
       s.timers.chain = Math.max(75, 210 - s.skills.chain * 18);
     }
   }
 }
 // Three deterministic boss patterns: rotating ring, aimed fan, and diagonal star.
+function configuredBossAngles(attack) {
+  if (attack.pattern === 0) {
+    const count = attack.variant === 'grove' ? 10 : 12;
+    return Array.from({ length: count }, (_, n) => n / count * Math.PI * 2 + attack.rotation);
+  }
+  if (attack.pattern === 1) {
+    const spread = attack.variant === 'grove' ? 3 : 2;
+    return Array.from({ length: spread * 2 + 1 }, (_, n) => attack.angle + (n - spread) * .18);
+  }
+  const count = attack.variant === 'citadel' ? 12 : 8;
+  return Array.from({ length: count }, (_, n) => Math.PI / 4 + n / count * Math.PI * 2);
+}
 function queueBossAttack(s, e, delta) {
   const pattern = e.nextPattern % 3;
   e.nextPattern++;
@@ -165,14 +268,25 @@ function queueBossAttack(s, e, delta) {
     angle: Math.atan2(delta.y, delta.x),
     rotation: s.tick / 160, ticks: BOSS_WARNING_TICKS,
   };
+  if (s.runConfig) {
+    e.pendingAttack.variant = e.variant;
+    e.pendingAttack.angles = configuredBossAngles(e.pendingAttack);
+  }
   // Existing renderer draws warning rings; VFX can use pattern/angle metadata.
-  s.flashes.push({ id: id(s), x: e.x, y: e.y, type: 'warning',
+  const warning = { id: id(s), x: e.x, y: e.y, type: 'warning',
     pattern, angle: e.pendingAttack.angle, ttl: BOSS_WARNING_TICKS,
-    radius: pattern === 1 ? 200 : 170 });
+    radius: pattern === 1 ? 200 : 170 };
+  if (s.runConfig) Object.assign(warning, { variant: e.variant, shotCount: e.pendingAttack.angles.length, angles: [...e.pendingAttack.angles] });
+  s.flashes.push(warning);
   e.shotTimer = e.enraged ? 74 : 112;
 }
 function fireBossAttack(s, attack, enraged) {
   const damage = enraged ? 15 : 12;
+  if (s.runConfig) {
+    for (const angle of attack.angles) shoot(s, attack.x, attack.y, { x: Math.cos(angle), y: Math.sin(angle) }, false,
+      damage + (attack.pattern === 0 ? 0 : 1), [195, 240, 175][attack.pattern], 6);
+    return;
+  }
   if (attack.pattern === 0) {
     for (let n = 0; n < 12; n++) {
       const a = n / 12 * Math.PI * 2 + attack.rotation;
@@ -237,9 +351,12 @@ function updateProjectiles(s) {
       bullet.x += bullet.vx * STEP; bullet.y += bullet.vy * STEP;
       if (friendly) {
         for (const e of s.enemies) {
-          if (e.hp > 0 && distance(e, bullet) < e.radius + bullet.radius) {
+          if (e.hp > 0 && !bullet.hitIds?.includes(e.id) && distance(e, bullet) < e.radius + bullet.radius) {
             damageEnemy(s, e, bullet.damage);
-            bullet.life = 0;
+            if (bullet.pierce) {
+              bullet.hitIds.push(e.id);
+              if (--bullet.pierce === 0) bullet.life = 0;
+            } else bullet.life = 0;
             break;
           }
         }
@@ -255,7 +372,7 @@ function updatePickups(s) {
   const p = s.player;
   for (const item of s.pickups) {
     const dist = distance(p, item);
-    if (dist < 165 && dist > 1) { const dir = unit(p.x - item.x, p.y - item.y); item.x += dir.x * Math.min(10, 20 / dist * 45); item.y += dir.y * Math.min(10, 20 / dist * 45); }
+    if (dist < (s.runConfig ? p.pickupRadius : 165) && dist > 1) { const dir = unit(p.x - item.x, p.y - item.y); item.x += dir.x * Math.min(10, 20 / dist * 45); item.y += dir.y * Math.min(10, 20 / dist * 45); }
     if (distance(p, item) < p.radius + 14) { item.collected = true; gainXp(s, item.xp); }
     if (s.phase !== 'running') break;
   }
@@ -266,24 +383,36 @@ export function step(s, input = {x:0,y:0}) {
   s.tick++;
   const p = s.player;
   if (p.invuln > 0) p.invuln--;
-  const direction = unit(input.x || 0, input.y || 0);
-  const mag = Math.min(1, Math.hypot(input.x || 0, input.y || 0));
+  const inputX = s.runConfig ? (Number.isFinite(input.x) ? clamp(input.x, -1e6, 1e6) : 0) : input.x || 0;
+  const inputY = s.runConfig ? (Number.isFinite(input.y) ? clamp(input.y, -1e6, 1e6) : 0) : input.y || 0;
+  const direction = unit(inputX, inputY);
+  const mag = Math.min(1, Math.hypot(inputX, inputY));
+  if (s.runConfig) p.movingTicks = mag > 0 ? Math.min(60, p.movingTicks + 1) : 0;
   p.x = clamp(p.x + direction.x * p.speed * STEP * mag, p.radius, WORLD.width - p.radius);
   p.y = clamp(p.y + direction.y * p.speed * STEP * mag, p.radius, WORLD.height - p.radius);
   s.timers.spawn--;
-  if (s.timers.spawn <= 0) { spawnWave(s); s.timers.spawn = Math.max(24, 53 - Math.floor(s.tick / 360)); }
-  if (!s.bossSpawned && s.tick >= BOSS_AT * 60) {
+  if (s.timers.spawn <= 0) {
+    spawnWave(s);
+    s.timers.spawn = Math.max(24, 53 - Math.floor(s.tick / 360));
+    if (s.runConfig) s.timers.spawn = Math.max(12, Math.round(s.timers.spawn / s.rules.spawnMultiplier));
+  }
+  if (!s.bossSpawned && (!s.runConfig || s.runConfig.mode !== 'resource') && s.tick >= (s.runConfig ? s.bossAtTicks : BOSS_AT * 60)) {
     const pos = safeSpawnPosition(s, 'boss', 340, 450);
     spawnEnemy(s, 'boss', pos.x, pos.y);
     s.bossSpawned = true;
   }
-  updateEnemies(s);
+  if (s.runConfig) updateSupports(s, damageEnemy, shoot, targetNearest);
+  if (s.phase === 'running') updateEnemies(s);
   if (s.phase === 'running') updateSkills(s);
   if (s.phase === 'running') updateProjectiles(s);
   if (s.phase === 'running') updatePickups(s);
+  if (s.runConfig && (s.phase === 'running' || s.phase === 'upgrade') && s.timeLimitTicks && s.tick >= s.timeLimitTicks) {
+    s.phase = 'won'; s.upgrades = []; s.statusText = 'SUPPLY RUN COMPLETE';
+  }
   s.enemies = s.enemies.filter(e => e.hp > 0);
   for (const f of s.flashes) f.ttl--;
   s.flashes = s.flashes.filter(f => f.ttl > 0);
+  if (s.runConfig && s.flashes.length > 160) s.flashes = s.flashes.slice(-160);
   return s;
 }
 export function formatTime(ticks) { const seconds = Math.floor(ticks / 60); return `${String(Math.floor(seconds / 60)).padStart(2,'0')}:${String(seconds % 60).padStart(2,'0')}`; }
