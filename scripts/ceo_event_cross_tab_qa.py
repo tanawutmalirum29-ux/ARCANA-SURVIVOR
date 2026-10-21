@@ -20,7 +20,8 @@ SETUP="""async () => {
    window.__done=false;
    const store=local.createEventLocalStorage({storage:localStorage});
    const transition=claimId?
-     s=>core.claimEventReward(s,claimId,utc):
+     s=>{const op=core.claimEventReward(s,claimId,utc);
+          return {state:op.state,result:{status:op.status}};}:
      s=>core.advanceEventProgress(
        s,{eventId:id,runId:'real-tab-test',tick:600,type:'RUN_FINISHED',payload:{}},
        catalog,utc);
