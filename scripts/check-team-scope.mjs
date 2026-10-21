@@ -21,8 +21,16 @@ export const ROLE_PATHS = Object.freeze({
   ],
 });
 
+export function allowedRolePaths(branch) {
+  // QA can submit new diagnostic PR branches without impersonating the exact
+  // historical test/team-qa-regression ref. Treat test/qa-* as QA-owned too.
+  // CEO integration branches intentionally remain separately reviewed.
+  if (branch.startsWith('test/qa-')) return ROLE_PATHS['test/team-qa-regression'];
+  return ROLE_PATHS[branch] ?? null;
+}
+
 export function outOfScopePaths(branch, files) {
-  const allowed = ROLE_PATHS[branch];
+  const allowed = allowedRolePaths(branch);
   if (!allowed) return [];
   return files.filter(path => !allowed.some(prefix => prefix.endsWith('/') ? path.startsWith(prefix) : path === prefix));
 }
@@ -33,7 +41,7 @@ function verifySha(sha, name) {
 
 function main() {
   const branch = process.env.TEAM_BRANCH || '';
-  if (!Object.hasOwn(ROLE_PATHS, branch)) {
+  if (!allowedRolePaths(branch)) {
     process.stdout.write(`No role scope restrictions for integration branch ${branch || '(unknown)'}\n`);
     return;
   }
