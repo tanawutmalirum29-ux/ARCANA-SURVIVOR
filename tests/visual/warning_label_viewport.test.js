@@ -62,3 +62,24 @@ test('malformed viewport safely keeps legacy text coordinates', () => {
     assert.deepEqual(text, expected);
   }
 });
+
+test('warning text reserves the real mobile HUD and boss-health bar height', () => {
+  for (const [width, height] of [[320, 568], [844, 390]]) {
+    const viewport = {x: 410, y: 730, width, height};
+    for (const x of [54, width / 2, width - 54]) {
+      for (const pattern of [0, 1, 2]) {
+        const flash = {type: 'warning', x: viewport.x + x, y: viewport.y + 58,
+          radius: pattern === 1 ? 200 : 170, angle: 0.8, pattern};
+        for (const reducedMotion of [false, true]) {
+          const {text} = paint(flash, {viewport, quality: 'low', reducedMotion});
+          const screenY = flash.y + text[3] - viewport.y;
+          // CSS HUD + boss bar occupy the top ~120px at these target sizes.
+          // This is an anchor regression. Independent browser QA must still
+          // inspect rasterized glyphs and overlays in screenshots.
+          assert.ok(screenY >= 140, `${width}x${height} pattern ${pattern} baseline=${screenY}`);
+          assert.ok(screenY <= height - 16);
+        }
+      }
+    }
+  }
+});
