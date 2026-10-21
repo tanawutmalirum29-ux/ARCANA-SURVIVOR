@@ -3,11 +3,12 @@
 Neither test mode is a substitute for real phone hardware QA.
 """
 import argparse
+import json
 import os
 import subprocess
 from base64 import b64encode
 from pathlib import Path
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 
 ROOT = Path(__file__).resolve().parents[1]
 SIZES = [(320, 568), (390, 844), (768, 1024), (844, 390), (1440, 900)]
@@ -30,6 +31,46 @@ def bounds_ok(page, selector, w, h):
     box = page.locator(selector).bounding_box()
     assert box, f'missing bounds for {selector}'
     assert box['x'] >= -1 and box['y'] >= -1 and box['x'] + box['width'] <= w + 1 and box['y'] + box['height'] <= h + 1, (selector, w, h, box)
+
+
+def report_click_obstruction(page, selector, browser_name, width, height):
+    """Emit hit-test/overlay evidence on an actual Playwright timeout. Never force or retry clicks."""
+    try:
+        snapshot = page.evaluate("""selector => {
+            const target = document.querySelector(selector);
+            if (!target) return {found: false, selector};
+            const b = target.getBoundingClientRect();
+            const x = b.left + b.width / 2, y = b.top + b.height / 2;
+            const visual = window.visualViewport;
+            const nodes = document.elementsFromPoint(x, y).slice(0, 10).map(el => {
+              const st = getComputedStyle(el);
+              return {tag: el.tagName, id: el.id, cls: String(el.className).slice(0,120),
+                action: el.dataset?.action || null, pointerEvents: st.pointerEvents,
+                zIndex: st.zIndex, position: st.position, opacity: st.opacity};
+            });
+            const cs = getComputedStyle(target);
+            return {found: true, selector, targetAction: target.dataset.action,
+              center: {x, y}, bounds: {x:b.x,y:b.y,width:b.width,height:b.height},
+              visible: b.width>0 && b.height>0, disabled: target.disabled,
+              pointerEvents: cs.pointerEvents, activeAction: document.activeElement?.dataset?.action||null,
+              scroll: {x:window.scrollX,y:window.scrollY,cardY:target.closest('.main-card')?.scrollTop||0},
+              viewport: {innerWidth,innerHeight,visualOffsetX:visual?.offsetLeft,
+                visualOffsetY:visual?.offsetTop,visualScale:visual?.scale},
+              centerHitAction: document.elementFromPoint(x,y)?.dataset?.action||null,
+              elementsAtClickCenter: nodes};
+          }""", selector)
+        print('QA_CLICK_OBSTRUCTION ' + json.dumps(
+            {'browser': browser_name, 'size': [width, height], **snapshot},
+            ensure_ascii=False, sort_keys=True), flush=True)
+    except Exception as exc:
+        print('QA_CLICK_OBSTRUCTION_DIAGNOSTIC_FAILED ' + repr(exc), flush=True)
+    # Screenshot is local evidence only. Its absence from Actions artifacts is not hidden.
+    try:
+        dest = f'/tmp/arcana-qa-back-{browser_name}-{width}x{height}.png'
+        page.screenshot(path=dest, timeout=5000)
+        print('QA_CLICK_OBSTRUCTION_SCREENSHOT_LOCAL ' + dest, flush=True)
+    except Exception as exc:
+        print('QA_CLICK_OBSTRUCTION_SCREENSHOT_FAILED ' + repr(exc), flush=True)
 
 
 def scenario(browser, browser_name, mode, size, html=None, main=None):
@@ -65,7 +106,11 @@ def scenario(browser, browser_name, mode, size, html=None, main=None):
         page.locator('[data-action="music-settings"]').click()
         current_theme = page.locator('[data-action="music-settings"]').inner_text()
         assert previous_theme != current_theme, 'festival selection in settings did not change'
-        page.locator('[data-action="back"]').click()
+        try:
+            page.locator('[data-action="back"]').click()
+        except PlaywrightTimeoutError:
+            report_click_obstruction(page, '[data-action="back"]', browser_name, w, h)
+            raise
         assert page.locator('[data-action="lobby-music"]').count() == 0
         assert page.locator('[data-action="music-theme"]').count() == 0
         page.locator('[data-action="start"]').click()
