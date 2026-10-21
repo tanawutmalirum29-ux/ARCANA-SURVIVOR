@@ -1,150 +1,180 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createEventState} from '../../src/events/core.js';
-import {createEventLocalStorage} from '../../src/integration/eventLocalStorage.js';
-import {commitExclusiveEventTransition,EVENT_V2_EXCLUSIVE_LOCK}
+import {createEventState,claimEventReward} from '../../src/events/core.js';
+import {commitExclusiveEventTransition,readExclusiveEventSnapshot,EVENT_V2_IDB_NAME}
   from '../../src/integration/eventExclusiveWriter.js';
 
-const deep=x=>JSON.parse(JSON.stringify(x));
-const database=()=>{
- const entries=new Map();
- return {entries,getItem(key){return entries.has(key)?entries.get(key):null},
-   setItem(key,value){entries.set(key,value)}};
-};
-const store=source=>createEventLocalStorage({storage:source});
-const mark=id=>s=>{s.seenEventIds.push(id);return {state:s,result:id}};
+const clone=value=>structuredClone(value);
 
-function lockQueue(){
- let tail=Promise.resolve(),calls=[];
- return {calls,request(name,opts,fn){
-   calls.push({name,opts});
-   const next=tail.then(()=>fn({name,mode:opts.mode}));
-   tail=next.then(()=>undefined,()=>undefined);
-   return next;
- }};
+/** Minimal strict async IDB simulation: readwrite transactions lock BEFORE get,
+ * hold exclusive writer lease through put and oncomplete, abort rolls back. */
+function fakeIDB({failPut=false}={}){
+  const persisted=new Map();
+  let pending=Promise.resolve(),reads=0,writes=0,aborts=0;
+  const db={
+    objectStoreNames:{contains:name=>name==='event-snapshots'},
+    createObjectStore(){},
+    close(){},
+    transaction(name,mode){
+      assert.equal(name,'event-snapshots');
+      let unlock;
+      const lease=pending;
+      pending=lease.then(()=>new Promise(resolve=>unlock=resolve));
+      const tx={
+        error:null,oncomplete:null,onabort:null,onerror:null,
+        _pending:0,_aborted:false,_active:true,
+        abort(){
+          if(this._aborted||!this._active)return;
+          this._aborted=true;this._active=false;aborts++;
+          queueMicrotask(()=>{this.onabort?.();unlock()});
+        },
+        objectStore(){
+          return {
+            get(key){
+              const req={result:undefined,error:null,onsuccess:null,onerror:null};
+              tx._pending++;
+              lease.then(()=>queueMicrotask(()=>{
+                if(tx._aborted)return;
+                reads++;req.result=persisted.has(key)?clone(persisted.get(key)):undefined;
+                req.onsuccess?.({target:req});finishRequest();
+              }));
+              return req;
+            },
+            put(value,key){
+              if(mode!=='readwrite')throw Error('Read-only');
+              const req={result:key,error:null,onsuccess:null,onerror:null};
+              tx._pending++;
+              lease.then(()=>queueMicrotask(()=>{
+                if(tx._aborted)return;
+                if(failPut){tx.error=Error('QuotaExceededError');tx.abort();return}
+                // We commit to backing only AFTER all in-memory validations.
+                writes++;persisted.set(key,clone(value));
+                req.onsuccess?.({target:req});finishRequest();
+              }));
+              return req;
+            }
+          };
+        }
+      };
+      function finishRequest(){
+        tx._pending--;
+        if(tx._pending===0&&!tx._aborted){
+          tx._active=false;
+          queueMicrotask(()=>{tx.oncomplete?.();unlock()});
+        }
+      }
+      return tx;
+    }
+  };
+  return {
+    persisted,get reads(){return reads},get writes(){return writes},
+    get aborts(){return aborts},
+    open(name,version){
+      assert.equal(name,EVENT_V2_IDB_NAME);assert.equal(version,1);
+      const request={result:db,error:null,onsuccess:null,onupgradeneeded:null,onerror:null,onblocked:null};
+      queueMicrotask(()=>{request.onupgradeneeded?.();request.onsuccess?.()});
+      return request;
+    }
+  };
 }
+const mark=id=>state=>{
+  if(!state.seenEventIds.includes(id))state.seenEventIds.push(id);
+  return {state,result:id};
+};
+const commit=(idb,transition,more={})=>
+  commitExclusiveEventTransition({indexedDBFactory:idb,transition,...more});
 
-test('refuses unavailable lock manager before reading or writing a stored event',async()=>{
- let reads=0,writes=0;
- const s={read(){reads++;return null},write(){writes++;return true}};
- const out=await commitExclusiveEventTransition({locks:null,store:s,transition:mark('never')});
- assert.equal(out.status,'CROSS_TAB_LOCK_UNAVAILABLE');
- assert.equal(reads,0);assert.equal(writes,0);
-});
-
-test('refuses shared/nonexclusive lock grant; never mutates saved state',async()=>{
- const b=database(),s=store(b);s.write(createEventState());
- const prior=b.getItem('arcana-survivor-events-v2');
- const locks={request:async(name,opts,callback)=>callback({name,mode:'shared'})};
- const out=await commitExclusiveEventTransition({locks,store:s,transition:mark('illegal')});
- assert.equal(out.status,'LOCK_NOT_EXCLUSIVE');
- assert.equal(b.getItem('arcana-survivor-events-v2'),prior);
-});
-
-test('queued concurrent tab-like writers re-read only inside exclusive lock',async()=>{
- const b=database(),locks=lockQueue(),a=store(b),c=store(b);
- const tasks=Array.from({length:30},(_,i)=>commitExclusiveEventTransition({
-   locks,store:i%2===0?a:c,transition:mark('tab:'+i),
- }));
- const results=await Promise.all(tasks);
- assert(results.every(x=>x.ok&&x.status==='COMMITTED'));
- const final=a.read();
- assert.equal(final.seenEventIds.length,30);
- assert.deepEqual(final.seenEventIds,Array.from({length:30},(_,i)=>'tab:'+i));
- assert.equal(locks.calls.length,30);
- assert(locks.calls.every(x=>x.name===EVENT_V2_EXCLUSIVE_LOCK&&x.opts.mode==='exclusive'));
-});
-
-test('serial writer reload prevents stale overwrite across two independent holders',async()=>{
- const b=database(),locks=lockQueue(),a=store(b),c=store(b);
- const first=await commitExclusiveEventTransition({locks,store:a,transition:mark('a')});
- const second=await commitExclusiveEventTransition({locks,store:c,transition:mark('b')});
- assert.equal(first.status,'COMMITTED');assert.equal(second.status,'COMMITTED');
- assert.deepEqual(store(b).read().seenEventIds,['a','b']);
-});
-
-test('lock rejected or callback never executed fails closed with zero writes',async()=>{
- const b=database(),s=store(b);
- for(const locks of [
-  {request:async()=>{throw Error('SecurityError')}},
-  {request:async()=>({ok:true,status:'COMMITTED'})},
-  {request:async()=>undefined},
- ]){
-  const out=await commitExclusiveEventTransition({locks,store:s,transition:mark('never')});
+test('unavailable IndexedDB fails closed and never falls back to Web Locks/localStorage',async()=>{
+  const out=await commit(null,mark('no'));
+  assert.equal(out.status,'TRANSACTIONAL_DB_UNAVAILABLE');
   assert.equal(out.ok,false);
-  assert(['LOCK_REQUEST_FAILED','LOCK_PROTOCOL_ERROR'].includes(out.status));
-  assert.equal(s.read(),null);
- }
 });
 
-test('read corruption inside lock blocks transition without overwriting bytes',async()=>{
- const b=database(),locks=lockQueue(),s=store(b);
- b.setItem('arcana-survivor-events-v2','null');
- let called=0;
- const out=await commitExclusiveEventTransition({locks,store:s,transition:x=>{
-  called++;return mark('no')(x);
- }});
- assert.equal(out.status,'READ_FAILED');assert.equal(called,0);
- assert.equal(b.getItem('arcana-survivor-events-v2'),'null');
+test('absent IndexedDB state is migration HOLD by default (no reset)',async()=>{
+  const idb=fakeIDB();
+  const out=await commit(idb,mark('new'));
+  assert.equal(out.status,'MIGRATION_REQUIRED');
+  assert.equal(out.ok,false);assert.equal(idb.writes,0);
+  assert.equal((await readExclusiveEventSnapshot({indexedDBFactory:idb})).state,null);
 });
 
-test('write quota failure inside lock preserves previous replay ledger',async()=>{
- const b=database(),locks=lockQueue(),s=store(b);
- const old=createEventState();old.seenEventIds=['existing'];
- s.write(old);
- const before=deep(s.read());
- const blocked=createEventLocalStorage({storage:{
-  getItem:key=>b.getItem(key),
-  setItem:()=>{throw Error('QuotaExceededError')},
- }});
- const out=await commitExclusiveEventTransition({locks,store:blocked,transition:mark('new')});
- assert.equal(out.status,'WRITE_FAILED');assert.deepEqual(s.read(),before);
+test('explicit fresh initialization uses durable transaction and respects prior replay',async()=>{
+  const idb=fakeIDB();
+  const one=await commit(idb,mark('first'),{allowInitialize:true});
+  assert.equal(one.status,'COMMITTED');assert(one.ok);
+  const two=await commit(idb,mark('second'));
+  assert.equal(two.status,'COMMITTED');
+  const stored=await readExclusiveEventSnapshot({indexedDBFactory:idb});
+  assert.deepEqual(stored.state.seenEventIds,['first','second']);
 });
 
-test('crash after durable commit returns HOLD, reload still sees prior replay ID',async()=>{
- const b=database(),locks=lockQueue(),s=store(b);
- // Seed an already-durable v2 snapshot: crash must happen after the
- // transition write, not after first-time initialization.
- assert.equal(s.write(createEventState()),true);
- const one=await commitExclusiveEventTransition({
-  locks,store:s,transition:mark('durable:first'),
-  checkpoint:phase=>{if(phase==='after_event_write')throw Error('SIMULATED_POWER_LOSS')}
- });
- assert.equal(one.ok,false);assert.equal(one.status,'LOCK_REQUEST_FAILED');
- assert.deepEqual(s.read().seenEventIds,['durable:first']);
- const retry=await commitExclusiveEventTransition({
-  locks,store:s,transition:state=>({state,
-     result:state.seenEventIds.includes('durable:first')?'DUPLICATE':'BAD'})
- });
- assert.equal(retry.status,'COMMITTED');assert.equal(retry.result,'DUPLICATE');
- assert.deepEqual(s.read().seenEventIds,['durable:first']);
+test('32 truly overlapping tab-like transactions serialize and retain every unique ID',async()=>{
+  const idb=fakeIDB();
+  const outcomes=await Promise.all(
+    Array.from({length:32},(_,i)=>commit(idb,mark('tab:'+i),{allowInitialize:true}))
+  );
+  assert(outcomes.every(x=>x.ok&&x.status==='COMMITTED'));
+  const saved=await readExclusiveEventSnapshot({indexedDBFactory:idb});
+  assert.deepEqual(saved.state.seenEventIds,Array.from({length:32},(_,i)=>'tab:'+i));
+  assert.equal(new Set(saved.state.seenEventIds).size,32);
 });
 
-test('one tab may be blocked awaiting exclusive lock; no unlocked fallback occurs',async()=>{
- let unlock;
- const locked=new Promise(resolve=>unlock=resolve);
- let releaseStart;
- const started=new Promise(resolve=>releaseStart=resolve);
- let current=Promise.resolve();
- const locks={request(name,opts,fn){
-   const next=current.then(async()=>{
-     if(name!==EVENT_V2_EXCLUSIVE_LOCK||opts.mode!=='exclusive')throw Error('bad options');
-     if(!releaseStart._called){releaseStart._called=true;releaseStart();}
-     await locked;
-     return fn({name,mode:'exclusive'});
-   });
-   current=next.catch(()=>{});
-   return next;
- }};
- const b=database(),s=store(b);
- let count=0;
- const pending=commitExclusiveEventTransition({locks,store:s,transition:x=>{
-   count++;return mark('after:lock')(x);
- }});
- await started;
- assert.equal(count,0);
- assert.equal(s.read(),null);
- unlock();
- assert.equal((await pending).status,'COMMITTED');
- assert.deepEqual(s.read().seenEventIds,['after:lock']);
+test('stale external localStorage snapshots cannot influence IDB transactional read',async()=>{
+  const idb=fakeIDB();
+  const stale=createEventState(); // represents a tab's delayed localStorage view
+  await commit(idb,mark('persisted:A'),{allowInitialize:true});
+  const result=await commit(idb,mark('persisted:B'));
+  assert.equal(result.status,'COMMITTED');
+  assert.deepEqual(stale.seenEventIds,[]);
+  const final=(await readExclusiveEventSnapshot({indexedDBFactory:idb})).state;
+  assert.deepEqual(final.seenEventIds,['persisted:A','persisted:B']);
+});
+
+test('two competing same-claim operations serialize: CLAIMED then DUPLICATE',async()=>{
+  const idb=fakeIDB();
+  const rewardId='event@2030-01-01T00:00:00.000Z#finish_run';
+  const seed=state=>{
+    state.progress['event@2030-01-01T00:00:00.000Z']={
+      eventId:'event',revision:1,definition:'{}',earningCap:100,
+      from:0,end:4102444800000,claimUntil:4102444800000,seen:[],
+      objectives:{finish_run:{count:1,goal:1,reward:{kind:'GOLD',amount:25}}}
+    };
+    return {state};
+  };
+  assert.equal((await commit(idb,seed,{allowInitialize:true})).status,'COMMITTED');
+  const attempt=state=>{
+    const x=claimEventReward(state,rewardId,'2030-01-14T00:00:00.000Z');
+    return {state:x.state,result:{status:x.status}};
+  };
+  const [a,b]=await Promise.all([commit(idb,attempt),commit(idb,attempt)]);
+  assert.deepEqual([a.result?.status,b.result?.status],['CLAIMED','DUPLICATE']);
+  assert.equal(Object.keys((await readExclusiveEventSnapshot({indexedDBFactory:idb})).state.claims).length,1);
+});
+
+test('aborted transaction on simulated power loss cannot publish staged write',async()=>{
+  const idb=fakeIDB();
+  assert.equal((await commit(idb,mark('base'),{allowInitialize:true})).status,'COMMITTED');
+  const failed=await commit(idb,mark('not-durable'),{
+    checkpoint:phase=>{if(phase==='after_event_write')throw Error('SIMULATED_POWER_LOSS')}
+  });
+  assert.equal(failed.status,'TRANSACTION_FAILED');
+  assert.deepEqual((await readExclusiveEventSnapshot({indexedDBFactory:idb})).state.seenEventIds,['base']);
+  assert(idb.aborts>0);
+});
+
+test('real put failure aborts entire transaction instead of exposing staged reward',async()=>{
+  const idb=fakeIDB({failPut:true});
+  const failed=await commit(idb,mark('claim'),{allowInitialize:true});
+  assert.equal(failed.ok,false);assert.equal(failed.status,'TRANSACTION_ABORTED');
+  assert.equal(idb.writes,0);
+});
+
+test('bad transition or missing synchronous reducer aborts and preserves save',async()=>{
+  const idb=fakeIDB();
+  await commit(idb,mark('base'),{allowInitialize:true});
+  const failed=await commit(idb,()=>{throw Error('bad reducer')});
+  assert.equal(failed.status,'TRANSACTION_ABORTED');
+  const asyncTransition=await commit(idb,async s=>({state:s}));
+  assert.equal(asyncTransition.status,'TRANSACTION_ABORTED');
+  assert.deepEqual((await readExclusiveEventSnapshot({indexedDBFactory:idb})).state.seenEventIds,['base']);
 });
