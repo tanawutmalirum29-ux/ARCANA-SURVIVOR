@@ -91,7 +91,7 @@ export function drawScene(canvas,ctx,s,profile,time=0){
  for(const b of s.hostileShots){glow(ctx,b.x,b.y,'#ff587e',30,.3*options.glow);ring(ctx,b.x,b.y,b.radius,'#ff9c9f',4)}
  for(const f of s.flashes){
   // Telegraph outlines never fade with graphics quality, skin tier or reduced motion.
-  if(f.type==='warning'){paintBossWarning(ctx,f,{quality:options.quality,reducedMotion:options.reducedMotion});continue}
+  if(f.type==='warning'){paintBossWarning(ctx,f,{quality:options.quality,reducedMotion:options.reducedMotion,viewport:{x:cam.x,y:cam.y,width:w,height:h}});continue}
   const alpha=options.reducedMotion?.35:Math.min(.65,f.ttl/18*.42);ctx.globalAlpha=alpha;
   if(f.type==='chain'){ctx.strokeStyle='#85ecff';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(f.x,f.y);ctx.lineTo(f.x2,f.y2);ctx.stroke()}
   else if(f.type==='nova')ring(ctx,f.x,f.y,f.radius*(1-f.ttl/35*.22),'#9adfff',3);
