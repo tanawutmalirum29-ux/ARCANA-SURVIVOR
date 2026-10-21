@@ -69,14 +69,14 @@ def run_trial(playwright, browser_name, condition, trial):
         browser.on('disconnected', lambda _: events.append('BROWSER_DISCONNECTED'))
         meta['browser_version'] = browser.version
         scenario(browser, browser_name, 'served', TARGET,
-                 setup_page=configure, close_page=False)
+                 setup_page=configure, close_page=False,
+                 initial_sound_off=(condition == 'sound_off'))
         page = page_holder[0]
         actual_key = page.evaluate(f"localStorage.getItem({json.dumps(STORAGE_KEY)})")
-        # SOUND default may be written during regular Settings toggling: the
-        # precondition is verified by a separate init-script marker below, not
-        # by asserting the setting remains absent after the normal scenario.
-        if condition == 'sound_off':
-            meta['final_sound_storage'] = actual_key
+        expected = 'off' if condition == 'sound_off' else 'on'
+        if actual_key != expected:
+            raise AssertionError(f'SOUND A/B condition changed unexpectedly: {actual_key!r} vs {expected!r}')
+        meta['final_sound_storage'] = actual_key
     except BaseException as exc:
         result = 'FAIL'
         error = exc
@@ -93,6 +93,7 @@ def run_trial(playwright, browser_name, condition, trial):
                 meta['screenshot_path'] = screenshot_path
             except Exception as shot_error:
                 meta['screenshot_error'] = repr(shot_error)[:350]
+        raise
     finally:
         if trace_active and page_holder:
             try:
@@ -111,9 +112,7 @@ def run_trial(playwright, browser_name, condition, trial):
                 browser.close()
             except Exception as close_error:
                 emit('QA_BOUNDED_CLEANUP', {'error': repr(close_error)[:400]})
-    # Preserve the FIRST failure as a failure; NEVER retry or suppress it.
-    if error is not None:
-        raise error.with_traceback(error.__traceback__)
+    # An original failure is bare-re-raised in the except above: no retry.
 
 
 def main():
