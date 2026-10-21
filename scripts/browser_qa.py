@@ -330,6 +330,11 @@ def main():
                     scenario(browser, name, 'served' if args.served else 'embedded', size, html, module)
                 finally:
                     browser.close()
+    # Run branch-local live-renderer VFX gate under the existing real-browser CI job.
+    visual_runner = ROOT / 'tests' / 'visual' / 'boss_warning_browser_qa.py'
+    if args.served and visual_runner.is_file():
+        subprocess.run(['python', str(visual_runner), '--browsers', *args.browsers],
+                       cwd=ROOT, check=True)
     print('QA COMPLETE:', len(args.browsers) * len(SIZES), 'browser/viewport combinations')
 
 
