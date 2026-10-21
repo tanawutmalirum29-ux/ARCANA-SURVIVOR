@@ -13,7 +13,7 @@ let showcaseController=null;
 function disposeShowcase(){if(showcaseController){showcaseController.dispose();showcaseController=null;}}
 const sound=createGameAudio();
 const profileSkin=()=>COSMETICS.find(x=>x.id===profile.skin)||COSMETICS[0];
-function persist(){if(!saveProfile(profile))notify('ไม่สามารถบันทึกข้อมูลในเบราว์เซอร์นี้ได้')}
+function persist(candidate=profile){if(!saveProfile(candidate)){notify('ไม่สามารถบันทึกข้อมูลในเบราว์เซอร์นี้ได้');return false}return true}
 function notify(msg){$('toast').textContent=msg;$('toast').classList.remove('hidden');toastUntil=performance.now()+2800}
 function panel(inner,extra=''){disposeShowcase();$('overlay').className=`overlay ${extra}`;$('overlay').innerHTML=inner;$('overlay').classList.remove('hidden')}
 function hideOverlay(){disposeShowcase();$('overlay').classList.add('hidden');$('overlay').innerHTML=''}
@@ -117,10 +117,10 @@ function handleAction(action,id){
  if(action==='pause')return showPause();
  if(action==='resume')return resume();
  if(action==='upgrade') {if(chooseUpgrade(game,id)){sound.play(id==='heal'?'heal':'upgradeSelect');screen='play';hideOverlay();updateHud()}return;}
- if(action==='equip'&&profile.owned.includes(id)){sound.play('equip');profile.skin=id;persist();return showWardrobe()}
+ if(action==='equip'&&profile.owned.includes(id)){const next={...profile,skin:id};if(persist(next)){profile=next;sound.play('equip')}return showWardrobe()}
  if(action==='unlock'){
    const next=unlockGoldCosmetic(profile,id,120);
-   if(next){sound.play('unlock');profile=next;persist();notify('ปลดล็อกสกินสำเร็จ');showWardrobe()}
+   if(next){if(persist(next)){profile=next;sound.play('unlock');notify('ปลดล็อกสกินสำเร็จ')}showWardrobe()}
    return;
  }
 }
@@ -158,12 +158,19 @@ canvas.addEventListener('pointerdown',e=>{
  touch.pointerId=e.pointerId;touch.active=true;touch.originX=e.clientX;touch.originY=e.clientY;
  joystick.style.left=`${e.clientX-rect.left}px`;joystick.style.top=`${e.clientY-rect.top}px`;
  joystick.classList.add('active');
- canvas.setPointerCapture(e.pointerId);moveTouch(e);
+ // Some WebKit and embedded browsers can reject capture. Window listeners
+ // retain movement/release tracking so failed capture cannot lock input.
+ try{canvas.setPointerCapture(e.pointerId)}catch{}
+ moveTouch(e);
 });
 canvas.addEventListener('pointermove',e=>{if(touch.active)moveTouch(e)});
 canvas.addEventListener('pointerup',releaseTouch);
 canvas.addEventListener('pointercancel',releaseTouch);
 canvas.addEventListener('lostpointercapture',releaseTouch);
+// Capture normally routes these to canvas; a rejected capture falls back to window.
+window.addEventListener('pointermove',e=>{if(touch.active)moveTouch(e)});
+window.addEventListener('pointerup',releaseTouch);
+window.addEventListener('pointercancel',releaseTouch);
 function inputVector(){let x=touch.x,y=touch.y;for(const key of heldKeys){const [vx,vy]=movingKeys[key];x+=vx;y+=vy}return {x,y}}
 function frame(ts){
  const delta=lastTime?Math.min(.05,(ts-lastTime)/1000):0;lastTime=ts;
