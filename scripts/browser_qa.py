@@ -213,7 +213,7 @@ def click_with_lifecycle_evidence(page, selector, browser_name, width, height,
         raise
 
 
-def scenario(browser, browser_name, mode, size, html=None, main=None, setup_page=None, close_page=True):
+def scenario(browser, browser_name, mode, size, html=None, main=None, setup_page=None, close_page=True, initial_sound_off=False):
     for w, h in [size]:
         touch_enabled = w < 1000  # 1440x900 exercises actual desktop pointer/keyboard mode.
         page = browser.new_page(viewport={'width': w, 'height': h}, has_touch=touch_enabled, is_mobile=touch_enabled, device_scale_factor=1)
@@ -246,10 +246,19 @@ def scenario(browser, browser_name, mode, size, html=None, main=None, setup_page
         assert page.get_by_text('LOW', exact=True).count() == 1
         page.locator('[data-action="motion"]').click()
         assert page.get_by_text('ON', exact=True).count() == 1
-        page.locator('[data-action="sound"]').click()
-        assert page.get_by_text('SOUND OFF', exact=True).count() == 1
-        page.locator('[data-action="sound"]').click()
-        assert page.get_by_text('SOUND ON', exact=True).count() == 1
+        # Same two normal clicks for both variants; start and end with the
+        # injected SOUND OFF preference during the muted experiment.
+        if initial_sound_off:
+            assert page.get_by_text('SOUND OFF', exact=True).count() == 1
+            page.locator('[data-action="sound"]').click()
+            assert page.get_by_text('SOUND ON', exact=True).count() == 1
+            page.locator('[data-action="sound"]').click()
+            assert page.get_by_text('SOUND OFF', exact=True).count() == 1
+        else:
+            page.locator('[data-action="sound"]').click()
+            assert page.get_by_text('SOUND OFF', exact=True).count() == 1
+            page.locator('[data-action="sound"]').click()
+            assert page.get_by_text('SOUND ON', exact=True).count() == 1
         previous_theme = page.locator('[data-action="music-settings"]').inner_text()
         click_with_lifecycle_evidence(page, '[data-action="music-settings"]',
                                       browser_name, w, h, lifecycle, errors)
