@@ -26,8 +26,12 @@ export function validateSeasonCatalog(s){
         errors.push('tier '+(i+1)+': invalid '+track);continue;
       }
       if(power.some(k=>Object.hasOwn(reward,k)))errors.push('tier '+(i+1)+': stats forbidden');
-      if(reward.kind==='COSMETIC'&&(!ident(reward.item_id)||!known.has(reward.item_id)))
-        errors.push('tier '+(i+1)+': unknown cosmetic');
+      if(reward.kind==='COSMETIC'){
+        if(!ident(reward.item_id)||!known.has(reward.item_id))
+          errors.push('tier '+(i+1)+': unknown cosmetic');
+        if(reward.amount!==undefined&&reward.amount!==1)
+          errors.push('tier '+(i+1)+': cosmetic quantity must equal 1');
+      }
       if(reward.kind!=='COSMETIC'&&(!Number.isSafeInteger(reward.amount)||reward.amount<=0||reward.item_id!==undefined))
         errors.push('tier '+(i+1)+': invalid amount');
     }
