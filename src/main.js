@@ -38,7 +38,7 @@ async function commitCommand(command){
 function disposeShowcase(){if(showcaseController){showcaseController.dispose();showcaseController=null;}}
 const sound=createGameAudio();
 function notify(msg){$('toast').textContent=msg;$('toast').classList.remove('hidden');toastUntil=performance.now()+2800}
-function panel(inner,extra=''){disposeLobby();disposeShowcase();$('overlay').className=`overlay ${extra}`;$('overlay').innerHTML=inner;$('overlay').classList.remove('hidden')}
+function panel(inner,extra=''){disposeLobby();disposeShowcase();$('toast').classList.add('hidden');toastUntil=0;$('overlay').className=`overlay ${extra}`;$('overlay').innerHTML=inner;$('overlay').classList.remove('hidden')}
 function hideOverlay(){disposeLobby();disposeShowcase();$('overlay').classList.add('hidden');$('overlay').innerHTML=''}
 function updateHud(){
  const p=game.player;
