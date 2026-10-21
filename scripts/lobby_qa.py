@@ -147,9 +147,11 @@ def layout(browser, engine, size):
             expect(page.locator('#overlay')).to_be_hidden()
             page.locator('#pause-btn').click()
             expect(page.locator('.pause-card')).to_be_visible()
+            assert page.locator('#toast').evaluate("node=>node.classList.contains('hidden')"), 'run-start toast obscured pause controls'
             page.screenshot(path=f'/tmp/arcana-lobby-{engine}-{width}x{height}-pause.png')
             page.locator('[data-action="settings"]').click()
             expect(page.locator('.menu-card')).to_be_visible()
+            assert page.locator('#toast').evaluate("node=>node.classList.contains('hidden')"), 'transient toast obscured settings controls'
             page.screenshot(path=f'/tmp/arcana-lobby-{engine}-{width}x{height}-pause-settings.png')
             page.locator('[data-action="back"]').click()
             expect(page.locator('.pause-card')).to_be_visible()
