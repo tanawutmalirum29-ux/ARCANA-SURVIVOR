@@ -79,13 +79,47 @@ export function mountBossWarningVisualCase({
     skin: 'apprentice', owned: ['apprentice'],
     settings: {vfx: quality, reduceMotion: reducedMotion},
   };
-  drawScene(canvas, context, fixture.game, profile, 0);
+  // Instrument only this dedicated QA canvas instance to locate the ACTUAL
+  // rasterized label (including text metrics and the DPR/current transform).
+  // The game canvas and global Canvas prototype remain untouched.
+  const observed = [];
+  const previousFillText = context.fillText;
+  context.fillText = function(text, x, y, ...args) {
+    const transform = this.getTransform();
+    const metrics = this.measureText(text);
+    const ratio = Math.min(globalThis.devicePixelRatio || 1, quality === 'high' ? 2 : quality === 'medium' ? 1.5 : 1);
+    const centerX = (transform.a * x + transform.c * y + transform.e) / ratio;
+    const centerY = (transform.b * x + transform.d * y + transform.f) / ratio;
+    const ascent = metrics.actualBoundingBoxAscent || 12;
+    const descent = metrics.actualBoundingBoxDescent || 2;
+    const left = centerX - (metrics.actualBoundingBoxLeft || metrics.width / 2) - 2;
+    const right = centerX + (metrics.actualBoundingBoxRight || metrics.width / 2) + 2;
+    observed.push({label: String(text), x: centerX, y: centerY,
+      left, top: centerY - ascent - 2, right, bottom: centerY + descent + 2});
+    return previousFillText.call(this, text, x, y, ...args);
+  };
+  try {
+    drawScene(canvas, context, fixture.game, profile, 0);
+  } finally {
+    delete context.fillText; // restore Canvas2D prototype method
+  }
+  const label = ['RING', 'FAN', 'STAR'][pattern];
+  const labelBox = observed.find(item => item.label === label) || null;
+  const canvasRect = canvas.getBoundingClientRect();
+  const uiBoxes = ['.hud-left', '.hud-right', '#boss-hud']
+    .map(selector => ({selector, element: document.querySelector(selector)}))
+    .filter(item => item.element && !item.element.classList.contains('hidden'))
+    .map(({selector, element}) => ({selector, rect: element.getBoundingClientRect()}));
+  const occludedBy = labelBox ? uiBoxes.filter(({rect}) =>
+    canvasRect.left + labelBox.left < rect.right &&
+    canvasRect.left + labelBox.right > rect.left &&
+    canvasRect.top + labelBox.top < rect.bottom &&
+    canvasRect.top + labelBox.bottom > rect.top
+  ).map(({selector}) => selector) : [];
   return {
-    pattern, edge, width, height,
-    label: ['RING', 'FAN', 'STAR'][pattern],
+    pattern, edge, width, height, label, labelBox, occludedBy,
     warningWorld: {x: fixture.warning.x, y: fixture.warning.y},
     camera: fixture.camera,
-    // Test-only overlay. The real HUD can occlude pixels; use app screenshot.
     canvasId: canvas.id, mode: 'live-renderer-and-real-hud',
   };
 }
