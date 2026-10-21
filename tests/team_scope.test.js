@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ROLE_PATHS, outOfScopePaths } from '../scripts/check-team-scope.mjs';
+import { ROLE_PATHS, allowedRolePaths, outOfScopePaths } from '../scripts/check-team-scope.mjs';
 
 test('parallel team scope rules are defined', () => {
   assert.equal(Object.keys(ROLE_PATHS).length, 5);
@@ -35,4 +35,36 @@ test('QA engineer cannot rewrite product code', () => {
 
 test('unknown CEO/integration branches are not falsely rejected', () => {
   assert.deepEqual(outOfScopePaths('chore/ceo-team-scope-guard', ['.github/workflows/ci.yml']), []);
+});
+
+test('all new test/qa-* branches enforce QA-only scope (no integration exemption)', () => {
+  for (const branch of [
+    'test/qa-webkit-hit-test-and-event-race',
+    'test/qa-cases',
+    'test/qa-a',
+  ]) {
+    assert.equal(allowedRolePaths(branch), ROLE_PATHS['test/team-qa-regression']);
+    assert.deepEqual(outOfScopePaths(branch, [
+      'scripts/browser_qa.py',
+      'docs/QA_TEAM_REPORT.md',
+      'tests/qa/event_storage_race.test.js',
+      'src/main.js',
+      'src/content/economy/catalog.js',
+      '.github/workflows/ci.yml',
+    ]), ['src/main.js', 'src/content/economy/catalog.js', '.github/workflows/ci.yml']);
+  }
+});
+
+test('CEO and unrelated branches retain explicit manual-review exemption', () => {
+  assert.equal(allowedRolePaths('integration/ceo-event-storage'), null);
+  assert.equal(allowedRolePaths('chore/ceo-qa-branch-scope-gate'), null);
+  assert.deepEqual(outOfScopePaths('integration/ceo-event-storage', [
+    '.github/workflows/ci.yml', 'src/integration/eventLocalStorage.js'
+  ]), []);
+});
+
+test('QA-prefixed names do not accidentally qualify as integration branches', () => {
+  assert.deepEqual(outOfScopePaths('test/qa-override', [
+    'src/events/core.js', 'src/main.js', 'tests/qa/migration.test.js'
+  ]), ['src/events/core.js', 'src/main.js']);
 });
