@@ -87,7 +87,7 @@ def check(browser,engine,w,h):
         for page in (a,b,third):
             page.goto(ORIGIN,wait_until='networkidle')
         assert a.evaluate(SETUP) and b.evaluate(SETUP),(engine,w,h,'IndexedDB unavailable')
-        third.evaluate("window.__channel=new BroadcastChannel('test-event-v2-idb-barrier')")
+        assert third.evaluate(SETUP),(engine,w,h,'third-tab IndexedDB unavailable')
         # No implicit empty ledger on first launch; explicit initialization
         # remains unavailable by default to prevent legacy save erasure.
         blocked=a.evaluate("""async()=>{
