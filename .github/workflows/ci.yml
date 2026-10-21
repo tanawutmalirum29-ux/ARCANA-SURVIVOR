@@ -73,3 +73,5 @@ jobs:
         run: python scripts/browser_qa.py --served --browsers chromium webkit
       - name: Mounted showcase Chromium + WebKit full viewport gate
         run: python scripts/ceo_showcase_qa.py --browsers chromium webkit
+      - name: Dormant Event v2 localStorage Chromium and WebKit fault gate
+        run: python scripts/ceo_event_storage_qa.py
