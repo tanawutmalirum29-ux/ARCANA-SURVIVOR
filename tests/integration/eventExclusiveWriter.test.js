@@ -103,6 +103,9 @@ test('write quota failure inside lock preserves previous replay ledger',async()=
 
 test('crash after durable commit returns HOLD, reload still sees prior replay ID',async()=>{
  const b=database(),locks=lockQueue(),s=store(b);
+ // Seed an already-durable v2 snapshot: crash must happen after the
+ // transition write, not after first-time initialization.
+ assert.equal(s.write(createEventState()),true);
  const one=await commitExclusiveEventTransition({
   locks,store:s,transition:mark('durable:first'),
   checkpoint:phase=>{if(phase==='after_event_write')throw Error('SIMULATED_POWER_LOSS')}
