@@ -117,12 +117,14 @@ def main():
     cases = 0
     with sync_playwright() as playwright:
         for engine in args.browsers:
-            browser = getattr(playwright, engine).launch(headless=True)
-            try:
-                for width, height in SIZES:
+            for width, height in SIZES:
+                # Match the already validated suite's isolation policy:
+                # separate WebKit/Chromium process for each viewport.
+                browser = getattr(playwright, engine).launch(headless=True)
+                try:
                     cases += run_one(browser, engine, width, height, args.origin, output)
-            finally:
-                browser.close()
+                finally:
+                    browser.close()
     expected = len(args.browsers) * len(SIZES) * len(PATTERNS) * len(EDGES)
     assert cases == expected, ("incomplete VFX browser matrix", cases, expected)
     print("QA_VFX_BROWSER_MATRIX_COMPLETE " + json.dumps({
