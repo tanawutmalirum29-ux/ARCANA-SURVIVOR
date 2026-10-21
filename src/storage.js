@@ -26,7 +26,23 @@ export function loadProfile(storage) {
   try { return sanitizeProfile(JSON.parse((storage ?? globalThis.localStorage)?.getItem(SAVE_KEY) || 'null')); } catch { return defaultProfile(); }
 }
 export function saveProfile(profile, storage) {
-  try { (storage ?? globalThis.localStorage)?.setItem(SAVE_KEY, JSON.stringify(sanitizeProfile(profile))); return true; } catch { return false; }
+  try {
+    const backend = storage ?? globalThis.localStorage;
+    if (!backend || typeof backend.getItem !== 'function' || typeof backend.setItem !== 'function') return false;
+    const existing = backend.getItem(SAVE_KEY);
+    // A missing key is the ONLY safe case for starting a new save. Preserve
+    // malformed or future-version bytes rather than overwriting progress with
+    // the default profile returned by loadProfile().
+    if (existing !== null) {
+      if (typeof existing !== 'string') return false;
+      let saved;
+      try { saved = JSON.parse(existing); } catch { return false; }
+      if (!saved || typeof saved !== 'object' || Array.isArray(saved) || saved.version !== 1) return false;
+    }
+    const encoded = JSON.stringify(sanitizeProfile(profile));
+    backend.setItem(SAVE_KEY, encoded);
+    return backend.getItem(SAVE_KEY) === encoded;
+  } catch { return false; }
 }
 export function awardRun(profile, stats) {
   const next = sanitizeProfile(profile);
