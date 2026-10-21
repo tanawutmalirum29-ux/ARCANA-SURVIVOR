@@ -383,6 +383,101 @@ def progression_ui(browser,engine):
         context.close()
 
 
+
+def live_resource_victory(browser, engine):
+    """Run the REAL page's requestAnimationFrame/engine to natural victory.
+
+    An explicitly labelled valid high-progress fixture selects a strong legal
+    loadout and unlocks resource mode; it does NOT inject a result, alter combat
+    state, call FINISH_RUN, or grant a reward. Keyboard events drive the actual
+    in-page game; the normal UI result handler must persist the earned outcome.
+    """
+    size=(390,844)
+    context=browser.new_context(viewport={'width':size[0],'height':size[1]})
+    page=context.new_page()
+    errors=[]
+    page.on('pageerror',lambda error:errors.append(str(error)))
+    phase='live-combat-setup'
+    try:
+        # Advances normal RAF/timers as fast as Playwright can process them.
+        # Never monkeypatch engine.step or the game's completion callback.
+        page.clock.install()
+        page.goto(ORIGIN,wait_until='networkidle')
+        assert page.evaluate(SETUP)['ok']
+        fixture=page.evaluate("""async()=>{
+          const state=(await window.__qa.store.load()).state;
+          state.profile.runs=30;
+          state.progression.mode='resource';
+          state.progression.heroId='guardian';
+          state.progression.heroes.guardian.level=20;
+          state.progression.heroes.guardian.stars=5;
+          state.progression.talents.vitality=5;
+          state.progression.talents.ward=5;
+          state.progression.research.totems=10;
+          if(!window.__qa.core.validateCampaign(state))
+            throw Error('Invalid legal high-progress combat fixture');
+          await window.__qa.raw(state,true);
+          return state;
+        }""")
+        page.reload(wait_until='networkidle')
+        assert page.evaluate(SETUP)['ok']
+        page.locator('[data-lobby-tab="adventure"]').click()
+        page.locator('[data-action="start"]').click()
+        expect(page.locator('#overlay')).to_be_hidden()
+        active=stored(page)['progression']['activeRun']
+        assert active and active['mode']=='resource'
+        assert active['runConfig']['heroId']=='guardian'
+        run_id=active['id']
+        phase='actual-90-second-combat'
+        # Travel in a square using only real keyboard events. After each
+        # virtual interval choose any level-up through its actual overlay.
+        # Damage, kills, pickups, time limit and reward are ALL game-generated.
+        keys=['ArrowRight','ArrowDown','ArrowLeft','ArrowUp']
+        held=None
+        for segment in range(65):
+            key=keys[(segment//2)%4]
+            if key!=held:
+                if held:page.keyboard.up(held)
+                page.keyboard.down(key)
+                held=key
+            page.clock.run_for(1600)
+            if page.locator('.upgrade-option').count():
+                page.locator('.upgrade-option').first.click()
+            if page.locator('.result-card').count():
+                break
+        if held:page.keyboard.up(held)
+        expect(page.locator('.result-card')).to_be_visible(timeout=15000)
+        result_text=page.locator('.result-card h2').inner_text()
+        assert result_text=='VICTORY',('actual resource run did not win',result_text)
+        page.wait_for_function("""async runId=>{
+          const loaded=await window.__qa.store.load();
+          return loaded.ok && !loaded.state.progression.activeRun &&
+            loaded.state.progression.claimed.includes('run:'+runId);
+        }""",arg=run_id,timeout=15000)
+        after=stored(page)
+        assert after['profile']['runs']==fixture['profile']['runs']+1
+        assert after['progression']['activeRun'] is None
+        assert f'run:{run_id}' in after['progression']['claimed']
+        assert after['profile']['gold'] > fixture['profile']['gold']
+        phase='live-combat-reload'
+        page.locator('[data-action="home"]').click()
+        expect(page.locator('[data-lobby-panel="adventure"]')).to_be_visible()
+        page.reload(wait_until='networkidle')
+        assert page.evaluate(SETUP)['state']==after,'live earned reward lost on reload'
+        replay=page.evaluate("""runId=>window.__qa.store.dispatch({
+          type:'FINISH_RUN',runId,stats:{kills:1,seconds:90,won:true}
+        })""",run_id)
+        assert not replay['ok'] and replay['code']=='ALREADY_CLAIMED',replay
+        assert stored(page)==after,'live-earned reward granted twice'
+        assert not errors,errors
+        print('PASS',engine,'real 90s in-page combat VICTORY, UI result, durable reward, reload, idempotence',flush=True)
+    except Exception as error:
+        capture(page,engine,size,phase,error)
+        raise
+    finally:
+        context.close()
+
+
 def race(a, b, barrier, number, command_a, command_b, options=None):
     for page, command in [(a,command_a), (b,command_b)]:
         page.evaluate("""([round,command,options]) => {
@@ -583,6 +678,7 @@ def main():
                 migration_checks(browser,engine)
                 transaction_checks(browser,engine)
                 progression_ui(browser,engine)
+                live_resource_victory(browser,engine)
             finally:browser.close()
     print('LOBBY QA COMPLETE:',len(args.browsers)*len(SIZES),'layout combinations + both-browser migration/transaction gates',flush=True)
 
