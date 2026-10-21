@@ -119,6 +119,17 @@ def check(browser,engine,w,h):
         b.wait_for_function("window.__done===true")
         claim_outcomes=[a.evaluate("window.__result.result?.status"),
                         b.evaluate("window.__result.result?.status")]
+        if sorted(claim_outcomes)!=['CLAIMED','DUPLICATE']:
+            import json
+            print('EVENT_CROSS_TAB_DOUBLE_CLAIM_DIAGNOSTIC '+json.dumps({
+                'browser':engine,'viewport':[w,h],
+                'claimId':claimed,'outcomes':claim_outcomes,
+                'traceA':a.evaluate("window.__trace"),
+                'traceB':b.evaluate("window.__trace"),
+                'claimedState':a.evaluate("(key)=>JSON.parse(localStorage.getItem(key))",key),
+                'lockedA':a.evaluate("async()=>await navigator.locks.query()"),
+                'lockedB':b.evaluate("async()=>await navigator.locks.query()")
+            }),flush=True)
         assert sorted(claim_outcomes)==['CLAIMED','DUPLICATE'],claim_outcomes
         state=a.evaluate("(key)=>JSON.parse(localStorage.getItem(key))",key)
         assert len(state['claims'])==1 and len(state['seenEventIds'])==2
