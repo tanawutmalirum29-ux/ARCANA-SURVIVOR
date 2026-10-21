@@ -163,7 +163,15 @@ def ui_command(page, command_type, fields=None, confirm=False, keyboard=False):
     else:
         target.click()
     if confirm:
-        command_target(page,command_type,fields).click()
+        # The first click opens the game's confirmation dialog. Never click the
+        # obscured original control or bypass user-visible confirmation.
+        dialog = page.get_by_role('dialog')
+        expect(dialog).to_be_visible()
+        confirm_button = dialog.locator(f'[data-command="{command_type}"]')
+        expect(confirm_button).to_have_count(1)
+        assert json.loads(confirm_button.get_attribute('data-payload')) == json.loads(target.get_attribute('data-payload')), (
+            'confirmation changed the requested command', command_type, fields)
+        confirm_button.click()
     page.wait_for_function("""async revision=>{
       const result=await window.__qa.store.load();
       return result.ok && result.state.revision>revision;
