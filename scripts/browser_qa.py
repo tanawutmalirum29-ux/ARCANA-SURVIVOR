@@ -8,7 +8,7 @@ import os
 import subprocess
 from base64 import b64encode
 from pathlib import Path
-from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
+from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError, Error as PlaywrightError
 
 ROOT = Path(__file__).resolve().parents[1]
 SIZES = [(320, 568), (390, 844), (768, 1024), (844, 390), (1440, 900)]
@@ -142,6 +142,76 @@ def report_click_obstruction(page, selector, browser_name, width, height):
         print('QA_CLICK_OBSTRUCTION_SCREENSHOT_FAILED ' + repr(exc), flush=True)
 
 
+def report_lifecycle_click_failure(page, selector, browser_name, width, height,
+                                   error, lifecycle, errors):
+    """Record browser/page termination evidence without suppressing an original click error."""
+    record = {
+        'browser': browser_name, 'viewport': [width, height],
+        'selector': selector, 'error_type': type(error).__name__,
+        'error': str(error)[:2400], 'lifecycle': lifecycle[-25:],
+        'pageerrors_and_console': errors[-12:],
+    }
+    try:
+        record['page_closed'] = page.is_closed()
+        browser = page.context.browser
+        record['browser_connected'] = browser.is_connected() if browser else None
+    except Exception as exc:
+        record['connection_probe_error'] = repr(exc)
+    try:
+        record['dom'] = page.evaluate("""selector => {
+          const target=document.querySelector(selector),
+            overlay=document.querySelector('#overlay'),
+            hud=document.querySelector('#hud');
+          const rect=el => {
+            if(!el)return null;
+            const r=el.getBoundingClientRect();
+            return {x:r.x,y:r.y,width:r.width,height:r.height};
+          };
+          const styles=el => {
+            if(!el)return null;
+            const s=getComputedStyle(el);
+            return {display:s.display,visibility:s.visibility,
+              pointerEvents:s.pointerEvents,opacity:s.opacity};
+          };
+          return {
+            readyState:document.readyState,hidden:document.hidden,
+            hasFocus:document.hasFocus(),frameTime:performance.now(),
+            target:{exists:!!target,connected:target?.isConnected??false,
+              action:target?.dataset?.action??null,rect:rect(target),
+              style:styles(target)},
+            overlay:{classes:overlay?.className??null,
+              heading:overlay?.querySelector('h2')?.textContent??null,
+              rect:rect(overlay),style:styles(overlay)},
+            hud:{classes:hud?.className??null,rect:rect(hud),style:styles(hud)},
+            viewport:{innerWidth,innerHeight},
+          };
+        }""", selector)
+    except Exception as exc:
+        record['dom_error'] = repr(exc)
+    print('QA_LIFECYCLE_CLICK_FAILURE ' + json.dumps(record,
+          ensure_ascii=False, sort_keys=True), flush=True)
+    # Reuse the CEO-owned layout-failure screenshot glob only if a live page
+    # still permits it. TargetClosed normally makes this unavailable.
+    try:
+        action = selector.replace('#','').replace(' ','').replace('[data-action="','').replace('"]','')
+        dest = f'/tmp/arcana-qa-layout-lifecycle-{browser_name}-{width}x{height}-{action}.png'
+        page.screenshot(path=dest, timeout=2500)
+        print('QA_LIFECYCLE_SCREENSHOT_LOCAL ' + dest, flush=True)
+    except Exception as exc:
+        print('QA_LIFECYCLE_SCREENSHOT_FAILED ' + repr(exc), flush=True)
+
+
+def click_with_lifecycle_evidence(page, selector, browser_name, width, height,
+                                  lifecycle, errors):
+    """Ordinary Playwright click; add evidence on failure and re-raise unchanged."""
+    try:
+        page.locator(selector).click()
+    except PlaywrightError as exc:
+        report_lifecycle_click_failure(page, selector, browser_name, width,
+                                       height, exc, lifecycle, errors)
+        raise
+
+
 def scenario(browser, browser_name, mode, size, html=None, main=None):
     for w, h in [size]:
         touch_enabled = w < 1000  # 1440x900 exercises actual desktop pointer/keyboard mode.
@@ -149,6 +219,8 @@ def scenario(browser, browser_name, mode, size, html=None, main=None):
         errors = []
         lifecycle = []
         page.on('crash', lambda _: lifecycle.append('PAGE_CRASH'))
+        page.context.on('close', lambda _: lifecycle.append('CONTEXT_CLOSED'))
+        page.on('framenavigated', lambda f: lifecycle.append('MAIN_FRAME_NAVIGATED') if f == page.main_frame else None)
         page.on('close', lambda _: lifecycle.append('PAGE_CLOSED'))
         browser.on('disconnected', lambda _: lifecycle.append('BROWSER_DISCONNECTED'))
         page.on('pageerror', lambda e: errors.append(str(e)))
@@ -176,7 +248,8 @@ def scenario(browser, browser_name, mode, size, html=None, main=None):
         page.locator('[data-action="sound"]').click()
         assert page.get_by_text('SOUND ON', exact=True).count() == 1
         previous_theme = page.locator('[data-action="music-settings"]').inner_text()
-        page.locator('[data-action="music-settings"]').click()
+        click_with_lifecycle_evidence(page, '[data-action="music-settings"]',
+                                      browser_name, w, h, lifecycle, errors)
         current_theme = page.locator('[data-action="music-settings"]').inner_text()
         assert previous_theme != current_theme, 'festival selection in settings did not change'
         try:
@@ -217,12 +290,14 @@ def scenario(browser, browser_name, mode, size, html=None, main=None):
         assert page.get_by_text('PAUSED', exact=True).count() == 1
         page.keyboard.press('Escape')
         assert page.locator('#overlay').is_hidden(), (browser_name, w, h, 'Escape resume failed')
-        page.locator('#pause-btn').click()
+        click_with_lifecycle_evidence(page, '#pause-btn', browser_name,
+                                      w, h, lifecycle, errors)
         assert page.get_by_text('PAUSED', exact=True).count() == 1
         bounds_ok(page, '.main-card', w, h, browser_name, lifecycle)
         page.locator('[data-action="resume"]').click()
         assert page.locator('#overlay').is_hidden()
-        page.locator('#pause-btn').click()
+        click_with_lifecycle_evidence(page, '#pause-btn', browser_name,
+                                      w, h, lifecycle, errors)
         page.locator('[data-action="home"]').click()
         page.locator('[data-action="wardrobe"]').click()
         assert page.locator('.skin-card').count() == 8
