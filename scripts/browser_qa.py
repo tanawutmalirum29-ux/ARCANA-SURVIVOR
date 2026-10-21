@@ -27,10 +27,79 @@ def modules_and_html():
     return html, main
 
 
-def bounds_ok(page, selector, w, h):
-    box = page.locator(selector).bounding_box()
-    assert box, f'missing bounds for {selector}'
-    assert box['x'] >= -1 and box['y'] >= -1 and box['x'] + box['width'] <= w + 1 and box['y'] + box['height'] <= h + 1, (selector, w, h, box)
+def report_layout_failure(page, selector, w, h, browser_name, reason, lifecycle):
+    """Capture failure-time evidence, without changing app state or retrying assertions."""
+    record = {'browser': browser_name, 'viewport': [w, h], 'selector': selector,
+              'reason': str(reason), 'lifecycle': lifecycle[-15:]}
+    try:
+        record['dom'] = page.evaluate("""selector => {
+          const el=document.querySelector(selector), hud=document.querySelector('#hud'),
+            overlay=document.querySelector('#overlay'), app=document.querySelector('#app');
+          const view=window.visualViewport;
+          const rect=target => {
+            if(!target)return null;
+            const r=target.getBoundingClientRect();
+            return {x:r.x,y:r.y,width:r.width,height:r.height,top:r.top,
+              right:r.right,bottom:r.bottom};
+          };
+          const style=target => {
+            if(!target)return null;
+            const s=getComputedStyle(target);
+            return {display:s.display,visibility:s.visibility,opacity:s.opacity,
+              position:s.position,overflow:s.overflow,pointerEvents:s.pointerEvents};
+          };
+          return {
+            readyState:document.readyState, hidden:document.hidden,
+            hasFocus:document.hasFocus(), url:location.pathname,
+            innerWidth,innerHeight, devicePixelRatio,
+            visualViewport:view?{width:view.width,height:view.height,
+              scale:view.scale,offsetTop:view.offsetTop,offsetLeft:view.offsetLeft}:null,
+            selected:{exists:!!el,connected:el?.isConnected??false,
+              classes:el?.className??null,rect:rect(el),style:style(el)},
+            hud:{exists:!!hud,connected:hud?.isConnected??false,
+              classes:hud?.className??null,rect:rect(hud),style:style(hud),
+              hp:document.querySelector('#hp-text')?.textContent??null,
+              clock:document.querySelector('#clock')?.textContent??null},
+            overlay:{classes:overlay?.className??null,
+              rect:rect(overlay),style:style(overlay),
+              title:overlay?.querySelector('h2')?.textContent??null,
+              text:overlay?.textContent?.trim().slice(0,160)??null},
+            app:{rect:rect(app),style:style(app)},
+            body:{classes:document.body?.className??null,
+              style:style(document.body)},
+            frameTime:performance.now()
+          };
+        }""", selector)
+    except Exception as exc:
+        record['dom_error'] = repr(exc)
+    print('QA_LAYOUT_FAILURE ' + json.dumps(record, ensure_ascii=False,
+         sort_keys=True), flush=True)
+    try:
+        dest = f'/tmp/arcana-qa-layout-{browser_name}-{w}x{h}.png'
+        page.screenshot(path=dest, timeout=5000)
+        print('QA_LAYOUT_FAILURE_SCREENSHOT_LOCAL ' + dest, flush=True)
+    except Exception as exc:
+        print('QA_LAYOUT_FAILURE_SCREENSHOT_FAILED ' + repr(exc), flush=True)
+
+
+def bounds_ok(page, selector, w, h, browser_name='unknown', lifecycle=None):
+    lifecycle = lifecycle if lifecycle is not None else []
+    try:
+        box = page.locator(selector).bounding_box()
+    except Exception as exc:
+        report_layout_failure(page, selector, w, h, browser_name,
+                              'bounding_box raised: ' + repr(exc), lifecycle)
+        raise
+    if not box:
+        report_layout_failure(page, selector, w, h, browser_name,
+                              'bounding_box returned None', lifecycle)
+        raise AssertionError(f'missing bounds for {selector}')
+    if not (box['x'] >= -1 and box['y'] >= -1 and
+            box['x'] + box['width'] <= w + 1 and
+            box['y'] + box['height'] <= h + 1):
+        report_layout_failure(page, selector, w, h, browser_name,
+                              'out-of-viewport bounds: ' + repr(box), lifecycle)
+        raise AssertionError((selector, w, h, box))
 
 
 def report_click_obstruction(page, selector, browser_name, width, height):
@@ -78,6 +147,10 @@ def scenario(browser, browser_name, mode, size, html=None, main=None):
         touch_enabled = w < 1000  # 1440x900 exercises actual desktop pointer/keyboard mode.
         page = browser.new_page(viewport={'width': w, 'height': h}, has_touch=touch_enabled, is_mobile=touch_enabled, device_scale_factor=1)
         errors = []
+        lifecycle = []
+        page.on('crash', lambda _: lifecycle.append('PAGE_CRASH'))
+        page.on('close', lambda _: lifecycle.append('PAGE_CLOSED'))
+        browser.on('disconnected', lambda _: lifecycle.append('BROWSER_DISCONNECTED'))
         page.on('pageerror', lambda e: errors.append(str(e)))
         page.on('console', lambda m: errors.append(m.text) if m.type == 'error' else None)
         if mode == 'served':
@@ -90,7 +163,7 @@ def scenario(browser, browser_name, mode, size, html=None, main=None):
         assert page.evaluate("document.activeElement?.dataset.action") == 'start', (browser_name, w, h, 'keyboard focus unavailable')
         assert page.evaluate("() => { const style = getComputedStyle(document.body); return style.userSelect === 'none' || style.webkitUserSelect === 'none'; }"), (browser_name, w, h, 'OS text selection not prevented')
         assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1"), (browser_name, w, h, 'horizontal overflow')
-        bounds_ok(page, '.main-card', w, h)
+        bounds_ok(page, '.main-card', w, h, browser_name, lifecycle)
         assert page.locator('[data-action="lobby-music"]').count() == 0, 'manual lobby play button remains'
         assert page.locator('[data-action="music-theme"]').count() == 0, 'lobby theme control remains'
         page.locator('[data-action="settings"]').click()
@@ -119,7 +192,7 @@ def scenario(browser, browser_name, mode, size, html=None, main=None):
         assert page.locator('#joystick').is_visible(), (browser_name, w, h, 'missing joystick layer')
         assert page.locator('#joystick').evaluate("(el) => getComputedStyle(el).opacity === '0'"), (browser_name, w, h, 'idle joystick not hidden')
         for selector in ('#hud', '#pause-btn'):
-            bounds_ok(page, selector, w, h)
+            bounds_ok(page, selector, w, h, browser_name, lifecycle)
         # Verify floating origins at different positions on both desktop and mobile.
         # Browser pointer/touch emulation is not physical iOS/Android evidence.
         for x, y in ((w * .72, h * .60), (w * .30, h * .72)):
@@ -146,14 +219,14 @@ def scenario(browser, browser_name, mode, size, html=None, main=None):
         assert page.locator('#overlay').is_hidden(), (browser_name, w, h, 'Escape resume failed')
         page.locator('#pause-btn').click()
         assert page.get_by_text('PAUSED', exact=True).count() == 1
-        bounds_ok(page, '.main-card', w, h)
+        bounds_ok(page, '.main-card', w, h, browser_name, lifecycle)
         page.locator('[data-action="resume"]').click()
         assert page.locator('#overlay').is_hidden()
         page.locator('#pause-btn').click()
         page.locator('[data-action="home"]').click()
         page.locator('[data-action="wardrobe"]').click()
         assert page.locator('.skin-card').count() == 8
-        bounds_ok(page, '.main-card', w, h)
+        bounds_ok(page, '.main-card', w, h, browser_name, lifecycle)
         page.locator('[data-action="home"]').click()
         assert not errors, (browser_name, w, h, errors)
         print('PASS', browser_name, f'{w}x{h}', 'responsive, touch emulation (mobile only), desktop keyboard/focus, settings, pause, wardrobe')
