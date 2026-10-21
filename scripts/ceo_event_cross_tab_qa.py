@@ -16,9 +16,17 @@ SETUP="""async () => {
  ]);
  const catalog=await (await fetch('/src/content/events/s01_events.json')).json();
  window.__ctx={writer,local,core,catalog};
+ window.__trace=[];
  window.__launch=(id,utc,claimId=null)=>{
    window.__done=false;
-   const store=local.createEventLocalStorage({storage:localStorage});
+   const underlying=local.createEventLocalStorage({storage:localStorage});
+   const store={
+     read(){const value=underlying.read();
+       window.__trace.push({id,op:'read',seen:value?.seenEventIds||null});
+       return value},
+     write(value){window.__trace.push({id,op:'write',seen:value?.seenEventIds||null});
+       return underlying.write(value)}
+   };
    const transition=claimId?
      s=>{const op=core.claimEventReward(s,claimId,utc);
           return {state:op.state,result:{status:op.status}};}:
@@ -75,6 +83,20 @@ def check(browser,engine,w,h):
         assert a.evaluate("window.__result.status")=='COMMITTED'
         assert b.evaluate("window.__result.status")=='COMMITTED'
         final=a.evaluate("""(key) => JSON.parse(localStorage.getItem(key)).seenEventIds""",key)
+        if len(final)!=2 or set(final)!={'tab:A','tab:B'}:
+            import json
+            diagnostic={
+                'browser':engine,'viewport':[w,h],'seenA':final,
+                'seenB':b.evaluate("(key)=>JSON.parse(localStorage.getItem(key)).seenEventIds",key),
+                'traceA':a.evaluate("window.__trace"),
+                'traceB':b.evaluate("window.__trace"),
+                'resultA':a.evaluate("window.__result"),
+                'resultB':b.evaluate("window.__result"),
+                'locksA':a.evaluate("async()=>await navigator.locks.query()"),
+                'locksB':b.evaluate("async()=>await navigator.locks.query()")
+            }
+            print('EVENT_CROSS_TAB_FAILURE_DIAGNOSTIC '+json.dumps(diagnostic),
+                  flush=True)
         assert len(final)==2 and set(final)=={'tab:A','tab:B'},(engine,w,h,final)
         # A repeat across midnight cannot re-credit the older stable ID.
         b.evaluate("window.__launch('tab:A', '2030-01-14T00:00:00.000Z')")
