@@ -89,8 +89,13 @@ export function paintBossWarning(ctx, flash, options = {}) {
       const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
       const marginX = Math.min(42, viewport.width / 2);
       const labelWorldX = clamp(shape.x, viewport.x + marginX, viewport.x + viewport.width - marginX);
+      // The in-game HUD and boss-health bar occupy the top of the Canvas.
+      // Leave room for their real mobile/landscape CSS layout (up to ~120px)
+      // plus glyph ascent; canvas-only clipping at y=20 would hide RING/FAN/
+      // STAR text *behind* those overlays despite the text being in bounds.
+      const safeTop = Math.min(140, Math.max(0, viewport.height - 20));
       const labelWorldY = clamp(shape.y - shape.radius - 8,
-        viewport.y + Math.min(20, viewport.height / 2),
+        viewport.y + safeTop,
         viewport.y + viewport.height - Math.min(16, viewport.height / 2));
       labelX = labelWorldX - shape.x;
       labelY = labelWorldY - shape.y;
