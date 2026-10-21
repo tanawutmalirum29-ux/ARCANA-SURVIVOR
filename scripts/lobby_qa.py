@@ -153,11 +153,15 @@ def command_target(page, command_type, fields=None):
     raise AssertionError(('missing command control',command_type,fields))
 
 
-def ui_command(page, command_type, fields=None, confirm=False):
+def ui_command(page, command_type, fields=None, confirm=False, keyboard=False):
     before=stored(page)
     target=command_target(page,command_type,fields)
     expect(target).to_be_enabled()
-    target.click()
+    if keyboard:
+        target.focus()
+        page.keyboard.press('Enter')
+    else:
+        target.click()
     if confirm:
         command_target(page,command_type,fields).click()
     page.wait_for_function("""async revision=>{
@@ -198,6 +202,8 @@ def progression_ui(browser,engine):
         }""")
         page.reload(wait_until='networkidle')
         assert page.evaluate(SETUP)['ok']
+        assert page.evaluate('document.documentElement.scrollWidth<=innerWidth+1'),'long wallet values caused horizontal overflow'
+        assert page.locator('.lb-wallet').evaluate("node=>node.getBoundingClientRect().right<=innerWidth+1"),'long wallet values escaped header'
         page.locator('[data-lobby-tab="hero"]').click()
         page.locator('[data-subtab="forge"][data-scope="hero"]').click()
         phase='craft-fuse-equip'
@@ -240,7 +246,8 @@ def progression_ui(browser,engine):
         ui_command(page,'UPGRADE_RELIC',{'relicId':'compass'})
         page.locator('[data-subtab="runes"][data-scope="growth"]').click()
         for rune_id,slot in [('power','attack'),('guard','defense'),('haste','utility')]:
-            ui_command(page,'UPGRADE_RUNE',{'runeId':rune_id})
+            ui_command(page,'UPGRADE_RUNE',{'runeId':rune_id},keyboard=True)
+            assert page.evaluate('document.activeElement?.dataset.runeId')==rune_id,('command focus lost',rune_id)
             after=ui_command(page,'EQUIP_RUNE',{'runeId':rune_id,'slot':slot})
             assert after['progression']['runes']['equipped'][slot]==rune_id
         page.locator('[data-subtab="jewels"][data-scope="growth"]').click()
@@ -441,6 +448,7 @@ def migration_checks(browser, engine):
         expect(page.locator('[data-action="start"]')).to_be_visible()
         loaded=page.evaluate(SETUP)
         assert loaded['ok'] and loaded['state']['profile']==legacy, loaded
+        assert page.locator('.lb-art-float').first.evaluate("node=>getComputedStyle(node).animationName")=='none','saved reduced motion ignored in lobby'
         first=stored(page)
         assert len(first['progression']['inventory'])==2, 'starter grant count'
         for _ in range(2):

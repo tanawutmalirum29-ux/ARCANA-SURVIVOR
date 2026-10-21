@@ -34,7 +34,7 @@ export function createCampaign(legacyProfile = defaultProfile()) {
     schemaVersion: 2, revision: 0, profile: clone(legacyProfile),
     progression: {
       xp: 0, heroId: 'mage', supportHeroId: null,
-      heroes: Object.fromEntries(HEROES.map(hero => [hero.id, { level: hero.id === 'mage' ? 1 : 0, stars: 0, shards: 0 }])),
+      heroes: Object.fromEntries(HEROES.map(hero => [hero.id, { level: hero.id === 'mage' ? 1 : 0, stars: 0, shards: 0, awakening: 0 }])),
       chapterId: 'astral', mode: 'campaign', cleared: [],
       inventory: [createItem('item-1', 'star_wand'), createItem('item-2', 'astral_robe')], equipment,
       materials: { essence: 0, research: 0, dust: 0 },
@@ -83,7 +83,7 @@ function validPreset(preset, p, profile) {
 }
 export const STAT_BOUNDS = Object.freeze({
   maxHp: [1, 3000], attack: [1, 500], speed: [100, 350], fireDelay: [8, 60], armor: [0, .65],
-  critChance: [0, .6], critDamage: [1, 3], pickupRadius: [20, 450],
+  critChance: [0, .6], critDamage: [1, 3], pickupRadius: [40, 450],
   healingMultiplier: [1, 3], skillMultiplier: [1, 3], bossDamageMultiplier: [1, 3],
 });
 const boundedRecord = (value, bounds) => keys(value, Object.keys(bounds)) && Object.entries(bounds).every(([key, [min, max]]) => typeof value[key] === 'number' && Number.isFinite(value[key]) && value[key] >= min && value[key] <= max);
@@ -93,11 +93,15 @@ export function validateRunConfig(config) {
   if (!boundedRecord(config.stats, STAT_BOUNDS) || !(config.weaponId === null || byId(EQUIPMENT, config.weaponId)?.slot === 'weapon') || !['balanced', 'pierce', 'rapid'].includes(config.weaponEffect)) return false;
   const support = (value, catalog) => value === null || (keys(value, ['id', 'level']) && byId(catalog, value.id) && integer(value.level, 1, byId(catalog, value.id).maxLevel));
   if (!support(config.artifact, ARTIFACTS) || !support(config.guardian, GUARDIANS) || !Array.isArray(config.companions) || config.companions.length > 2 || !unique(config.companions.map(x => x?.id)) || !config.companions.every(x => x !== null && support(x, COMPANIONS))) return false;
-  if (!boundedRecord(config.modifiers, { novaRadius: [1, 2], chainTargets: [0, 4], orbitRadius: [1, 2], shieldEvery: [0, 120], killHeal: [0, 5] })) return false;
+  if (!boundedRecord(config.modifiers, { novaRadius: [1, 2], chainTargets: [0, 4], orbitRadius: [1, 2], shieldEvery: [0, 120], killHeal: [0, 5] }) || !integer(config.modifiers.chainTargets, 0, 4)) return false;
   const chapter = config.chapter;
   return keys(chapter, ['enemyHpMultiplier', 'enemyDamageMultiplier', 'spawnMultiplier', 'bossAtSeconds', 'bossHpMultiplier', 'bossName', 'durationSeconds'])
-    && ['enemyHpMultiplier', 'enemyDamageMultiplier', 'spawnMultiplier', 'bossHpMultiplier'].every(key => Number.isFinite(chapter[key]) && chapter[key] >= .1 && chapter[key] <= 10)
-    && integer(chapter.bossAtSeconds, 1, 3600) && integer(chapter.durationSeconds, 0, 3600) && typeof chapter.bossName === 'string' && chapter.bossName.length <= 100;
+    && Number.isFinite(chapter.enemyHpMultiplier) && chapter.enemyHpMultiplier >= .25 && chapter.enemyHpMultiplier <= 12
+    && Number.isFinite(chapter.enemyDamageMultiplier) && chapter.enemyDamageMultiplier >= .25 && chapter.enemyDamageMultiplier <= 8
+    && Number.isFinite(chapter.spawnMultiplier) && chapter.spawnMultiplier >= .3 && chapter.spawnMultiplier <= 3
+    && Number.isFinite(chapter.bossHpMultiplier) && chapter.bossHpMultiplier >= .25 && chapter.bossHpMultiplier <= 20
+    && integer(chapter.bossAtSeconds, 15, 900) && (config.mode === 'resource' ? integer(chapter.durationSeconds, 30, 900) : chapter.durationSeconds === 0)
+    && typeof chapter.bossName === 'string' && chapter.bossName.length > 0 && chapter.bossName.length <= 64 && chapter.bossName.trim() === chapter.bossName;
 }
 export function validateCampaign(state) {
   try {
@@ -106,7 +110,8 @@ export function validateCampaign(state) {
     if (!keys(p, ['xp', 'heroId', 'supportHeroId', 'heroes', 'chapterId', 'mode', 'cleared', 'inventory', 'equipment', 'materials', 'relics', 'talents', 'runes', 'jewels', 'artifacts', 'artifactId', 'companions', 'companionIds', 'guardians', 'guardianId', 'research', 'homestead', 'presets', 'missions', 'season', 'claimed', 'nextItem', 'nextRun', 'activeRun'])) return false;
     if (!integer(p.xp) || !keys(p.heroes, idsOf(HEROES)) || !HEROES.every(def => {
       const hero = p.heroes[def.id];
-      return keys(hero, ['level', 'stars', 'shards']) && integer(hero.level, 0, def.maxLevel) && integer(hero.stars, 0, def.maxStars) && integer(hero.shards) && (hero.level > 0 || hero.stars === 0);
+      return keys(hero, ['level', 'stars', 'shards', 'awakening']) && integer(hero.level, 0, def.maxLevel) && integer(hero.stars, 0, def.maxStars) && integer(hero.shards)
+        && (hero.level > 0 || hero.stars === 0) && integer(hero.awakening, 0, def.maxAwakening) && (hero.awakening === 0 || (hero.level === def.maxLevel && hero.stars === def.maxStars));
     }) || !p.heroes[p.heroId]?.level || p.heroes.mage.level === 0) return false;
     if (p.supportHeroId !== null && (!p.heroes[p.supportHeroId]?.level || p.supportHeroId === p.heroId || state.profile.runs < 5)) return false;
     if (!unique(p.cleared) || !p.cleared.every(id => byId(CHAPTERS, id)) || !p.cleared.every(id => !byId(CHAPTERS, id).requires || p.cleared.includes(byId(CHAPTERS, id).requires))) return false;

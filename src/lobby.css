@@ -263,7 +263,7 @@
 /* Landscape: reserve a fixed navigation rail height, with independently
    scrollable content. The launch card stays beside the hero, never below it. */
 @media (max-height: 560px) and (min-width: 601px) {
-  .lb-header { min-height: 50px; padding: calc(5px + env(safe-area-inset-top, 0px)) 20px 5px; gap: 12px; }.lb-profile > .lb-icon { width: 28px; height: 34px; padding: 5px; }.lb-profile strong { font-size: 14px; }.lb-profile strong span { font-size: 8px; }.lb-profile small { font-size: 8px; }.lb-header > .lb-icon-button { width: 36px; height: 36px; padding: 8px; }.lb-resource { padding: 5px 10px; min-width: 72px; }.lb-resource strong { font-size: 11px; }.lb-resource .lb-icon { width: 16px; height: 16px; }.lb-nav { min-height: 53px; padding-left: max(30px, calc((100% - 680px)/2)); padding-right: max(30px, calc((100% - 680px)/2)); }.lb-nav-tab { min-height: 51px; flex-direction: row; gap: 7px; padding: 8px 4px; font-size: 10px !important; }.lb-nav-icon > .lb-icon { width: 20px; height: 20px; }.lb-nav-adventure .lb-nav-icon > .lb-icon { width: 22px; height: 22px; }.lb-nav-dot { top: 10px; left: calc(50% + 28px); }.lb-content { padding: 20px; }.lb-view-adventure { padding: 12px 25px 16px; align-items: flex-start; }.lb-adventure { gap: 30px; grid-template-columns: .8fr 1.2fr; max-width: 930px; margin: 0 auto; align-items: start; }.lb-sanctum-heading > .lb-eyebrow { font-size: 7px; letter-spacing: 1.5px; }.lb-sanctum-heading h1 { font-size: 17px; margin: 3px 0 0; }.lb-local-mark { font-size: 8px; }.lb-hero-stage { height: 180px; min-height: 155px; margin-top: -3px; }.lb-hero-caption { margin-top: -6px; }.lb-hero-caption > .lb-eyebrow, .lb-hero-caption p { display: none; }.lb-hero-caption h2 { font-size: 16px; margin-top: 0; }.lb-hero-caption h2 span { font-size: 10px; }.lb-stat-blocks { margin-top: 7px; padding-top: 7px; max-width: 260px; }.lb-stat-blocks strong { font-size: 12px; }.lb-stat-blocks span { font-size: 8px; }.lb-stat-blocks .lb-icon { width: 13px; height: 13px; }.lb-stage-chip { bottom: 17%; font-size: 8px !important; padding: 4px; }.lb-stage-chip > .lb-icon { width: 33px; height: 33px; padding: 7px; }.lb-stage-gear { left: 2%; }.lb-stage-skin { right: 2%; }.lb-journey { padding-top: 0; }.lb-journey-heading { margin-bottom: 7px; }.lb-journey-heading .lb-eyebrow { font-size: 7px; }.lb-journey-heading > .lb-tag { font-size: 8px; padding: 2px 5px; }.lb-chapter-card { min-height: 110px; }.lb-chapter-card-content { padding: 11px 14px; }.lb-chapter-card-content .lb-eyebrow { font-size: 7px; letter-spacing: 1.5px; }.lb-chapter-card-content h2 { font-size: 18px; margin: 4px 0 2px; }.lb-chapter-card-content > p { font-size: 9px; max-width: 100%; }.lb-chapter-select { font-size: 9px !important; min-height: 26px; padding-top: 2px; }.lb-modes { margin-top: 8px; gap: 5px; }.lb-mode { min-height: 35px; padding: 6px; flex-direction: row; font-size: 9px !important; gap: 5px; }.lb-mode > .lb-icon { width: 14px; height: 14px; }.lb-mode-description { min-height: 0; margin: 5px 0 6px !important; font-size: 9px; line-height: 1.6; }.lb-launch { margin: 0; }.lb-launch-note { margin-bottom: 6px; font-size: 8px; }.lb-launch-note > .lb-icon { width: 12px; height: 12px; }.lb-start { min-height: 43px; font-size: 14px !important; }.lb-start > .lb-icon { width: 19px; height: 19px; }.lb-mission-preview { margin-top: 12px; padding: 9px 12px; }.lb-mission-preview > .lb-icon { width: 23px; height: 23px; }.lb-mission-preview strong { font-size: 10px; }.lb-mission-preview small { font-size: 8px; }.lb-mission-preview > b { font-size: 11px; }.lb-heading { margin-bottom: 15px; }.lb-heading h1 { font-size: 23px; }.lb-heading .lb-eyebrow { font-size: 8px; }.lb-heading .lb-muted { font-size: 11px; }.lb-subnav { margin-bottom: 10px; padding-bottom: 10px; }.lb-subtab { min-height: 38px; padding: 8px 12px; font-size: 11px !important; }.lb-modal-backdrop { padding: 12px 20px; }.lb-modal-header { padding-top: 7px; padding-bottom: 7px; }.lb-modal-header > .lb-icon-button { width: 34px; height: 34px; padding: 8px; }.lb-modal-scroll { padding: 18px; }.lb-notice { bottom: calc(64px + env(safe-area-inset-bottom, 0px)); }.lb-saving { top: 58px; }
+  .lb-header { min-height: 50px; padding: calc(5px + env(safe-area-inset-top, 0px)) 20px 5px; gap: 12px; }.lb-profile > .lb-icon { width: 28px; height: 34px; padding: 5px; }.lb-profile strong { font-size: 14px; }.lb-profile strong span { font-size: 8px; }.lb-profile small { font-size: 8px; }.lb-header > .lb-icon-button { width: 36px; height: 36px; padding: 8px; }.lb-resource { padding: 5px 10px; min-width: 72px; }.lb-resource strong { font-size: 11px; }.lb-resource .lb-icon { width: 16px; height: 16px; }.lb-nav { min-height: 53px; padding-left: max(30px, calc((100% - 680px)/2)); padding-right: max(30px, calc((100% - 680px)/2)); }.lb-nav-tab { min-height: 51px; flex-direction: row; gap: 7px; padding: 8px 4px; font-size: 10px !important; }.lb-nav-icon > .lb-icon { width: 20px; height: 20px; }.lb-nav-adventure .lb-nav-icon > .lb-icon { width: 22px; height: 22px; }.lb-nav-dot { top: 10px; left: calc(50% + 28px); }.lb-content { padding: 20px; }.lb-view-adventure { padding: 12px 25px 16px; align-items: flex-start; }.lb-adventure { gap: 30px; grid-template-columns: .8fr 1.2fr; max-width: 930px; margin: 0 auto; align-items: start; }.lb-sanctum-heading > .lb-eyebrow { font-size: 7px; letter-spacing: 1.5px; }.lb-sanctum-heading h1 { font-size: 17px; margin: 3px 0 0; }.lb-local-mark { font-size: 8px; }.lb-hero-stage { height: 180px; min-height: 155px; margin-top: -3px; }.lb-hero-caption { margin-top: -6px; }.lb-hero-caption > .lb-eyebrow, .lb-hero-caption p { display: none; }.lb-hero-caption h2 { font-size: 16px; margin-top: 0; }.lb-hero-caption h2 span { font-size: 10px; }.lb-stat-blocks { margin-top: 7px; padding-top: 7px; max-width: 260px; }.lb-stat-blocks strong { font-size: 12px; }.lb-stat-blocks span { font-size: 8px; }.lb-stat-blocks .lb-icon { width: 13px; height: 13px; }.lb-stage-chip { bottom: 17%; font-size: 8px !important; padding: 4px; }.lb-stage-chip > .lb-icon { width: 33px; height: 33px; padding: 7px; }.lb-stage-gear { left: 2%; }.lb-stage-skin { right: 2%; }.lb-journey { padding-top: 0; }.lb-journey-heading { margin-bottom: 7px; }.lb-journey-heading .lb-eyebrow { font-size: 7px; }.lb-journey-heading > .lb-tag { font-size: 8px; padding: 2px 5px; }.lb-chapter-card { min-height: 110px; }.lb-chapter-card-content { padding: 11px 14px; }.lb-chapter-card-content .lb-eyebrow { font-size: 7px; letter-spacing: 1.5px; }.lb-chapter-card-content h2 { font-size: 18px; margin: 4px 0 2px; }.lb-chapter-card-content > p { font-size: 9px; max-width: 100%; }.lb-chapter-select { font-size: 9px !important; min-height: 26px; padding-top: 2px; }.lb-modes { margin-top: 8px; gap: 5px; }.lb-mode { min-height: 35px; padding: 6px; flex-direction: row; font-size: 9px !important; gap: 5px; }.lb-mode > .lb-icon { width: 14px; height: 14px; }.lb-mode-description { min-height: 0; margin: 5px 0 6px !important; font-size: 9px; line-height: 1.6; }.lb-launch { margin: 0; }.lb-launch-note { margin-bottom: 6px; font-size: 8px; }.lb-launch-note > .lb-icon { width: 12px; height: 12px; }.lb-start { min-height: 44px; font-size: 14px !important; }.lb-start > .lb-icon { width: 19px; height: 19px; }.lb-mission-preview { margin-top: 12px; padding: 9px 12px; }.lb-mission-preview > .lb-icon { width: 23px; height: 23px; }.lb-mission-preview strong { font-size: 10px; }.lb-mission-preview small { font-size: 8px; }.lb-mission-preview > b { font-size: 11px; }.lb-heading { margin-bottom: 15px; }.lb-heading h1 { font-size: 23px; }.lb-heading .lb-eyebrow { font-size: 8px; }.lb-heading .lb-muted { font-size: 11px; }.lb-subnav { margin-bottom: 10px; padding-bottom: 10px; }.lb-subtab { min-height: 38px; padding: 8px 12px; font-size: 11px !important; }.lb-modal-backdrop { padding: 12px 20px; }.lb-modal-header { padding-top: 7px; padding-bottom: 7px; }.lb-modal-header > .lb-icon-button { width: 34px; height: 34px; padding: 8px; }.lb-modal-scroll { padding: 18px; }.lb-notice { bottom: calc(64px + env(safe-area-inset-bottom, 0px)); }.lb-saving { top: 58px; }
 }
 @media (max-height: 390px) and (min-width: 601px) { .lb-hero-stage { height: 154px; min-height: 154px; }.lb-view-adventure { padding-top: 9px; }.lb-sanctum-heading > .lb-eyebrow { display: none; }.lb-adventure { gap: 30px; }.lb-chapter-card { min-height: 105px; }.lb-mission-preview { margin-top: 10px; }.lb-mode-description { font-size: 8px; }.lb-launch-note { font-size: 7px; } }
 @media (prefers-reduced-motion: reduce) { .lobby-shell *, .lobby-shell *::before, .lobby-shell *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
@@ -329,4 +329,59 @@
   .lb-mode-change { font-size: 8px; }
   .lb-first-steps { margin-top: 10px; font-size: 8px; gap: 8px; }
   .lb-first-steps b { width: 12px; height: 12px; font-size: 7px; }
+}
+
+@media (min-width: 601px) and (max-width: 700px) and (min-height: 561px) { .lb-launch { bottom: calc(76px + env(safe-area-inset-bottom, 0px)); } }
+@media (max-width: 370px) { .lb-heading:has(.lb-collection-total) { align-items: flex-start; }.lb-heading:has(.lb-collection-total) h1 { font-size: 20px; }.lb-collection-total strong { font-size: 15px; }.lb-collection-total span { font-size: 8px; }.lb-heading:has(.lb-collection-total) .lb-eyebrow { font-size: 7px; letter-spacing: .8px; } }
+.lb-btn-multicost { flex-wrap: wrap; }
+.lb-btn-multicost > .lb-btn-cost { flex-basis: 100%; justify-content: center; flex-wrap: wrap; padding: 5px 0 0; margin: 0; border: 0; }
+.lb-rarity-filters { margin-top: -3px; padding-bottom: 8px; }
+.lb-rarity-filters .lb-filter { display: inline-flex; align-items: center; gap: 5px; padding: 5px 7px; font-size: 9px !important; min-height: 30px; }
+.lb-rarity-filters i { width: 5px; height: 5px; border-radius: 50%; background: var(--rarity); }
+.lb-sort-row { display: flex; align-items: center; justify-content: flex-end; gap: 3px; padding: 5px 0 11px; border-bottom: 1px solid var(--lb-line); margin-bottom: 15px; }
+.lb-sort-row > span { margin-right: auto; color: #8093af; font-size: 9px; }
+.lb-sort { min-height: 32px; padding: 5px 9px; background: none; border: 0; border-radius: 4px; color: #8ba0bf !important; font-size: 10px !important; }
+.lb-sort.is-active { color: #e3c899 !important; background: rgba(219, 184, 124, .09); }
+.lb-gear-sets { margin-top: 21px; }
+.lb-set-info { padding: 12px; border: 1px solid #3b455a; border-radius: 7px; background: rgba(18, 29, 48, .55); margin: 12px 0; }
+.lb-set-info > div { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.lb-set-info strong { color: #c9b386; font-size: 11px; font-weight: 500; }
+.lb-set-info span { color: #8f9eb6; font-size: 9px; }
+.lb-set-info p { display: flex; align-items: center; gap: 6px; color: #7f92ad; font-size: 10px; line-height: 1.8; }
+.lb-set-info p.lb-positive { color: #9cc3a4; }
+.lb-set-info p > .lb-icon { width: 12px; height: 12px; }
+.lb-set-info p > b { font-size: 9px; font-weight: 500; white-space: nowrap; margin-right: 2px; }
+.lb-support-bonus { margin: 10px 0 0; }
+.lb-support-bonus > .lb-stat-list { margin: 2px 0 10px; }
+.lb-support-bonus .lb-stat-list > div { font-size: 10px; padding: 4px 0; }
+.lb-support-bonus .lb-stat-list strong { font-size: 11px; }
+.lb-awakening-note { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--lb-line); }
+.lb-awakening-note .lb-stat-caption { font-size: 8px; }
+.lb-awakening-note .lb-stat-list { display: flex; flex-wrap: wrap; gap: 10px; margin: 5px 0 0; }
+.lb-awakening-note .lb-stat-list > div { border: 0; font-size: 9px; padding: 0; gap: 4px; }
+.lb-awakening-note .lb-stat-list strong { font-size: 9px; color: #c3bddc; }
+.lb-transaction-preview { border: 1px solid #526556; border-radius: 7px; padding: 13px 15px; background: #162a2c; margin: 15px 0; }
+.lb-transaction-preview > strong { font-size: 11px; font-weight: 500; color: #b0ceba; }
+.lb-transaction-preview > .lb-rewards { font-size: 12px; margin: 8px 0 0; }
+.lb-relic-conversion { padding: 12px; border: 1px solid #444d5c; border-radius: 7px; margin: 12px 0; background: #152236; }
+.lb-relic-conversion > h3 { font-size: 11px; margin-bottom: 5px; color: #c9b5e0; }
+.lb-relic-conversion > .lb-card-actions { flex-wrap: wrap; }
+.lb-relic-conversion .lb-btn { font-size: 10px !important; padding: 7px; flex-basis: 25%; }
+.lb-relic-conversion .lb-btn-cost { display: none; }
+.lobby-shell[data-vfx="low"] .lb-modal-backdrop { backdrop-filter: none; }
+.lobby-shell[data-vfx="low"] .lb-orbit, .lobby-shell[data-vfx="low"] .lb-stage-star { display: none; }
+.lobby-shell[data-vfx="low"] .lb-art-float, .lobby-shell[data-vfx="low"] .lb-art-rune { animation: none; }
+.lobby-shell[data-vfx="low"] .lb-hero-art [filter] { filter: none; }
+.lobby-shell[data-vfx="low"] .lb-item, .lobby-shell[data-vfx="low"] .lb-stage-chip > .lb-icon, .lobby-shell[data-vfx="low"] .lb-chapter-card { box-shadow: none; }
+@media (max-width: 600px) {
+  .lb-hero-card > .lb-support-bonus { grid-column: 2; margin-top: 0; }
+  .lb-hero-card > .lb-awakening-note, .lb-hero-card > .lb-unlock-reason { grid-column: 1/-1; }
+  .lb-hero-card > .lb-card-caption { grid-column: 1/-1; }
+  .lb-set-info { padding: 10px; }
+  .lb-set-info p { font-size: 9px; }
+  .lb-gear-sets { margin-top: 15px; }
+  .lb-sort { font-size: 9px !important; padding: 5px 7px; }
+  .lb-sort-row { margin-bottom: 12px; }
+  .lb-transaction-preview { padding: 11px 13px; }
+  .lb-transaction-preview .lb-rewards { font-size: 11px; }
 }

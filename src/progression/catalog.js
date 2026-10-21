@@ -19,7 +19,7 @@ export const HEROES = freeze([
   { id: 'mage', name: 'Astra · นักเวทดารา', icon: '✦', description: 'Nova, Orbit และ Chain แรงขึ้น 10%', unlockRuns: 0, unlockCost: {}, maxLevel: 20, maxStars: 5, stats: { maxHp: 100, attack: 22, speed: 230, fireDelay: 24 }, support: { skillMultiplier: .03 } },
   { id: 'guardian', name: 'Orin · ผู้พิทักษ์', icon: '◈', description: 'สร้างเกราะ 12% ของพลังชีวิตทุก 8 วินาที', unlockRuns: 2, unlockCost: { gold: 180, essence: 15 }, maxLevel: 20, maxStars: 5, stats: { maxHp: 135, attack: 20, speed: 210, fireDelay: 27 }, support: { armor: .025 } },
   { id: 'ranger', name: 'Lyra · ผู้ลาดตระเวน', icon: '➶', description: 'เคลื่อนที่ต่อเนื่อง 1 วินาที ทำให้ Bolt แรงขึ้น 12%', unlockRuns: 5, unlockCost: { gold: 300, essence: 25 }, maxLevel: 20, maxStars: 5, stats: { maxHp: 90, attack: 21, speed: 250, fireDelay: 21 }, support: { critChance: .025 } },
-]);
+].map(hero => ({ ...hero, maxAwakening: 3, awakeningStats: { maxHp: 12, attack: 2, critChance: .01 } })));
 export const EQUIPMENT = freeze([
   { id: 'star_wand', name: 'คทาดาวตก', slot: 'weapon', icon: '✦', stats: { attack: 3 }, effect: 'balanced', set: 'astral', craftCost: { gold: 60, essence: 6 }, description: 'พลังโจมตีสมดุลสำหรับทุกเวท' },
   { id: 'piercing_staff', name: 'ไม้เท้ารอยแยก', slot: 'weapon', icon: '↟', stats: { attack: 4, fireDelay: 2 }, effect: 'pierce', set: 'sentinel', craftCost: { gold: 80, essence: 8 }, description: 'Bolt ทะลุศัตรูได้ 2 ตัว แลกกับความเร็วโจมตี' },
@@ -34,6 +34,11 @@ export const EQUIPMENT = freeze([
   { id: 'moon_spirit', name: 'วิญญาณจันทร์', slot: 'spirit', icon: '☾', stats: { pickupRadius: 8, healingMultiplier: .025 }, effect: null, set: 'sentinel', craftCost: { gold: 100, essence: 10 }, description: 'ขยายระยะเก็บและเพิ่มผลการรักษา' },
   { id: 'ember_spirit', name: 'วิญญาณถ่านไฟ', slot: 'spirit', icon: '✷', stats: { attack: 2, skillMultiplier: .015 }, effect: null, set: 'verdant', craftCost: { gold: 100, essence: 10 }, description: 'เพิ่มพลังโจมตีและเวท' },
 ]);
+export const GEAR_SETS = freeze([
+  { id: 'astral', name: 'ดารา', description: '2 ชิ้น: โจมตี +2 · 4 ชิ้น: พลังเวท +4%', bonuses: [{ pieces: 2, stats: { attack: 2 } }, { pieces: 4, stats: { skillMultiplier: .04 } }] },
+  { id: 'sentinel', name: 'พิทักษ์', description: '2 ชิ้น: HP +12 · 4 ชิ้น: ลดความเสียหาย +2%', bonuses: [{ pieces: 2, stats: { maxHp: 12 } }, { pieces: 4, stats: { armor: .02 } }] },
+  { id: 'verdant', name: 'พฤกษา', description: '2 ชิ้น: คริติคอล +2% · 4 ชิ้น: ความเร็ว +8', bonuses: [{ pieces: 2, stats: { critChance: .02 } }, { pieces: 4, stats: { speed: 8 } }] },
+]);
 export const CHAPTERS = freeze([
   { id: 'astral', name: '01 · ลานดารา', icon: '✦', description: 'ฝ่าคลื่นมอนสเตอร์และปราบผู้กลืนดาว', requires: null, enemyHpMultiplier: 1, enemyDamageMultiplier: 1, spawnMultiplier: 1, bossAtSeconds: 180, bossHpMultiplier: 1, bossName: 'ผู้กลืนดาว' },
   { id: 'grove', name: '02 · ป่าคราส', icon: '♧', description: 'ศัตรูแข็งแกร่งขึ้นท่ามกลางหมู่ไม้จันทรา', requires: 'astral', enemyHpMultiplier: 1.35, enemyDamageMultiplier: 1.15, spawnMultiplier: 1.1, bossAtSeconds: 240, bossHpMultiplier: 1.3, bossName: 'ราชาพฤกษาคราส' },
@@ -41,7 +46,7 @@ export const CHAPTERS = freeze([
 ]);
 export const MODES = freeze([
   { id: 'campaign', name: 'ผจญภัย', icon: '⚔', description: 'ปราบบอสเพื่อเปิดบทถัดไป', unlockRuns: 0 },
-  { id: 'hard', name: 'ท้าทาย', icon: '◆', description: 'ศัตรูแข็งแกร่งขึ้น · รางวัลเพิ่ม 35%', requires: 'astral', rewardMultiplier: 1.35 },
+  { id: 'hard', name: 'ท้าทาย', icon: '◆', description: 'ศัตรูแข็งแกร่งขึ้น · ทองเพิ่ม 35%', requires: 'astral', rewardMultiplier: 1.35 },
   { id: 'resource', name: 'ขุมพลัง', icon: '✧', description: 'เอาชีวิตรอด 90 วินาที · Essence เพิ่มเป็นสองเท่า', unlockRuns: 1, durationSeconds: 90 },
   { id: 'bossRush', name: 'ล่าบอส', icon: '♛', description: 'ปราบบอสต่อเนื่อง 3 ตัว · Research เพิ่ม', requires: 'astral' },
   { id: 'expedition', name: 'สำรวจ', icon: '⌖', description: 'บอส 3 ด่าน · ชิ้นส่วน Relic เพิ่ม', requires: 'grove' },
@@ -55,7 +60,7 @@ export const RELICS = freeze([
   ['night_quill', 'ขนนกราตรี', 'dusk', { speed: 1 }], ['star_map', 'แผนที่ดวงดาว', 'dusk', { pickupRadius: 2 }],
   ['root_crown', 'มงกุฎรากไม้', 'wild', { armor: .003 }], ['amber_seed', 'เมล็ดอำพัน', 'wild', { maxHp: 3 }],
   ['wind_bell', 'ระฆังวายุ', 'wild', { fireDelay: -.08 }], ['phoenix_ash', 'เถ้าฟีนิกซ์', 'wild', { critDamage: .008 }],
-].map(([id, name, set, stats]) => ({ id, name, set, stats, icon: '◇', maxLevel: 10, maxStars: 5, unlockFragments: 5, description: 'สะสม 5 ชิ้นส่วนเพื่อปลดล็อก โบนัสติดตัวทุกชุด · สะสมครบชุด 4 ชิ้น เพิ่มพลังชีวิต 10' })));
+].map(([id, name, set, stats]) => ({ id, name, set, stats, icon: '◇', maxLevel: 10, maxStars: 5, unlockFragments: 5, conversion: { fragments: 1, dust: 1 }, description: 'สะสม 5 ชิ้นส่วนเพื่อปลดล็อก โบนัสติดตัวทุกชุด · สะสมครบชุด 4 ชิ้น เพิ่มพลังชีวิต 10 · เมื่อเลเวลและดาวเต็ม แลกชิ้นส่วนส่วนเกินเป็น Dust ได้' })));
 export const TALENTS = freeze([
   ['vitality', 'พลังชีวิต', { maxHp: 8 }, 0], ['power', 'พลังเวท', { attack: 1.5 }, 0], ['agility', 'คล่องตัว', { speed: 3 }, 0],
   ['tempo', 'จังหวะร่าย', { fireDelay: -.5 }, 0], ['ward', 'คุ้มกัน', { armor: .008 }, 0], ['focus', 'สมาธิ', { critChance: .01 }, 0],

@@ -3,9 +3,10 @@ import assert from 'node:assert/strict';
 import { defaultProfile } from '../../src/storage.js';
 import {
   createCampaign, validateCampaign, validateRunConfig, applyCommand, deriveLoadout,
-  getCommandCost, getForgeCandidates, getFeatureState, getMissionProgress,
+  getCommandCost, getCommandRewardPreview, getDismantleReward, getForgeCandidates, getFeatureState, getMissionProgress,
   HEROES, EQUIPMENT, SLOTS, RELICS, TALENTS, RUNES, JEWELS, ARTIFACTS, COMPANIONS, GUARDIANS, RESEARCH, BUILDINGS,
 } from '../../src/progression/index.js';
+import { normalizeRunConfig } from '../../src/gameplay/run-config.js';
 
 const copy = value => structuredClone(value);
 function freeze(value) { if (value && typeof value === 'object') { Object.values(value).forEach(freeze); Object.freeze(value); } return value; }
@@ -298,4 +299,86 @@ test('endless counters remain claimable beyond six hours and all persistent coun
   assert.equal(state.profile.bestSeconds, 999999); assert.equal(state.profile.totalKills, 999999);
   assert.equal(state.progression.missions.stats.kills, 999999); assert.equal(state.progression.activeRun, null);
   assert.equal(finish.details.gold, 2500); assert.equal(finish.details.essence, 200);
+});
+
+test('hero awakening requires max level/stars, spends real earned currencies and increases bounded combat stats', () => {
+  let state = wealthy(); state.progression.heroes.mage.shards = 330;
+  reject(state, { type: 'AWAKEN_HERO', heroId: 'mage' }, 'LOCKED');
+  for (let level = 1; level < 20; level++) state = step(state, { type: 'UPGRADE_HERO', heroId: 'mage' }).state;
+  reject(state, { type: 'UPGRADE_HERO', heroId: 'mage' }, 'MAX_LEVEL');
+  reject(state, { type: 'AWAKEN_HERO', heroId: 'mage' }, 'LOCKED');
+  for (let star = 0; star < 5; star++) state = step(state, { type: 'STAR_HERO', heroId: 'mage' }).state;
+  reject(state, { type: 'STAR_HERO', heroId: 'mage' }, 'MAX_LEVEL');
+  const before = deriveLoadout(state); const gold = state.profile.gold; const essence = state.progression.materials.essence; const research = state.progression.materials.research;
+  const noShards = copy(state); noShards.progression.heroes.mage.shards = 0;
+  reject(noShards, { type: 'AWAKEN_HERO', heroId: 'mage' }, 'NO_FUNDS');
+  for (let rank = 0; rank < 3; rank++) state = step(state, { type: 'AWAKEN_HERO', heroId: 'mage' }).state;
+  assert.equal(state.progression.heroes.mage.awakening, 3); assert.equal(state.progression.heroes.mage.shards, 0);
+  assert.equal(state.profile.gold, gold - 6000); assert.equal(state.progression.materials.essence, essence - 600); assert.equal(state.progression.materials.research, research - 300);
+  assert.equal(deriveLoadout(state).stats.maxHp, before.stats.maxHp + 36); assert.equal(deriveLoadout(state).stats.attack, before.stats.attack + 6); assert.equal(deriveLoadout(state).stats.critChance, before.stats.critChance + .03);
+  reject(state, { type: 'AWAKEN_HERO', heroId: 'mage' }, 'MAX_LEVEL');
+  const invalid = copy(state); invalid.progression.heroes.mage.level = 19; assert.equal(validateCampaign(invalid), false);
+  assert.deepEqual(normalizeRunConfig(deriveLoadout(state)), deriveLoadout(state));
+});
+
+test('maxed relics convert only actual excess fragments and cannot overflow, replay or accept malformed amounts', () => {
+  let state = wealthy(); reject(state, { type: 'CONVERT_RELIC_FRAGMENTS', relicId: 'compass', amount: 1 }, 'LOCKED');
+  for (let offer = 0; offer < 45; offer++) state = step(state, { type: 'BUY_OFFER', offerId: 'fragment_compass' }).state;
+  state = step(state, { type: 'UNLOCK_RELIC', relicId: 'compass' }).state;
+  for (let level = 1; level < 10; level++) state = step(state, { type: 'UPGRADE_RELIC', relicId: 'compass' }).state;
+  reject(state, { type: 'CONVERT_RELIC_FRAGMENTS', relicId: 'compass', amount: 1 }, 'LOCKED');
+  for (let star = 0; star < 5; star++) state = step(state, { type: 'STAR_RELIC', relicId: 'compass' }).state;
+  assert.equal(state.progression.relics.compass.fragments, 10);
+  for (const amount of [0, -1, .5, Infinity, NaN, '1', 1000000]) reject(state, { type: 'CONVERT_RELIC_FRAGMENTS', relicId: 'compass', amount }, 'INVALID_COMMAND');
+  reject(state, { type: 'CONVERT_RELIC_FRAGMENTS', relicId: 'compass', amount: 11 }, 'NO_FUNDS');
+  const full = copy(state); full.progression.materials.dust = 999999;
+  reject(full, { type: 'CONVERT_RELIC_FRAGMENTS', relicId: 'compass', amount: 1 }, 'CAPACITY');
+  const dust = state.progression.materials.dust; const command = { type: 'CONVERT_RELIC_FRAGMENTS', relicId: 'compass', amount: 10 };
+  assert.deepEqual(getCommandRewardPreview(state, command), { dust: 10 });
+  const result = step(state, command); state = result.state;
+  assert.equal(state.progression.materials.dust, dust + 10); assert.equal(state.progression.relics.compass.fragments, 0);
+  assert.deepEqual(result.details.reward, { dust: 10 }); reject(state, command, 'NO_FUNDS');
+});
+
+test('four-piece gear sets add their second bonus only while four actual instances are equipped', () => {
+  let state = wealthy(); let ring, book;
+  [state, ring] = craft(state, 'orbit_ring'); [state, book] = craft(state, 'nova_book');
+  state = step(state, { type: 'EQUIP_ITEM', itemId: ring, slot: 'ring1' }).state;
+  assert.equal(deriveLoadout(state).stats.skillMultiplier, 1);
+  state = step(state, { type: 'EQUIP_ITEM', itemId: book, slot: 'book' }).state;
+  assert.equal(deriveLoadout(state).stats.skillMultiplier, 1.065);
+  state = step(state, { type: 'UNEQUIP_ITEM', slot: 'ring1' }).state;
+  assert.equal(deriveLoadout(state).stats.skillMultiplier, 1.025);
+});
+
+test('rare gear refining and glyphs affect combat; destructive refunds match the exact public preview', () => {
+  let state = wealthy(); const ids = ['item-1'];
+  for (let i = 0; i < 8; i++) { let id; [state, id] = craft(state, 'star_wand'); ids.push(id); }
+  for (let group = 0; group < 3; group++) state = step(state, { type: 'FUSE_ITEMS', itemIds: ids.slice(group * 3, group * 3 + 3) }).state;
+  state = step(state, { type: 'FUSE_ITEMS', itemIds: [ids[0], ids[3], ids[6]] }).state;
+  assert.equal(state.progression.inventory[0].rarity, 2);
+  const attack = deriveLoadout(state).stats.attack;
+  state = step(state, { type: 'REFINE_ITEM', itemId: 'item-1' }).state;
+  assert.ok(deriveLoadout(state).stats.attack > attack);
+  const refinedAttack = deriveLoadout(state).stats.attack;
+  state = step(state, { type: 'GLYPH_ITEM', itemId: 'item-1', glyph: 'power' }).state;
+  assert.equal(deriveLoadout(state).stats.attack, refinedAttack + 1.5);
+  state = step(state, { type: 'UNEQUIP_ITEM', slot: 'weapon' }).state;
+  reject(state, { type: 'DISMANTLE_ITEM', itemId: 'item-1' }, 'INVESTED_FODDER');
+  let fresh; [state, fresh] = craft(state, 'star_wand'); state = step(state, { type: 'UPGRADE_ITEM', itemId: fresh }).state;
+  const item = state.progression.inventory.find(item => item.id === fresh); const command = { type: 'DISMANTLE_ITEM', itemId: fresh };
+  const preview = getDismantleReward(item); assert.deepEqual(preview, getCommandRewardPreview(state, command));
+  const gold = state.profile.gold; const essence = state.progression.materials.essence; const dismantle = step(state, command);
+  assert.equal(dismantle.state.profile.gold, gold + preview.gold); assert.equal(dismantle.state.progression.materials.essence, essence + preview.essence);
+  assert.deepEqual(dismantle.details.refund, preview); reject(dismantle.state, command, 'NOT_FOUND');
+});
+
+test('full inventory blocks crafting without spending and converts earned run drops explicitly', () => {
+  let state = wealthy();
+  for (let n = 3; n <= 1000; n++) state.progression.inventory.push({ ...copy(state.progression.inventory[0]), id: `item-${n}` });
+  state.progression.nextItem = 1001;
+  assert.equal(validateCampaign(state), true); reject(state, { type: 'CRAFT_ITEM', definitionId: 'star_wand' }, 'INVENTORY_FULL');
+  const finish = run(state, { kills: 10, seconds: 30, won: false });
+  assert.equal(finish.details.items.length, 0); assert.equal(finish.details.convertedEssence, 10); assert.equal(finish.details.essence, 13);
+  assert.equal(finish.state.progression.inventory.length, 1000);
 });

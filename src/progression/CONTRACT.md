@@ -15,9 +15,11 @@ local rewards as verified online entitlements.
 - `getForgeCandidates(state, itemId)`: array of eligible same-definition/rank instances.
 - `getMissionProgress(state, missionId) -> {current,target,complete,claimed}`.
 - `getCommandCost(state, command) -> {gold?,essence?,research?,dust?,fragments?}`.
+- `getCommandRewardPreview(state, command)` and `getDismantleReward(item)` return
+  plain reward/refund objects for confirmation UI; reducers use the same formulas.
 - Catalog arrays: `HEROES, EQUIPMENT, SLOTS, RARITIES, CHAPTERS, MODES, RELICS,
   TALENTS, RUNES, JEWELS, ARTIFACTS, COMPANIONS, GUARDIANS, RESEARCH, BUILDINGS,
-  MISSIONS, SHOP_OFFERS, SEASON_REWARDS`.
+  MISSIONS, SHOP_OFFERS, SEASON_REWARDS, GEAR_SETS`.
 - `ERROR_MESSAGES`: Thai text keyed by reducer code.
 
 Every catalog entry has `id, name, description`. Collections contain data only.
@@ -34,7 +36,7 @@ Slots: `weapon, armor, ring1, ring2, locket, book, bracelet, spirit1, spirit2`.
  schemaVersion: 2, revision: 0,
  profile: {version:1,gold,totalKills,runs,bestSeconds,skin,owned,settings},
  progression: {
-  xp:0, heroId:'mage', heroes:{mage:{level:1,stars:0,shards:0},...},
+  xp:0, heroId:'mage', heroes:{mage:{level:1,stars:0,shards:0,awakening:0},...},
   supportHeroId:null, chapterId:'astral', mode:'campaign', cleared:[],
   inventory:[{id:'item-1',definitionId:'star_wand',rarity:0,level:1,
               locked:false,refinement:0,glyph:null,invested:{gold:0,essence:0}}],
@@ -74,6 +76,7 @@ All take `type` plus fields below. Reducer owns all costs and grants.
 | --- | --- |
 | SELECT_HERO | heroId |
 | UNLOCK_HERO / UPGRADE_HERO / STAR_HERO | heroId |
+| AWAKEN_HERO | heroId; requires max level and stars; 3 ranks; catalog awakeningStats per rank |
 | SELECT_SUPPORT | heroId or null |
 | SELECT_CHAPTER | chapterId |
 | SELECT_MODE | mode |
@@ -87,6 +90,7 @@ All take `type` plus fields below. Reducer owns all costs and grants.
 | CRAFT_ITEM | definitionId |
 | SAVE_PRESET / LOAD_PRESET | index 0–2 |
 | UNLOCK_RELIC / UPGRADE_RELIC / STAR_RELIC | relicId |
+| CONVERT_RELIC_FRAGMENTS | relicId, amount integer > 0; max level/stars; 1 fragment -> 1 Dust |
 | UPGRADE_TALENT | talentId |
 | RESET_TALENTS | none |
 | UPGRADE_RUNE / UPGRADE_JEWEL | runeId / jewelId (zero->one unlock) |
@@ -119,6 +123,10 @@ no jewel bonus. Inventory holds 1,000 items; excess run drops convert to 10 Esse
 Refinement and glyphs require Rare gear or better. Equipped/preset main items can be
 fused; fodder cannot be locked, equipped, in a preset, refined, or glyphed. Main item
 identity and investment survive; fodder level investment is refunded atomically.
+Gear sets expose `bonuses:[{pieces,stats}]` for 2- and 4-piece thresholds; both apply
+when four pieces are equipped. Awakening costs earned Gold, Essence, Research and
+hero shards; costs and bonuses are shown from catalog/selectors. Excess relic
+conversion rejects insufficient fragments, malformed amounts and Dust overflow.
 Season is an evergreen free Chronicle, not a simulated/live paid season.
 
 ## Engine config

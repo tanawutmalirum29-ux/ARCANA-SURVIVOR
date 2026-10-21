@@ -2,7 +2,7 @@
 // from tuning costs and do not stand in for browser/storage or playtest evidence.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createGame, step, chooseUpgrade } from '../../src/engine.js';
+import { createGame, spawnEnemy, step, chooseUpgrade } from '../../src/engine.js';
 import { defaultProfile } from '../../src/storage.js';
 import {
   createCampaign, validateCampaign, applyCommand, deriveLoadout,
@@ -220,6 +220,29 @@ test('cosmetic ownership, equipped look and settings never alter loadout or seed
     if(game.phase==='upgrade')chooseUpgrade(game,game.upgrades[0]);
   }
   assert.deepEqual(games[0],games[1]);
+});
+
+test('an actual equipment upgrade reaches damage in all four combat skills', () => {
+  const before=fixture();
+  const after=command(before,{type:'UPGRADE_ITEM',itemId:before.progression.equipment.weapon});
+  const configs=[before,after].map(deriveLoadout);
+  const ratio=configs[1].stats.attack/configs[0].stats.attack;
+  assert.ok(ratio>1,'upgrade did not reach resolved attack');
+  for(const skill of ['bolt','nova','orbit','chain']) {
+    const damage=configs.map(config=>{
+      const game=createGame(6872,config);
+      game.timers.spawn=999999;
+      game.player.fireTimer=skill==='bolt'?0:999999;
+      if(skill!=='bolt')game.skills[skill]=1;
+      if(skill==='orbit')game.tick=21;
+      const target=spawnEnemy(game,'brute',game.player.x+90,game.player.y);
+      target.speed=0;target.hp=target.maxHp=10000;
+      for(let tick=0;tick<(skill==='bolt'?12:1);tick++)step(game);
+      return target.maxHp-target.hp;
+    });
+    assert.ok(damage[0]>0,`${skill} never struck the target`);
+    assert.ok(Math.abs(damage[1]/damage[0]-ratio)<1e-8,`${skill} ignored upgraded equipment`);
+  }
 });
 
 test('daily challenge standardizes earned power and rejects moving the local date backwards', () => {

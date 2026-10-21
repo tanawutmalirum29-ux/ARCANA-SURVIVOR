@@ -1,4 +1,4 @@
-import { HEROES, EQUIPMENT, SLOTS, RARITIES, CHAPTERS, MODES, RELICS, TALENTS, RUNES, JEWELS, ARTIFACTS, COMPANIONS, GUARDIANS, RESEARCH, BUILDINGS, MISSIONS, SHOP_OFFERS, FEATURE_RUNS } from './catalog.js';
+import { HEROES, EQUIPMENT, GEAR_SETS, SLOTS, RARITIES, CHAPTERS, MODES, RELICS, TALENTS, RUNES, JEWELS, ARTIFACTS, COMPANIONS, GUARDIANS, RESEARCH, BUILDINGS, MISSIONS, SHOP_OFFERS, SEASON_REWARDS, FEATURE_RUNS } from './catalog.js';
 import { byId, clone, STAT_BOUNDS } from './state.js';
 
 export const getProfileLevel = state => 1 + Math.floor(state.progression.xp / 120);
@@ -63,6 +63,7 @@ export function getCommandCost(state, command) {
     case 'UNLOCK_HERO': return clone(byId(HEROES, command.heroId)?.unlockCost || {});
     case 'UPGRADE_HERO': { const level = p.heroes[command.heroId]?.level || 0; return { gold: 30 * level + 10, essence: 3 * level }; }
     case 'STAR_HERO': return { shards: 10 * ((p.heroes[command.heroId]?.stars || 0) + 1) };
+    case 'AWAKEN_HERO': { const next = (p.heroes[command.heroId]?.awakening || 0) + 1; return { gold: 1000 * next, essence: 100 * next, research: 50 * next, shards: 30 * next }; }
     case 'CRAFT_ITEM': return clone(byId(EQUIPMENT, command.definitionId)?.craftCost || {});
     case 'UPGRADE_ITEM': return getUpgradeCost(item);
     case 'REFINE_ITEM': return { gold: 60 * ((item?.refinement || 0) + 1), research: 3 * ((item?.refinement || 0) + 1) };
@@ -71,6 +72,7 @@ export function getCommandCost(state, command) {
     case 'UNLOCK_RELIC': return { fragments: byId(RELICS, command.relicId)?.unlockFragments || 5 };
     case 'UPGRADE_RELIC': { const level = p.relics[command.relicId]?.level || 0; return { gold: 30 * level, essence: 5 * level }; }
     case 'STAR_RELIC': return { fragments: 5 * ((p.relics[command.relicId]?.stars || 0) + 1) };
+    case 'CONVERT_RELIC_FRAGMENTS': return { fragments: Number.isSafeInteger(command.amount) && command.amount > 0 ? command.amount : 0 };
     case 'UPGRADE_TALENT': { const next = (p.talents[command.talentId] || 0) + 1; return { gold: 30 * next, essence: 2 * next }; }
     case 'UPGRADE_RUNE': { const next = (p.runes.owned[command.runeId] || 0) + 1; return { gold: 25 * next, essence: 8 * next }; }
     case 'UPGRADE_JEWEL': { const next = (p.jewels.owned[command.jewelId] || 0) + 1; return { gold: 25 * next, dust: 4 * next }; }
@@ -81,6 +83,27 @@ export function getCommandCost(state, command) {
     case 'UPGRADE_BUILDING': { const next = (p.homestead.buildings[command.buildingId] || 0) + 1; return { gold: 70 * next, research: 5 * next }; }
     case 'BUY_OFFER': return clone(byId(SHOP_OFFERS, command.offerId)?.cost || {});
     case 'UNLOCK_COSMETIC': return command.cosmeticId === 'ember' ? { gold: 120 } : {};
+    default: return {};
+  }
+}
+export function getDismantleReward(item) {
+  return item ? { gold: 20 + item.rarity * 10 + item.invested.gold, essence: 2 + item.rarity * 2 + item.invested.essence } : {};
+}
+export function getCommandRewardPreview(state, command) {
+  const p = state.progression; const item = p.inventory.find(item => item.id === command.itemId);
+  switch (command.type) {
+    case 'DISMANTLE_ITEM': return getDismantleReward(item);
+    case 'RESET_ITEM': return clone(item?.invested || {});
+    case 'FUSE_ITEMS': return (command.itemIds || []).slice(1).reduce((reward, id) => {
+      const item = p.inventory.find(item => item.id === id);
+      reward.gold += item?.invested.gold || 0; reward.essence += item?.invested.essence || 0; return reward;
+    }, { gold: 0, essence: 0 });
+    case 'RESET_TALENTS': { const sum = Object.values(p.talents).reduce((sum, level) => sum + level * (level + 1) / 2, 0); return { gold: sum * 30, essence: sum * 2 }; }
+    case 'CLAIM_HOMESTEAD': return clone(p.homestead.pending);
+    case 'CLAIM_MISSION': return clone(byId(MISSIONS, command.missionId)?.reward || {});
+    case 'CLAIM_SEASON': return clone(SEASON_REWARDS.find(tier => tier.tier === command.tier)?.reward || {});
+    case 'BUY_OFFER': return clone(byId(SHOP_OFFERS, command.offerId)?.reward || {});
+    case 'CONVERT_RELIC_FRAGMENTS': return { dust: Number.isSafeInteger(command.amount) && command.amount > 0 ? command.amount : 0 };
     default: return {};
   }
 }
@@ -102,7 +125,8 @@ export function deriveLoadout(state) {
   const config = engineConfig(p.heroId, p.chapterId, p.mode); const stats = config.stats;
   const hero = p.heroes[p.heroId];
   addStats(stats, { maxHp: 6 * (hero.level - 1) + 10 * hero.stars, attack: .8 * (hero.level - 1) + 1.5 * hero.stars });
-  if (p.supportHeroId) addStats(stats, byId(HEROES, p.supportHeroId).support, 1 + (p.heroes[p.supportHeroId].level - 1) * .02);
+  addStats(stats, byId(HEROES, p.heroId).awakeningStats, hero.awakening);
+  if (p.supportHeroId) addStats(stats, byId(HEROES, p.supportHeroId).support, 1 + (p.heroes[p.supportHeroId].level - 1) * .02 + p.heroes[p.supportHeroId].awakening * .1);
   const sets = {};
   for (const id of Object.values(p.equipment)) {
     const item = p.inventory.find(item => item.id === id);
@@ -111,9 +135,7 @@ export function deriveLoadout(state) {
     sets[def.set] = (sets[def.set] || 0) + 1;
     if (def.slot === 'weapon') { config.weaponId = def.id; config.weaponEffect = def.effect; }
   }
-  if (sets.astral >= 2) stats.attack += 2;
-  if (sets.sentinel >= 2) stats.maxHp += 12;
-  if (sets.verdant >= 2) stats.critChance += .02;
+  for (const set of GEAR_SETS) for (const bonus of set.bonuses) if (sets[set.id] >= bonus.pieces) addStats(stats, bonus.stats);
   for (const def of TALENTS) addStats(stats, def.stats, p.talents[def.id]);
   for (const id of Object.values(p.runes.equipped).filter(Boolean)) addStats(stats, byId(RUNES, id).stats, p.runes.owned[id]);
   for (const [slot, id] of Object.entries(p.jewels.equipped)) if (id && p.equipment[slot]) addStats(stats, byId(JEWELS, id).stats, p.jewels.owned[id]);

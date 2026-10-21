@@ -4,7 +4,7 @@ export * from './selectors.js';
 
 import { MAX_VALUE, HEROES, EQUIPMENT, SLOTS, RARITIES, CHAPTERS, MODES, RELICS, TALENTS, RUNES, JEWELS, ARTIFACTS, COMPANIONS, GUARDIANS, RESEARCH, BUILDINGS, MISSIONS, SHOP_OFFERS, SEASON_REWARDS } from './catalog.js';
 import { byId, clone, keys, integer, unique, validDay, weekOf, createItem, validateCampaign } from './state.js';
-import { deriveLoadout, getFeatureState, getCommandCost, getMissionProgress, isItemProtected } from './selectors.js';
+import { deriveLoadout, getFeatureState, getCommandCost, getCommandRewardPreview, getMissionProgress, isItemProtected } from './selectors.js';
 
 export const ERROR_MESSAGES = Object.freeze({
   OK: 'บันทึกแล้ว', INVALID_STATE: 'ข้อมูลเซฟไม่ถูกต้อง กรุณาเก็บสำเนาไว้ก่อนกู้คืน', INVALID_COMMAND: 'คำสั่งไม่ถูกต้อง',
@@ -19,10 +19,10 @@ export const ERROR_MESSAGES = Object.freeze({
 });
 
 const COMMAND_FIELDS = Object.freeze({
-  SELECT_HERO: ['heroId'], UNLOCK_HERO: ['heroId'], UPGRADE_HERO: ['heroId'], STAR_HERO: ['heroId'], SELECT_SUPPORT: ['heroId'],
+  SELECT_HERO: ['heroId'], UNLOCK_HERO: ['heroId'], UPGRADE_HERO: ['heroId'], STAR_HERO: ['heroId'], AWAKEN_HERO: ['heroId'], SELECT_SUPPORT: ['heroId'],
   SELECT_CHAPTER: ['chapterId'], SELECT_MODE: ['mode'], EQUIP_ITEM: ['itemId', 'slot'], UNEQUIP_ITEM: ['slot'], LOCK_ITEM: ['itemId', 'locked'],
   UPGRADE_ITEM: ['itemId'], RESET_ITEM: ['itemId'], REFINE_ITEM: ['itemId'], GLYPH_ITEM: ['itemId', 'glyph'], FUSE_ITEMS: ['itemIds'], DISMANTLE_ITEM: ['itemId'], CRAFT_ITEM: ['definitionId'],
-  SAVE_PRESET: ['index'], LOAD_PRESET: ['index'], UNLOCK_RELIC: ['relicId'], UPGRADE_RELIC: ['relicId'], STAR_RELIC: ['relicId'], UPGRADE_TALENT: ['talentId'], RESET_TALENTS: [],
+  SAVE_PRESET: ['index'], LOAD_PRESET: ['index'], UNLOCK_RELIC: ['relicId'], UPGRADE_RELIC: ['relicId'], STAR_RELIC: ['relicId'], CONVERT_RELIC_FRAGMENTS: ['relicId', 'amount'], UPGRADE_TALENT: ['talentId'], RESET_TALENTS: [],
   UPGRADE_RUNE: ['runeId'], UPGRADE_JEWEL: ['jewelId'], EQUIP_RUNE: ['runeId', 'slot'], EQUIP_JEWEL: ['jewelId', 'slot'],
   UPGRADE_ARTIFACT: ['artifactId'], UPGRADE_COMPANION: ['companionId'], UPGRADE_GUARDIAN: ['guardianId'], EQUIP_ARTIFACT: ['artifactId'], EQUIP_COMPANION: ['companionId'], EQUIP_GUARDIAN: ['guardianId'],
   UPGRADE_RESEARCH: ['researchId'], UPGRADE_BUILDING: ['buildingId'], CLAIM_HOMESTEAD: [], CLAIM_MISSION: ['missionId'], CLAIM_SEASON: ['tier'], BUY_OFFER: ['offerId'],
@@ -136,6 +136,11 @@ function execute(state, command) {
       const def = definition(HEROES, command.heroId); const hero = p.heroes[def.id]; requireRule(hero.level > 0, 'NOT_OWNED'); requireRule(hero.stars < def.maxStars, 'MAX_LEVEL');
       spend(state, getCommandCost(state, command), command); hero.stars++; bump(p.missions.stats, 'upgrades'); break;
     }
+    case 'AWAKEN_HERO': {
+      const def = definition(HEROES, command.heroId); const hero = p.heroes[def.id];
+      requireRule(hero.level === def.maxLevel && hero.stars === def.maxStars, 'LOCKED'); requireRule(hero.awakening < def.maxAwakening, 'MAX_LEVEL');
+      spend(state, getCommandCost(state, command), command); hero.awakening++; bump(p.missions.stats, 'upgrades'); break;
+    }
     case 'SELECT_SUPPORT': {
       feature(state, 'support');
       if (command.heroId !== null) { definition(HEROES, command.heroId); requireRule(p.heroes[command.heroId].level > 0, 'NOT_OWNED'); requireRule(command.heroId !== p.heroId, 'INVALID_COMMAND'); }
@@ -174,14 +179,14 @@ function execute(state, command) {
       requireRule(!main.locked && items.slice(1).every(item => !isItemProtected(state, item.id)), 'ITEM_PROTECTED');
       requireRule(items.slice(1).every(item => item.refinement === 0 && item.glyph === null), 'INVESTED_FODDER');
       spend(state, getCommandCost(state, command), command);
-      const refund = credit(state, { gold: items[1].invested.gold + items[2].invested.gold, essence: items[1].invested.essence + items[2].invested.essence });
+      const refund = credit(state, getCommandRewardPreview(state, command));
       main.rarity++; const removed = command.itemIds.slice(1); p.inventory = p.inventory.filter(item => !removed.includes(item.id)); bump(p.missions.stats, 'upgrades');
       return { itemId: main.id, refund };
     }
     case 'DISMANTLE_ITEM': {
       const item = findItem(state, command.itemId); requireRule(!isItemProtected(state, item.id), 'ITEM_PROTECTED');
       requireRule(item.refinement === 0 && item.glyph === null, 'INVESTED_FODDER');
-      const refund = credit(state, { gold: 20 + item.rarity * 10 + item.invested.gold, essence: 2 + item.rarity * 2 + item.invested.essence });
+      const refund = credit(state, getCommandRewardPreview(state, command));
       p.inventory = p.inventory.filter(entry => entry.id !== item.id); return { refund };
     }
     case 'CRAFT_ITEM': {
@@ -205,13 +210,18 @@ function execute(state, command) {
       const key = command.type === 'STAR_RELIC' ? 'stars' : 'level'; requireRule(relic[key] < (key === 'stars' ? def.maxStars : def.maxLevel), 'MAX_LEVEL');
       spend(state, getCommandCost(state, command), command); relic[key]++; bump(p.missions.stats, 'upgrades'); break;
     }
+    case 'CONVERT_RELIC_FRAGMENTS': {
+      feature(state, 'relics'); const def = definition(RELICS, command.relicId); const relic = p.relics[def.id];
+      requireRule(relic.level === def.maxLevel && relic.stars === def.maxStars, 'LOCKED'); requireRule(integer(command.amount, 1), 'INVALID_COMMAND');
+      spend(state, getCommandCost(state, command), command); return { reward: credit(state, getCommandRewardPreview(state, command)) };
+    }
     case 'UPGRADE_TALENT': {
       const def = definition(TALENTS, command.talentId); requireRule(Object.values(p.talents).reduce((sum, n) => sum + n, 0) >= def.requiresLevels, 'LOCKED');
       costAndUpgrade(state, command, 'talents', TALENTS, p.talents, def.id); break;
     }
     case 'RESET_TALENTS': {
       feature(state, 'talents'); const total = Object.values(p.talents).reduce((sum, n) => sum + n, 0); requireRule(total > 0, 'NO_CHANGE');
-      const investments = Object.values(p.talents).reduce((sum, n) => sum + n * (n + 1) / 2, 0); const refund = credit(state, { gold: investments * 30, essence: investments * 2 });
+      const refund = credit(state, getCommandRewardPreview(state, command));
       for (const key of Object.keys(p.talents)) p.talents[key] = 0; return { refund };
     }
     case 'UPGRADE_RUNE': costAndUpgrade(state, command, 'runes', RUNES, p.runes.owned, command.runeId); break;
