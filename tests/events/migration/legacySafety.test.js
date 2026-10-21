@@ -183,3 +183,28 @@ test('legacy data alone never permits empty IDB initialization or any IDB put', 
   assert.equal(old.original(), raw);
   assert.equal(old.writes, 0);
 });
+
+
+/**
+ * Strict migration validator/API required: NONE of the TODOs below is
+ * implemented by today's permissive pure v1 converter or v2 stateCopy.
+ *
+ * QA #26 verified that the current producer ACCEPTS six unsafe synthetic
+ * fixture classes. A TODO is intentionally NOT a passing safety assertion.
+ * Convert each case to a live negative test only after CEO authorizes a
+ * dedicated typed validator, provenance source and actual migration API.
+ * No production state or wallet is touched by this suite.
+ */
+test.todo('strict migration: refuse missing pending intent.idempotencyKey (MIGRATION_INVALID_RECEIPT)');
+test.todo('strict migration: refuse forged unrelated idempotencyKey and GOLD amount 999999 vs earned 25');
+test.todo('strict migration: reject duplicate idempotencyKey across claims AND purchases, including mixed ACK state');
+test.todo('strict migration: reject receipt rewardType, amount, sourceRef or rewardId not bound to earned objective');
+test.todo('strict migration: reject missing/nonboolean delivered ACK without silently assuming a state');
+test.todo('strict migration: reject missing objectives or a malformed counter/reward in progress period');
+test.todo('strict migration: reject missing definition, revision, claimUntil or malformed period time bounds');
+test.todo('strict migration: reject orphaned pending claim if progress was deleted or replay history pruned');
+test.todo('strict migration: reject historically unprovable spent tokens despite currently zero balance');
+test.todo('strict migration: reject unproven provenance despite structurally valid localStorage bytes/checksum');
+test.todo('strict migration: refuse cutover if an already-open legacy writer/ACK path cannot be fenced');
+test.todo('strict migration: atomic IDB snapshot+receipt abort/resume and destination conflicts preserve source bytes');
+test.todo('strict migration: concurrent stale-tab claims/ACK and wallet-before-outbox durable replay never double-grant');
