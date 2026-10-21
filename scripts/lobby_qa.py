@@ -156,6 +156,7 @@ def command_target(page, command_type, fields=None):
 def ui_command(page, command_type, fields=None, confirm=False, keyboard=False):
     before=stored(page)
     target=command_target(page,command_type,fields)
+    original_payload = json.loads(target.get_attribute('data-payload'))
     expect(target).to_be_enabled()
     if keyboard:
         target.focus()
@@ -169,7 +170,7 @@ def ui_command(page, command_type, fields=None, confirm=False, keyboard=False):
         expect(dialog).to_be_visible()
         confirm_button = dialog.locator(f'[data-command="{command_type}"]')
         expect(confirm_button).to_have_count(1)
-        assert json.loads(confirm_button.get_attribute('data-payload')) == json.loads(target.get_attribute('data-payload')), (
+        assert json.loads(confirm_button.get_attribute('data-payload')) == original_payload, (
             'confirmation changed the requested command', command_type, fields)
         confirm_button.click()
     page.wait_for_function("""async revision=>{
