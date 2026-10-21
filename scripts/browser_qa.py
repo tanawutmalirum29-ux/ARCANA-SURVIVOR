@@ -6,6 +6,7 @@ import argparse
 import json
 import os
 import subprocess
+import sys
 from base64 import b64encode
 from pathlib import Path
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError, Error as PlaywrightError
@@ -212,10 +213,12 @@ def click_with_lifecycle_evidence(page, selector, browser_name, width, height,
         raise
 
 
-def scenario(browser, browser_name, mode, size, html=None, main=None):
+def scenario(browser, browser_name, mode, size, html=None, main=None, setup_page=None, close_page=True):
     for w, h in [size]:
         touch_enabled = w < 1000  # 1440x900 exercises actual desktop pointer/keyboard mode.
         page = browser.new_page(viewport={'width': w, 'height': h}, has_touch=touch_enabled, is_mobile=touch_enabled, device_scale_factor=1)
+        if setup_page is not None:
+            setup_page(page)
         errors = []
         lifecycle = []
         page.on('crash', lambda _: lifecycle.append('PAGE_CRASH'))
@@ -305,7 +308,8 @@ def scenario(browser, browser_name, mode, size, html=None, main=None):
         page.locator('[data-action="home"]').click()
         assert not errors, (browser_name, w, h, errors)
         print('PASS', browser_name, f'{w}x{h}', 'responsive, touch emulation (mobile only), desktop keyboard/focus, settings, pause, wardrobe')
-        page.close()
+        if close_page:
+            page.close()
 
 
 def main():
@@ -315,6 +319,10 @@ def main():
     parser.add_argument('--browsers', nargs='+', default=['chromium', 'webkit'])
     args = parser.parse_args()
     assert args.served != args.embedded, 'Choose exactly one of --served or --embedded'
+    # One opt-in QA-only CI run on the authorized PR branch; NEVER on main.
+    if args.served and os.environ.get('GITHUB_HEAD_REF') == 'test/qa-webkit-768-bounded-sound':
+        print('QA_BOUNDED_PROBE_ONCE: 768x1024 sound A/B diagnostic', flush=True)
+        subprocess.run([sys.executable, '-u', 'tests/qa/webkit_sound_ab.py'], cwd=ROOT, check=True)
     # npm test currently covers tests/*.test.js only; include QA-owned nested Node regressions here.
     subprocess.run(['node', '--test', 'tests/qa/regression.test.js'], cwd=ROOT, check=True)
     html, module = (None, None) if args.served else modules_and_html()
