@@ -196,6 +196,8 @@ def progression_ui(browser,engine):
           state.progression.materials={essence:900000,research:900000,dust:900000};
           state.progression.cleared=window.__qa.core.CHAPTERS.map(chapter=>chapter.id);
           state.progression.relics.compass.fragments=10;
+          state.progression.relics.sun_coin={level:10,stars:5,fragments:10};
+          state.progression.heroes.mage={level:20,stars:5,shards:30,awakening:0};
           if(!window.__qa.core.validateCampaign(state))throw Error('Invalid unlocked UI fixture');
           await window.__qa.raw(state,true);
           return state;
@@ -236,6 +238,12 @@ def progression_ui(browser,engine):
         equipped=ui_command(page,'EQUIP_ITEM',{'itemId':created[0],'slot':'weapon'})
         assert equipped['progression']['equipment']['weapon']==created[0]
         close_modal(page)
+        page.locator('[data-action="rarity-filter"][data-id="1"]').click()
+        expect(page.locator('.lb-inventory-grid .lb-item')).to_have_count(1)
+        assert page.locator('.lb-inventory-grid .lb-item').get_attribute('data-id')==created[0]
+        page.locator('[data-action="rarity-filter"][data-id="all"]').click()
+        page.locator('[data-action="sort"][data-id="newest"]').click()
+        assert page.locator('.lb-inventory-grid .lb-item').first.get_attribute('data-id')==created[0]
         page.locator('[data-subtab="presets"][data-scope="hero"]').click()
         ui_command(page,'SAVE_PRESET',{'index':0})
         phase='growth-effects'
@@ -244,6 +252,10 @@ def progression_ui(browser,engine):
         page.locator('[data-subtab="relics"][data-scope="growth"]').click()
         ui_command(page,'UNLOCK_RELIC',{'relicId':'compass'})
         ui_command(page,'UPGRADE_RELIC',{'relicId':'compass'})
+        before=stored(page)
+        after=ui_command(page,'CONVERT_RELIC_FRAGMENTS',{'relicId':'sun_coin','amount':10},confirm=True)
+        assert after['progression']['relics']['sun_coin']['fragments']==0
+        assert after['progression']['materials']['dust']==before['progression']['materials']['dust']+10
         page.locator('[data-subtab="runes"][data-scope="growth"]').click()
         for rune_id,slot in [('power','attack'),('guard','defense'),('haste','utility')]:
             ui_command(page,'UPGRADE_RUNE',{'runeId':rune_id},keyboard=True)
@@ -285,6 +297,8 @@ def progression_ui(browser,engine):
         phase='snapshot-to-combat'
         page.locator('[data-lobby-tab="hero"]').click()
         page.locator('[data-subtab="heroes"][data-scope="hero"]').click()
+        after=ui_command(page,'AWAKEN_HERO',{'heroId':'mage'})
+        assert after['progression']['heroes']['mage']['awakening']==1
         ui_command(page,'UNLOCK_HERO',{'heroId':'guardian'})
         ui_command(page,'SELECT_HERO',{'heroId':'guardian'})
         page.locator('[data-lobby-tab="adventure"]').click()
