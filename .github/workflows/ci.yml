@@ -75,5 +75,5 @@ jobs:
         run: python scripts/ceo_showcase_qa.py --browsers chromium webkit
       - name: Dormant Event v2 localStorage Chromium and WebKit fault gate
         run: python scripts/ceo_event_storage_qa.py
-      - name: Dormant Event exclusive Web Locks cross-tab browser gate
+      - name: Dormant Event atomic IndexedDB real-tab concurrency gate
         run: python scripts/ceo_event_cross_tab_qa.py
