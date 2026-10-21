@@ -1,156 +1,177 @@
-"""Exercise two REAL same-origin browser tabs contending for a dormant Events v2 Web Lock.
+"""Real two-page IndexedDB transaction serialization stress.
 
-Requires exclusive Web Locks. Unsupported browsers must fail closed and report HOLD,
-never make an unlocked mutation. No game Events UI or real paid privileges.
+Browser origin data is stored in a *single IndexedDB readwrite transaction*.
+Web Locks/localStorage-based snapshots were removed due to observed WebKit
+lost replay IDs and duplicate claims. This script never activates game Events.
 """
 import os
 from playwright.sync_api import sync_playwright
 
 ORIGIN=os.environ.get('ARCANA_QA_URL','http://127.0.0.1:4173')
 SIZES=[(320,568),(844,390)]
+ROUNDS=12
 SETUP="""async () => {
- const [writer,local,core]=await Promise.all([
-   import('/src/integration/eventExclusiveWriter.js'),
-   import('/src/integration/eventLocalStorage.js'),
-   import('/src/events/core.js')
+ const [writer,core]=await Promise.all([
+    import('/src/integration/eventExclusiveWriter.js'),
+    import('/src/events/core.js')
  ]);
  const catalog=await (await fetch('/src/content/events/s01_events.json')).json();
- window.__ctx={writer,local,core,catalog};
- window.__trace=[];
- window.__launch=(id,utc,claimId=null)=>{
+ window.__ctx={writer,core,catalog};
+ window.__done=true;window.__last=null;window.__results=[];
+ window.__launch=(eventId,utc,claimId=null,crash=false)=>{
    window.__done=false;
-   const underlying=local.createEventLocalStorage({storage:localStorage});
-   const store={
-     read(){const value=underlying.read();
-       window.__trace.push({id,op:'read',seen:value?.seenEventIds||null});
-       return value},
-     write(value){window.__trace.push({id,op:'write',seen:value?.seenEventIds||null});
-       return underlying.write(value)}
-   };
-   const transition=claimId?
-     s=>{const op=core.claimEventReward(s,claimId,utc);
-          return {state:op.state,result:{status:op.status}};}:
-     s=>core.advanceEventProgress(
-       s,{eventId:id,runId:'real-tab-test',tick:600,type:'RUN_FINISHED',payload:{}},
-       catalog,utc);
-   window.__completion=writer.commitExclusiveEventTransition({store,transition})
-      .then(result=>{window.__result=result;window.__done=true;return result})
-      .catch(error=>{window.__result={ok:false,status:'UNEXPECTED',reason:String(error)};
-         window.__done=true});
-   return 'QUEUED';
+   const transition=claimId
+     ? state=>{const op=core.claimEventReward(state,claimId,utc);
+                 return {state:op.state,result:{status:op.status}};}
+     : state=>core.advanceEventProgress(
+         state,{eventId,runId:'real-tabs',tick:100,type:'RUN_FINISHED',payload:{}},
+         catalog,utc);
+   window.__completion=writer.commitExclusiveEventTransition({
+     indexedDBFactory:indexedDB,allowInitialize:true,transition,
+     ...(crash?{checkpoint:phase=>{
+       if(phase==='after_event_write')throw Error('SIMULATED_POWER_LOSS')
+     }}:{})
+   }).then(result=>{window.__last=result;window.__results.push(result);
+                    window.__done=true;return result})
+     .catch(error=>{window.__last={ok:false,status:'UNEXPECTED',reason:String(error)};
+                     window.__done=true});
  };
- return !!navigator.locks?.request;
+ window.__arm=(eventId,utc,claimId=null)=>{
+   window.__next=[eventId,utc,claimId];
+   window.__done=false;
+ };
+ window.__channel=new BroadcastChannel('test-event-v2-idb-barrier');
+ window.__channel.onmessage=evt=>{
+   if(evt.data?.type==='go'&&evt.data.round===window.__round){
+     window.__launch(...window.__next);
+   }
+ };
+ window.__round=0;
+ return typeof indexedDB?.open==='function';
 }"""
+def snapshot(page):
+    return page.evaluate("""async()=> {
+      const r=await window.__ctx.writer.readExclusiveEventSnapshot({
+        indexedDBFactory:indexedDB
+      });
+      if(!r.ok)throw Error('IDB READ FAILED '+JSON.stringify(r));
+      return r.state;
+    }""")
+def trigger(barrier,round_no):
+    barrier.evaluate("""roundNo=>{
+      if(!window.__channel)
+        window.__channel=new BroadcastChannel('test-event-v2-idb-barrier');
+      window.__channel.postMessage({type:'go',round:roundNo});
+    }""",round_no)
+def both(a,b,barrier,round_no,ida,idb,utc,claim=None):
+    a.evaluate("r=>window.__round=r",round_no)
+    b.evaluate("r=>window.__round=r",round_no)
+    a.evaluate("([id,utc,claim])=>window.__arm(id,utc,claim)",[ida,utc,claim])
+    b.evaluate("([id,utc,claim])=>window.__arm(id,utc,claim)",[idb,utc,claim])
+    trigger(barrier,round_no)
+    a.wait_for_function("window.__done===true",timeout=15000)
+    b.wait_for_function("window.__done===true",timeout=15000)
+    outcomes=[a.evaluate("window.__last"),b.evaluate("window.__last")]
+    if not all(x.get('status')=='COMMITTED' for x in outcomes):
+        print("IDB_TRANSACTION_FAILURE",round_no,outcomes,flush=True)
+    assert all(x.get('status')=='COMMITTED' for x in outcomes),outcomes
+    return outcomes
+
 def check(browser,engine,w,h):
     context=browser.new_context(viewport={'width':w,'height':h},
                                 has_touch=True,is_mobile=True)
     try:
         a=context.new_page()
         b=context.new_page()
-        for page in (a,b):
+        third=context.new_page()
+        for page in (a,b,third):
             page.goto(ORIGIN,wait_until='networkidle')
-        support_a=a.evaluate(SETUP)
-        support_b=b.evaluate(SETUP)
-        assert support_a == support_b,(engine,w,h,'capability mismatch')
-        key='arcana-survivor-events-v2'
-        a.evaluate("(key)=>localStorage.removeItem(key)",key)
-        if not support_a:
-            a.evaluate("window.__launch('disabled', '2030-01-13T23:59:59.999Z')")
-            a.wait_for_function("window.__done===true")
-            blocked=a.evaluate("window.__result")
-            assert blocked['status']=='CROSS_TAB_LOCK_UNAVAILABLE',blocked
-            assert a.evaluate("(key)=>localStorage.getItem(key)",key) is None
-            print('HOLD_UNSUPPORTED',engine,f'{w}x{h}','no Web Locks; no writes',flush=True)
-            return False
-        # Hold the exact production Web Locks name in tab A. BOTH real pages
-        # start transactions, but neither may persist while A holds the lock.
-        a.evaluate("""() => {
-          const name=window.__ctx.writer.EVENT_V2_EXCLUSIVE_LOCK;
-          window.__hold=navigator.locks.request(name,{mode:'exclusive'},async()=>{
-            window.__held=true;
-            await new Promise(resolve=>window.__releaseHold=resolve);
+        assert a.evaluate(SETUP) and b.evaluate(SETUP),(engine,w,h,'IndexedDB unavailable')
+        third.evaluate("window.__channel=new BroadcastChannel('test-event-v2-idb-barrier')")
+        # No implicit empty ledger on first launch; explicit initialization
+        # remains unavailable by default to prevent legacy save erasure.
+        blocked=a.evaluate("""async()=>{
+          const w=window.__ctx.writer;
+          return await w.commitExclusiveEventTransition({
+            indexedDBFactory:indexedDB,
+            transition:s=>({state:s})
           });
         }""")
-        a.wait_for_function("window.__held===true")
-        a.evaluate("window.__launch('tab:A', '2030-01-13T23:59:59.999Z')")
-        b.evaluate("window.__launch('tab:B', '2030-01-14T00:00:00.000Z')")
-        assert not a.evaluate("window.__done")
-        assert not b.evaluate("window.__done")
-        assert a.evaluate("(key)=>localStorage.getItem(key)",key) is None
-        a.evaluate("window.__releaseHold()")
+        assert blocked['status']=='MIGRATION_REQUIRED',blocked
+        assert snapshot(a) is None
+        a.evaluate("window.__launch('seed', '2030-01-13T23:59:59.999Z')")
         a.wait_for_function("window.__done===true")
-        b.wait_for_function("window.__done===true")
-        assert a.evaluate("window.__result.status")=='COMMITTED'
-        assert b.evaluate("window.__result.status")=='COMMITTED'
-        final=a.evaluate("""(key) => JSON.parse(localStorage.getItem(key)).seenEventIds""",key)
-        if len(final)!=2 or set(final)!={'tab:A','tab:B'}:
-            import json
-            diagnostic={
-                'browser':engine,'viewport':[w,h],'seenA':final,
-                'seenB':b.evaluate("(key)=>JSON.parse(localStorage.getItem(key)).seenEventIds",key),
-                'traceA':a.evaluate("window.__trace"),
-                'traceB':b.evaluate("window.__trace"),
-                'resultA':a.evaluate("window.__result"),
-                'resultB':b.evaluate("window.__result"),
-                'locksA':a.evaluate("async()=>await navigator.locks.query()"),
-                'locksB':b.evaluate("async()=>await navigator.locks.query()")
-            }
-            print('EVENT_CROSS_TAB_FAILURE_DIAGNOSTIC '+json.dumps(diagnostic),
-                  flush=True)
-        assert len(final)==2 and set(final)=={'tab:A','tab:B'},(engine,w,h,final)
-        # A repeat across midnight cannot re-credit the older stable ID.
-        b.evaluate("window.__launch('tab:A', '2030-01-14T00:00:00.000Z')")
-        b.wait_for_function("window.__done===true")
-        seen=b.evaluate("(key)=>JSON.parse(localStorage.getItem(key)).seenEventIds",key)
-        assert len(seen)==2 and set(seen)=={'tab:A','tab:B'},(engine,w,h,seen)
-        # Two real tabs target the same earned claim, serialized by the lock.
-        claimed=a.evaluate("""() => {
-          const {core,local}=window.__ctx;
-          const state=local.createEventLocalStorage({storage:localStorage}).read();
+        assert a.evaluate("window.__last.status")=='COMMITTED'
+        expected={'seed'}
+        for i in range(ROUNDS):
+            day='2030-01-13T23:59:59.999Z' if i%2==0 else '2030-01-14T00:00:00.000Z'
+            ids=[f'tab:A:{i}',f'tab:B:{i}']
+            both(a,b,third,i+1,ids[0],ids[1],day)
+            expected.update(ids)
+            # A genuinely fresh third page sees all accepted IDs, not an old
+            # process-local localStorage view. Check both long-lived tabs too.
+            for page in (a,b,third):
+                state=snapshot(page)
+                seen=state['seenEventIds']
+                if set(seen)!=expected or len(seen)!=len(expected):
+                    print('IDB_LOST_ID',engine,[w,h],i,seen,sorted(expected),flush=True)
+                assert set(seen)==expected and len(seen)==len(expected)
+        # Deliberately poison both tabs' OLD localStorage caches. IndexedDB
+        # transactions MUST ignore these stale values completely.
+        a.evaluate("localStorage.setItem('arcana-survivor-events-v2','{}')")
+        b.evaluate("localStorage.setItem('arcana-survivor-events-v2','null')")
+        both(a,b,third,ROUNDS+1,'after:stale:A','after:stale:B',
+             '2030-01-14T00:00:00.000Z')
+        expected.update(['after:stale:A','after:stale:B'])
+        assert set(snapshot(third)['seenEventIds'])==expected
+        # Same earned claim from two REAL same-origin tabs must be exactly
+        # one CLAIMED and one DUPLICATE, with one durable outbox claim.
+        claim=a.evaluate("""async()=>{
+          const {writer,core}=window.__ctx;
+          const state=(await writer.readExclusiveEventSnapshot({
+            indexedDBFactory:indexedDB
+          })).state;
           return core.listClaimableEventRewards(state,'2030-01-14T00:00:00.000Z')
-            .find(item=>item.rewardId.includes('#finish_run'))?.rewardId||null;
+            .find(x=>x.rewardId.includes('#finish_run'))?.rewardId||null;
         }""")
-        assert claimed,(engine,w,h,'no claimable test objective')
-        a.evaluate("([id,utc])=>window.__launch('claim:A',utc,id)",
-                   [claimed,'2030-01-14T00:00:00.000Z'])
-        b.evaluate("([id,utc])=>window.__launch('claim:B',utc,id)",
-                   [claimed,'2030-01-14T00:00:00.000Z'])
+        assert claim,(engine,w,h,'fixture has no claimable reward')
+        results=both(a,b,third,ROUNDS+2,'claim:A','claim:B',
+                     '2030-01-14T00:00:00.000Z',claim)
+        outcomes=sorted(x.get('result',{}).get('status') for x in results)
+        assert outcomes==['CLAIMED','DUPLICATE'],outcomes
+        state=snapshot(third)
+        assert len(state['claims'])==1 and set(state['seenEventIds'])==expected
+        # Simulated crash after reducer produces a staged write must abort
+        # the whole transaction, not leave any replay ID.
+        a.evaluate("window.__launch('aborted:event','2030-01-14T00:00:00.000Z',null,true)")
         a.wait_for_function("window.__done===true")
-        b.wait_for_function("window.__done===true")
-        claim_outcomes=[a.evaluate("window.__result.result?.status"),
-                        b.evaluate("window.__result.result?.status")]
-        if sorted(claim_outcomes)!=['CLAIMED','DUPLICATE']:
-            import json
-            print('EVENT_CROSS_TAB_DOUBLE_CLAIM_DIAGNOSTIC '+json.dumps({
-                'browser':engine,'viewport':[w,h],
-                'claimId':claimed,'outcomes':claim_outcomes,
-                'traceA':a.evaluate("window.__trace"),
-                'traceB':b.evaluate("window.__trace"),
-                'claimedState':a.evaluate("(key)=>JSON.parse(localStorage.getItem(key))",key),
-                'lockedA':a.evaluate("async()=>await navigator.locks.query()"),
-                'lockedB':b.evaluate("async()=>await navigator.locks.query()")
-            }),flush=True)
-        assert sorted(claim_outcomes)==['CLAIMED','DUPLICATE'],claim_outcomes
-        state=a.evaluate("(key)=>JSON.parse(localStorage.getItem(key))",key)
-        assert len(state['claims'])==1 and len(state['seenEventIds'])==2
+        assert a.evaluate("window.__last.ok") is False
+        assert 'aborted:event' not in snapshot(third)['seenEventIds']
         a.reload(wait_until='networkidle')
-        reloaded=a.evaluate("(key)=>JSON.parse(localStorage.getItem(key))",key)
-        assert reloaded['seenEventIds']==state['seenEventIds']
-        assert reloaded['claims']==state['claims']
-        print('PASS',engine,f'{w}x{h}','TWO_REAL_TABS serialized; replay; one claim; reload',flush=True)
-        return True
+        b.reload(wait_until='networkidle')
+        third.reload(wait_until='networkidle')
+        # Freshly reopened pages from same origin must see EXACT same state.
+        for page in (a,b,third):
+            restored=page.evaluate("""async()=>{
+              const {readExclusiveEventSnapshot}=await import(
+                '/src/integration/eventExclusiveWriter.js');
+              return (await readExclusiveEventSnapshot({
+                indexedDBFactory:indexedDB
+              })).state;
+            }""")
+            assert restored['claims']==state['claims']
+            assert set(restored['seenEventIds'])==expected
+        print('PASS',engine,f'{w}x{h}',f'{ROUNDS} concurrent rounds',
+              'two real tabs; fresh third tab; one claim; abort; reload',flush=True)
     finally:
         context.close()
 
-passed=0
-held=0
 with sync_playwright() as p:
     for engine in ['chromium','webkit']:
         browser=getattr(p,engine).launch(headless=True)
         try:
             for w,h in SIZES:
-                if check(browser,engine,w,h): passed+=1
-                else: held+=1
+                check(browser,engine,w,h)
         finally:
             browser.close()
-print(f'EXCLUSIVE EVENT REAL-TAB BROWSER QA COMPLETE: {passed} PASS / {held} UNSUPPORTED HOLDS')
+print('EVENT INDEXEDDB TRANSACTION REAL-TAB QA COMPLETE: 4 PASS')
