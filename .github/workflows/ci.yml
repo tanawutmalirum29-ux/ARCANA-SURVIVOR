@@ -77,3 +77,14 @@ jobs:
         run: python scripts/ceo_event_storage_qa.py
       - name: Dormant Event atomic IndexedDB real-tab concurrency gate
         run: python scripts/ceo_event_cross_tab_qa.py
+      # Capture failure-time QA screenshots only, without weakening any gate.
+      # QA_LAYOUT_FAILURE JSON remains in browser job logs. On crashed WebKit
+      # processes screenshots might be unavailable; do not treat this as PASS.
+      - name: Upload WebKit/Chromium layout failure screenshots
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-layout-failure-${{ github.run_id }}-${{ github.run_attempt }}
+          path: /tmp/arcana-qa-layout-*.png
+          if-no-files-found: ignore
+          retention-days: 7
