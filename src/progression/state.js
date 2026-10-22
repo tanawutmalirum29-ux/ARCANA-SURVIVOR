@@ -1,4 +1,5 @@
 import { defaultProfile } from '../storage.js';
+import { HERO_IDS, wardrobeFromLegacy, getEquippedSkin, validateWardrobe, validateAppearance } from '../characters/skins/index.js';
 import { MAX_VALUE, HEROES, EQUIPMENT, SLOTS, RARITIES, CHAPTERS, MODES, RELICS, TALENTS, RUNES, JEWELS, ARTIFACTS, COMPANIONS, GUARDIANS, RESEARCH, BUILDINGS, MISSIONS } from './catalog.js';
 
 export const clone = value => structuredClone(value);
@@ -30,7 +31,7 @@ export function createCampaign(legacyProfile = defaultProfile()) {
   if (!validateLegacyProfile(legacyProfile)) throw new TypeError('A valid normalized version 1 profile is required');
   const equipment = Object.fromEntries(SLOTS.map(slot => [slot.id, null]));
   equipment.weapon = 'item-1'; equipment.armor = 'item-2';
-  return {
+  const campaign = {
     schemaVersion: 2, revision: 0, profile: clone(legacyProfile),
     progression: {
       xp: 0, heroId: 'mage', supportHeroId: null,
@@ -49,6 +50,9 @@ export function createCampaign(legacyProfile = defaultProfile()) {
       season: { xp: 0, claimed: [] }, claimed: [], nextItem: 3, nextRun: 1, activeRun: null,
     },
   };
+  campaign.schemaVersion = 3;
+  campaign.progression.wardrobe = wardrobeFromLegacy(legacyProfile);
+  return campaign;
 }
 const idsOf = catalog => catalog.map(entry => entry.id);
 const validLevels = (values, catalog) => keys(values, idsOf(catalog)) && catalog.every(def => integer(values[def.id], 0, def.maxLevel));
@@ -103,7 +107,7 @@ export function validateRunConfig(config) {
     && integer(chapter.bossAtSeconds, 15, 900) && (config.mode === 'resource' ? integer(chapter.durationSeconds, 30, 900) : chapter.durationSeconds === 0)
     && typeof chapter.bossName === 'string' && chapter.bossName.length > 0 && chapter.bossName.length <= 64 && chapter.bossName.trim() === chapter.bossName;
 }
-export function validateCampaign(state) {
+export function validateCampaignV2(state) {
   try {
     if (!keys(state, ['schemaVersion', 'revision', 'profile', 'progression']) || state.schemaVersion !== 2 || !integer(state.revision, 0, Number.MAX_SAFE_INTEGER - 1) || !validateLegacyProfile(state.profile)) return false;
     const p = state.progression;
@@ -142,4 +146,51 @@ export function validateCampaign(state) {
     }
     return true;
   } catch { return false; }
+}
+
+
+// The v2 validator remains exact and is used before touching any historic bytes.
+// The v3 wrapper removes ONLY the explicitly versioned appearance additions for
+// v2 structural validation; every original progression field stays checked.
+export function validateCampaign(state) {
+  try {
+    if (!keys(state, ['schemaVersion', 'revision', 'profile', 'progression'])
+        || state.schemaVersion !== 3 || !validateWardrobe(state.progression?.wardrobe)) return false;
+    const p = state.progression, wardrobe = p.wardrobe;
+    const prior = clone(state);
+    prior.schemaVersion = 2;
+    delete prior.progression.wardrobe;
+    prior.progression.presets = prior.progression.presets.map(preset => {
+      if (preset === null) return null;
+      delete preset.appearance;
+      return preset;
+    });
+    if (prior.progression.activeRun !== null) delete prior.progression.activeRun.appearance;
+    if (!validateCampaignV2(prior)) return false;
+    if (!p.presets.every(preset => preset === null
+        || (keys(preset, ['heroId', 'supportHeroId', 'equipment', 'runes', 'jewels', 'artifactId', 'companionIds', 'guardianId', 'appearance'])
+            && validateAppearance(preset.appearance, preset.heroId, wardrobe)))) return false;
+    if (p.activeRun !== null && (!keys(p.activeRun, ['id', 'seed', 'chapterId', 'mode', 'day', 'runConfig', 'appearance'])
+        || !validateAppearance(p.activeRun.appearance, p.activeRun.runConfig.heroId, wardrobe))) return false;
+    return true;
+  } catch { return false; }
+}
+
+// Strict pure migration. Caller owns atomic persistence/revision handling.
+export function migrateCampaignV2ToV3(old) {
+  if (!validateCampaignV2(old)) return null;
+  const next = clone(old);
+  next.schemaVersion = 3;
+  next.progression.wardrobe = wardrobeFromLegacy(old.profile);
+  for (const preset of next.progression.presets) {
+    if (preset !== null) preset.appearance = {
+      heroId: preset.heroId, skinId: getEquippedSkin(next, preset.heroId),
+    };
+  }
+  const run = next.progression.activeRun;
+  if (run !== null) run.appearance = {
+    heroId: run.runConfig.heroId,
+    skinId: getEquippedSkin(next, run.runConfig.heroId),
+  };
+  return validateCampaign(next) ? next : null;
 }

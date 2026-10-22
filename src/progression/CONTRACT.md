@@ -6,7 +6,9 @@ local rewards as verified online entitlements.
 ## Exports from index.js
 
 - `createCampaign(legacyProfile)`: requires a valid normalized v1 profile, returns envelope.
-- `validateCampaign(state)`: boolean, no writes/default replacement.
+- `validateCampaign(state)`: strict campaign schema v3 boolean, no writes/default replacement. `validateCampaignV2` is retained exclusively to validate historic v2 before explicit migration.
+- `migrateCampaignV2ToV3(validV2)`: pure conversion (no revision bump; store handles that atomically); null on invalid input.
+- `getEquippedSkin(campaign,heroId)`: namespaced cosmetic string or null for invalid hero. `getSkinDefinition(skinId)` and `listSkinsForHero(heroId)` return immutable presentation metadata; previews are never grants.
 - `applyCommand(state, command)`: `{ok, code, state, details}`. Failure returns original state.
   Success increments `revision` once. Store must commit before showing success.
 - `deriveLoadout(state)`: immutable-by-value engine config; cosmetics excluded.
@@ -33,10 +35,13 @@ Slots: `weapon, armor, ring1, ring2, locket, book, bracelet, spirit1, spirit2`.
 
 ```
 {
- schemaVersion: 2, revision: 0,
+ schemaVersion: 3, revision: 0,
  profile: {version:1,gold,totalKills,runs,bestSeconds,skin,owned,settings},
  progression: {
   xp:0, heroId:'mage', heroes:{mage:{level:1,stars:0,shards:0,awakening:0},...},
+  wardrobe:{mage:{owned:['mage:base'],equipped:'mage:base'},
+            guardian:{owned:['guardian:base'],equipped:'guardian:base'},
+            ranger:{owned:['ranger:base'],equipped:'ranger:base'}},
   supportHeroId:null, chapterId:'astral', mode:'campaign', cleared:[],
   inventory:[{id:'item-1',definitionId:'star_wand',rarity:0,level:1,
               locked:false,refinement:0,glyph:null,invested:{gold:0,essence:0}}],
@@ -65,7 +70,7 @@ Slots: `weapon, armor, ring1, ring2, locket, book, bracelet, spirit1, spirit2`.
 profile.gold is the sole Gold wallet. Level zero means not owned for companions,
 relics, runes, jewels, artifacts and guardians. Hero level zero means locked.
 Content unlocks from run milestones, not paid transactions.
-Active run stores `{id,seed,chapterId,mode,day,runConfig}`; never recompute its config
+Active run stores `{id,seed,chapterId,mode,day,runConfig,appearance:{heroId,skinId}}`; appearance is frozen at run start and kept separate from combat-only `runConfig`. Never recompute its config
 after starting. START_RUN while active returns RUN_ACTIVE (not a replacement).
 
 ## Commands
@@ -109,7 +114,7 @@ All take `type` plus fields below. Reducer owns all costs and grants.
 | FINISH_RUN | runId, stats:{kills,seconds,won}; no caller-supplied reward amounts |
 | ABANDON_RUN | runId |
 | PROFILE_SETTINGS | settings:{vfx?,reduceMotion?} |
-| EQUIP_COSMETIC / UNLOCK_COSMETIC | cosmeticId (existing earned-only catalogue) |
+| EQUIP_COSMETIC / UNLOCK_COSMETIC | heroId, cosmeticId (namespaced `<hero>:<variant>`; cross-hero rejected) |
 
 START_RUN details: `{runId,seed,runConfig}`; FINISH_RUN details:
 `{gold,essence,research,dust,xp,items:[instances],relicFragments:[{id,amount}],
@@ -144,3 +149,11 @@ Season is an evergreen free Chronicle, not a simulated/live paid season.
 
 Daily Challenge returns standardized config independent of owned upgrades.
 All effects must be consumed by engine or omitted from the presented item stats.
+
+## Cosmetic migration and persistence v3
+
+- The IndexedDB DB/store/key remain `arcana-campaign-v2` / `campaign` / `profile`; existing strict v2 records migrate atomically to v3 once inside an IDB readwrite transaction. Saved `revision` advances **exactly once** on v2 conversion, while fresh v1 localStorage -> v3 starts at revision zero. A stale caller cannot execute a command inside the migration transaction; it must reload. Valid v3 loads do not write.
+- Historical `profile.version=1`, `profile.skin`, `profile.owned` remain for compatibility, but no longer select the displayed costume; all three heroes have separate `progression.wardrobe[heroId].{owned,equipped}`. No cosmetic data enters `deriveLoadout`, combat stats or `runConfig`.
+- Legacy `apprentice` grants all base IDs; an already-owned old `ember` or `moon` grants that variant to **all three** heroes and retains old equipped choice individually. `ember` costs 120 GOLD for the whole three-hero bundle; 30 lifetime kills grants the whole `moon` bundle. Preview-only `lantern`, `verdant`, `aurora`, `crimson`, `celestial` cannot be granted or equipped.
+- Saved presets have an `appearance:{heroId,skinId}` snapshot, and LOAD_PRESET selects its stored hero skin while leaving other heroes' choices untouched. Saved active runs freeze appearance from that run's hero even when tab/wardrobe changes; migrated v2 runs preserve the original global skin.
+- Unknown/future/corrupt/denied saves must not be overwritten, auto-defaulted, silently downgraded, or partially granted. Optimistic revision checks and spend/receipt atomicity remain mandatory.

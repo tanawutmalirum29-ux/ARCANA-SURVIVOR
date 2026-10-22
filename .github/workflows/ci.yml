@@ -75,6 +75,10 @@ jobs:
         run: python scripts/browser_qa.py --served --browsers chromium webkit
       - name: Mounted showcase Chromium + WebKit full viewport gate
         run: python scripts/ceo_showcase_qa.py --browsers chromium webkit
+      - name: Independent 3-hero Canonical Canvas/SVG pose matrix
+        env:
+          ARCANA_QA_ARTIFACTS: /tmp/arcana-hero-visual
+        run: python scripts/hero_visual_qa.py
       - name: Campaign lobby, migration and real-tab atomic reward gate
         env:
           DEBUG: pw:browser
@@ -103,6 +107,7 @@ jobs:
           path: |
             /tmp/arcana-qa-layout-*.png
             /tmp/arcana-lobby-*.png
+            /tmp/arcana-hero-visual/**/*.png
           if-no-files-found: ignore
           retention-days: 7
 

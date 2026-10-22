@@ -1,9 +1,11 @@
 export * from './catalog.js';
-export { createCampaign, validateCampaign, validateLegacyProfile, validateRunConfig } from './state.js';
+export { createCampaign, validateCampaign, validateCampaignV2, migrateCampaignV2ToV3, validateLegacyProfile, validateRunConfig } from './state.js';
+export { HERO_IDS, SKIN_CATALOG, baseSkinId, getSkinDefinition, listSkinsForHero, getEquippedSkin } from '../characters/skins/index.js';
 export * from './selectors.js';
 
 import { MAX_VALUE, HEROES, EQUIPMENT, SLOTS, RARITIES, CHAPTERS, MODES, RELICS, TALENTS, RUNES, JEWELS, ARTIFACTS, COMPANIONS, GUARDIANS, RESEARCH, BUILDINGS, MISSIONS, SHOP_OFFERS, SEASON_REWARDS } from './catalog.js';
 import { byId, clone, keys, integer, unique, validDay, weekOf, createItem, validateCampaign } from './state.js';
+import { HERO_IDS, getSkinDefinition, getEquippedSkin } from '../characters/skins/index.js';
 import { deriveLoadout, getFeatureState, getCommandCost, getCommandRewardPreview, getMissionProgress, isItemProtected } from './selectors.js';
 
 export const ERROR_MESSAGES = Object.freeze({
@@ -26,7 +28,7 @@ const COMMAND_FIELDS = Object.freeze({
   UPGRADE_RUNE: ['runeId'], UPGRADE_JEWEL: ['jewelId'], EQUIP_RUNE: ['runeId', 'slot'], EQUIP_JEWEL: ['jewelId', 'slot'],
   UPGRADE_ARTIFACT: ['artifactId'], UPGRADE_COMPANION: ['companionId'], UPGRADE_GUARDIAN: ['guardianId'], EQUIP_ARTIFACT: ['artifactId'], EQUIP_COMPANION: ['companionId'], EQUIP_GUARDIAN: ['guardianId'],
   UPGRADE_RESEARCH: ['researchId'], UPGRADE_BUILDING: ['buildingId'], CLAIM_HOMESTEAD: [], CLAIM_MISSION: ['missionId'], CLAIM_SEASON: ['tier'], BUY_OFFER: ['offerId'],
-  FINISH_RUN: ['runId', 'stats'], ABANDON_RUN: ['runId'], PROFILE_SETTINGS: ['settings'], EQUIP_COSMETIC: ['cosmeticId'], UNLOCK_COSMETIC: ['cosmeticId'],
+  FINISH_RUN: ['runId', 'stats'], ABANDON_RUN: ['runId'], PROFILE_SETTINGS: ['settings'], EQUIP_COSMETIC: ['heroId', 'cosmeticId'], UNLOCK_COSMETIC: ['heroId', 'cosmeticId'],
 });
 class RuleError extends Error { constructor(code) { super(code); this.code = code; } }
 const requireRule = (condition, code) => { if (!condition) throw new RuleError(code); };
@@ -94,7 +96,10 @@ function finishRun(state, command) {
   const reward = credit(state, { gold, essence, research, dust, relicFragments }, true);
   bump(p, 'xp', xp); bump(p.season, 'xp', eligible ? Math.min(500, Math.floor(stats.seconds / 15) + stats.kills + (stats.won ? 60 : 0)) : 0);
   bump(state.profile, 'runs'); bump(state.profile, 'totalKills', stats.kills); state.profile.bestSeconds = Math.min(MAX_VALUE, Math.max(state.profile.bestSeconds, stats.seconds));
-  if (state.profile.totalKills >= 30 && !state.profile.owned.includes('moon')) state.profile.owned.push('moon');
+  if (state.profile.totalKills >= 30 && !state.profile.owned.includes('moon')) {
+    state.profile.owned.push('moon');
+    for (const heroId of HERO_IDS) state.progression.wardrobe[heroId].owned.push(`${heroId}:moon`);
+  }
   bump(p.missions.stats, 'runs'); bump(p.missions.stats, 'kills', stats.kills);
   bump(p.missions, 'dailyRuns'); bump(p.missions, 'dailyKills', stats.kills); bump(p.missions, 'weeklyRuns'); bump(p.missions, 'weeklyKills', stats.kills);
   if (stats.won) { bump(p.missions.stats, 'wins'); bump(p.missions, 'dailyWins'); bump(p.missions, 'weeklyWins'); }
@@ -196,11 +201,12 @@ function execute(state, command) {
     }
     case 'SAVE_PRESET': {
       requireRule(integer(command.index, 0, 2), 'INVALID_COMMAND');
-      p.presets[command.index] = clone({ heroId: p.heroId, supportHeroId: p.supportHeroId, equipment: p.equipment, runes: p.runes.equipped, jewels: p.jewels.equipped, artifactId: p.artifactId, companionIds: p.companionIds, guardianId: p.guardianId }); break;
+      p.presets[command.index] = clone({ heroId: p.heroId, supportHeroId: p.supportHeroId, equipment: p.equipment, runes: p.runes.equipped, jewels: p.jewels.equipped, artifactId: p.artifactId, companionIds: p.companionIds, guardianId: p.guardianId, appearance: { heroId: p.heroId, skinId: getEquippedSkin(state, p.heroId) } }); break;
     }
     case 'LOAD_PRESET': {
       requireRule(integer(command.index, 0, 2), 'INVALID_COMMAND'); requireRule(p.presets[command.index] !== null, 'EMPTY_PRESET'); const preset = clone(p.presets[command.index]);
-      Object.assign(p, { heroId: preset.heroId, supportHeroId: preset.supportHeroId, equipment: preset.equipment, artifactId: preset.artifactId, companionIds: preset.companionIds, guardianId: preset.guardianId }); p.runes.equipped = preset.runes; p.jewels.equipped = preset.jewels; break;
+      Object.assign(p, { heroId: preset.heroId, supportHeroId: preset.supportHeroId, equipment: preset.equipment, artifactId: preset.artifactId, companionIds: preset.companionIds, guardianId: preset.guardianId }); p.runes.equipped = preset.runes; p.jewels.equipped = preset.jewels;
+      p.wardrobe[preset.heroId].equipped = preset.appearance.skinId; break;
     }
     case 'UNLOCK_RELIC': {
       feature(state, 'relics'); definition(RELICS, command.relicId); const relic = p.relics[command.relicId]; requireRule(relic.level === 0, 'ALREADY_OWNED'); spend(state, getCommandCost(state, command), command); relic.level = 1; break;
@@ -271,7 +277,7 @@ function execute(state, command) {
       const day = Object.hasOwn(command, 'day') ? command.day : (p.missions.day || '1970-01-01'); requireRule(validDay(day), 'INVALID_COMMAND'); requireRule(!p.missions.day || day >= p.missions.day, 'CLOCK_REWIND');
       feature(state, `chapter:${p.chapterId}`); feature(state, `mode:${p.mode}`); resetPeriod(p.missions, day);
       const config = deriveLoadout(state); const id = `run-${p.nextRun++}`; const seed = hash(config.mode === 'daily' ? `arcana:daily:${day}` : `${id}:${config.chapterId}:${config.mode}`);
-      p.activeRun = { id, seed, chapterId: config.chapterId, mode: config.mode, day, runConfig: config }; return { runId: id, seed, runConfig: clone(config) };
+      p.activeRun = { id, seed, chapterId: config.chapterId, mode: config.mode, day, runConfig: config, appearance: { heroId: config.heroId, skinId: getEquippedSkin(state, config.heroId) } }; return { runId: id, seed, runConfig: clone(config) };
     }
     case 'FINISH_RUN': return finishRun(state, command);
     case 'ABANDON_RUN': requireRule(!p.claimed.includes(`run:${command.runId}`), 'ALREADY_CLAIMED'); requireRule(p.activeRun?.id === command.runId, 'UNKNOWN_RUN'); p.claimed.push(`run:${command.runId}`); p.activeRun = null; return { abandoned: true };
@@ -281,11 +287,30 @@ function execute(state, command) {
       if (Object.hasOwn(command.settings, 'reduceMotion')) requireRule(typeof command.settings.reduceMotion === 'boolean', 'INVALID_COMMAND');
       Object.assign(state.profile.settings, command.settings); break;
     }
-    case 'EQUIP_COSMETIC': requireRule(state.profile.owned.includes(command.cosmeticId), 'NOT_OWNED'); requireRule(state.profile.skin !== command.cosmeticId, 'NO_CHANGE'); state.profile.skin = command.cosmeticId; break;
+    case 'EQUIP_COSMETIC': {
+      requireRule(HERO_IDS.includes(command.heroId), 'INVALID_COMMAND');
+      const skin = getSkinDefinition(command.cosmeticId);
+      requireRule(skin && skin.heroId === command.heroId, 'INVALID_COMMAND');
+      requireRule(p.heroes[command.heroId].level > 0, 'NOT_OWNED');
+      requireRule(skin.unlockMode !== 'preview', 'LOCKED');
+      const slot = p.wardrobe[command.heroId];
+      requireRule(slot.owned.includes(skin.id), 'NOT_OWNED');
+      requireRule(slot.equipped !== skin.id, 'NO_CHANGE');
+      slot.equipped = skin.id;
+      break;
+    }
     case 'UNLOCK_COSMETIC': {
-      requireRule(command.cosmeticId === 'ember' || command.cosmeticId === 'moon', 'LOCKED'); requireRule(!state.profile.owned.includes(command.cosmeticId), 'ALREADY_OWNED');
-      if (command.cosmeticId === 'moon') requireRule(state.profile.totalKills >= 30, 'NOT_READY');
-      spend(state, getCommandCost(state, command), command); state.profile.owned.push(command.cosmeticId); break;
+      requireRule(HERO_IDS.includes(command.heroId), 'INVALID_COMMAND');
+      const skin = getSkinDefinition(command.cosmeticId);
+      requireRule(skin && skin.heroId === command.heroId, 'INVALID_COMMAND');
+      requireRule(skin.variant === 'ember' || skin.variant === 'moon', 'LOCKED');
+      requireRule(!state.profile.owned.includes(skin.variant)
+        && HERO_IDS.every(heroId => !p.wardrobe[heroId].owned.includes(`${heroId}:${skin.variant}`)), 'ALREADY_OWNED');
+      if (skin.variant === 'moon') requireRule(state.profile.totalKills >= 30, 'NOT_READY');
+      spend(state, getCommandCost(state, command), command);
+      state.profile.owned.push(skin.variant);
+      for (const heroId of HERO_IDS) p.wardrobe[heroId].owned.push(`${heroId}:${skin.variant}`);
+      break;
     }
     default: throw new RuleError('UNKNOWN_COMMAND');
   }
