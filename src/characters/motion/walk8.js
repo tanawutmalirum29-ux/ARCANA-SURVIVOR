@@ -6,9 +6,9 @@
 const TAU = Math.PI * 2;
 export const WALK_DIRECTIONS = Object.freeze(['E', 'SE', 'S', 'SW', 'W', 'NW', 'N', 'NE']);
 const STYLES = Object.freeze({
-  mage: Object.freeze({period:32, stride:2.6, footLift:.8, lean:.028, sway:.6, bounce:.55, swing:.09}),
-  guardian: Object.freeze({period:36, stride:4.5, footLift:2.7, lean:.044, sway:.9, bounce:1.2, swing:.12}),
-  ranger: Object.freeze({period:24, stride:4.0, footLift:2.2, lean:.065, sway:1.0, bounce:.8, swing:.19}),
+  mage: Object.freeze({period:32, stride:6.2, footLift:1.8, lean:.033, sway:1.2, bounce:1.0, swing:.14}),
+  guardian: Object.freeze({period:36, stride:9.2, footLift:5.4, lean:.052, sway:1.7, bounce:2.3, swing:.21}),
+  ranger: Object.freeze({period:24, stride:10.8, footLift:5.8, lean:.075, sway:2.1, bounce:1.5, swing:.27}),
 });
 const finite = x => Number.isFinite(x) ? x : 0;
 const round = x => Math.round(x * 100000) / 100000;
