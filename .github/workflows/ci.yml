@@ -69,6 +69,10 @@ jobs:
           done
           cat /tmp/arcana-dev-server.log
           exit 1
+      - name: Three-hero Walk8 Canvas contact sheets on Chromium and WebKit
+        env:
+          ARCANA_WALK8_ARTIFACTS: /tmp/arcana-walk8
+        run: python scripts/hero_walk8_qa.py
       - name: Chromium + WebKit on five viewport sizes
         env:
           DEBUG: pw:browser
@@ -108,6 +112,7 @@ jobs:
             /tmp/arcana-qa-layout-*.png
             /tmp/arcana-lobby-*.png
             /tmp/arcana-hero-visual/**/*.png
+            /tmp/arcana-walk8/**/*.png
           if-no-files-found: ignore
           retention-days: 7
 
