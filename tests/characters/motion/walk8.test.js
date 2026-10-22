@@ -55,9 +55,9 @@ for (const heroId of heroes) {
     assert.equal(fired.attackPhase,'release');
     assert.equal(fired.facing.direction8,'E');
     assert.equal(fired.travel.direction8,'W');
-    assert.equal(fired.view.direction8,'E','visual weapon faces real shot target');
-    assert.ok(fired.view.bodyScaleX>0 && walking.view.bodyScaleX<0,
-      'running west while shooting east retains west footwork but faces east');
+    assert.equal(fired.view.direction8,'W','walk+attack cannot flip the entire actor');
+    assert.ok(fired.view.bodyScaleX<0 && walking.view.bodyScaleX<0,
+      'running west while shooting east must not swap sprite handedness');
     assert.deepEqual(fired.joints.leftLeg,walking.joints.leftLeg);
     assert.deepEqual(fired.joints.rightLeg,walking.joints.rightLeg);
     const noShot=resolveHeroPose(inputs(heroId,move,84,{targetPresent:true}));
@@ -71,14 +71,14 @@ test('actual shot turns silhouette without reversing the walking direction',()=>
     const shot=resolveHeroPose(inputs(heroId,{x:1,y:0},96,{
       lastAttackTick:96,aimVector:{x:-1,y:-1}}));
     assert.equal(shot.travel.direction8,'E');
-    assert.equal(shot.view.direction8,'NW');
-    assert.ok(shot.view.bodyScaleX<0);
-    assert.equal(shot.view.backView,true);
+    assert.equal(shot.view.direction8,'E');
+    assert.ok(shot.view.bodyScaleX>0);
+    assert.equal(shot.view.backView,false);
     assert.deepEqual(walk.joints.leftLeg,shot.joints.leftLeg);
     assert.deepEqual(walk.joints.rightLeg,shot.joints.rightLeg);
     const html=heroActorSvg({heroId,pose:shot});
-    assert.match(html, /scale\(-0\./);
-    assert.ok(html.indexOf('data-actor-part="cape"')>
+    assert.doesNotMatch(html, /scale\(-0\./);
+    assert.ok(html.indexOf('data-actor-part="cape"')<
       html.indexOf('data-actor-part="head"'));
   }
 });
@@ -120,6 +120,90 @@ test('near-vertical joystick noise does not flip N and S sprites',()=>{
       assert.equal(new Set(samples.map(p=>p.travel.direction8)).size,1);
       assert.ok(samples.every(p=>p.travel.bodyScaleX>0));
     }
+  }
+});
+
+test('idle weapons remain upright no matter where the movement joystick or last aim points',()=>{
+  for (const heroId of heroes) {
+    for (const [x,y] of vectors) {
+      const idle=resolveHeroPose({heroId,tick:131,moving:false,moveVector:{x:0,y:0},
+        aimVector:{x,y},lastAttackTick:null,targetPresent:false});
+      const walk=resolveHeroPose(inputs(heroId,{x,y},131,{aimVector:{x:-x,y:-y}}));
+      assert.ok(Math.abs(idle.joints.weapon.rotation)<.08,heroId+' idle weapon rolled away');
+      assert.ok(Math.abs(walk.joints.weapon.rotation)<.08,heroId+' walking weapon rolled away');
+      assert.equal(walk.attackPhase,'none');
+    }
+  }
+});
+
+test('attack lifecycle preserves walk silhouette despite opposite projectile aim',()=>{
+  for(const heroId of heroes) for(const [x,y] of vectors) {
+    const opposite={x:-x,y:-y};
+    // At the same sample tick test unarmed walk, confirmed release and recover.
+    const walk=resolveHeroPose(inputs(heroId,{x,y},120,{aimVector:opposite}));
+    const shot=resolveHeroPose(inputs(heroId,{x,y},120,{aimVector:opposite,lastAttackTick:120}));
+    const recovering=resolveHeroPose(inputs(heroId,{x,y},120,{aimVector:opposite,lastAttackTick:114}));
+    for(const pose of [shot,recovering]){
+      assert.equal(pose.travel.direction8,walk.travel.direction8);
+      assert.equal(pose.view.direction8,walk.view.direction8);
+      assert.equal(Math.sign(pose.view.bodyScaleX),Math.sign(walk.view.bodyScaleX));
+      assert.equal(pose.view.backView,walk.view.backView);
+      assert.deepEqual(pose.joints.leftLeg,walk.joints.leftLeg);
+      assert.deepEqual(pose.joints.rightLeg,walk.joints.rightLeg);
+      assert.ok(Math.abs(pose.joints.weapon.rotation)<1.4,'weapon local rotation excessive');
+      assert.ok(Math.abs(pose.joints.weapon.x)<80 && Math.abs(pose.joints.weapon.y)<80,
+        'weapon displaced from its grip');
+    }
+    assert.equal(shot.attackPhase,'release');
+  }
+});
+
+test('weapon arm crosses body toward opposite-side targets without flipping feet',()=>{
+  for(const heroId of heroes){
+    for(const dir of [{x:1,y:0},{x:-1,y:0},{x:0,y:1},{x:0,y:-1}]){
+      const base=inputs(heroId,dir,150,{lastAttackTick:150});
+      const facingRight=resolveHeroPose({...base,aimVector:{x:1,y:0}});
+      const facingLeft=resolveHeroPose({...base,aimVector:{x:-1,y:0}});
+      assert.equal(facingRight.attackPhase,'release');
+      assert.equal(facingLeft.attackPhase,'release');
+      assert.equal(facingRight.view.direction8,facingLeft.view.direction8);
+      assert.deepEqual(facingRight.joints.leftLeg,facingLeft.joints.leftLeg);
+      assert.deepEqual(facingRight.joints.rightLeg,facingLeft.joints.rightLeg);
+      // Distinct local attack swing arcs, and neither weapon leaves its grip.
+      assert.notEqual(facingRight.joints.rightArm.rotation,
+        facingLeft.joints.rightArm.rotation,heroId+' arm does not follow shot side');
+      assert.ok(Math.abs(facingRight.joints.weapon.rotation)<1.4);
+      assert.ok(Math.abs(facingLeft.joints.weapon.rotation)<1.4);
+    }
+  }
+});
+
+test('opposite north/south shots have distinct weapon pitch and height without foot snapping',()=>{
+  for (const heroId of heroes) for (const [x,y] of vectors) {
+    const base=inputs(heroId,{x,y},180,{lastAttackTick:180});
+    const north=resolveHeroPose({...base,aimVector:{x:0,y:-1}});
+    const south=resolveHeroPose({...base,aimVector:{x:0,y:1}});
+    assert.equal(north.view.direction8,south.view.direction8);
+    assert.deepEqual(north.joints.leftLeg,south.joints.leftLeg);
+    assert.deepEqual(north.joints.rightLeg,south.joints.rightLeg);
+    assert.ok(north.joints.weapon.y<south.joints.weapon.y,
+      heroId+' must raise weapon for north instead of recycling south pose');
+    assert.notEqual(north.joints.rightArm.rotation,south.joints.rightArm.rotation,
+      heroId+' aim pitch must animate shoulder as well as weapon');
+    assert.equal(north.attackPhase,'release');
+    assert.equal(south.attackPhase,'release');
+  }
+});
+
+test('stationary confirmed attack may face its target and keeps exact shot tick',()=>{
+  for (const heroId of heroes) {
+    const idle={heroId,tick:75,moving:false,moveVector:{x:0,y:0},
+      aimVector:{x:-1,y:0},lastAttackTick:75,targetPresent:true};
+    const shot=resolveHeroPose(idle);
+    assert.equal(shot.view.direction8,'W');
+    assert.ok(shot.view.bodyScaleX<0);
+    assert.equal(shot.attackPhase,'release');
+    assert.equal(resolveHeroPose({...idle,lastAttackTick:null,targetPresent:false}).attackPhase,'none');
   }
 });
 

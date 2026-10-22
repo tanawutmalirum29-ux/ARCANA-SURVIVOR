@@ -75,6 +75,41 @@ EVALUATE = r'''async () => {
         const label=document.createElement('small');label.textContent=heroId+' '+name+' / '+step;
         cell.append(label);holder.append(cell); frames++;
       }
+      // Confirmed player shot in exactly the opposite compass heading.
+      // No map-facing flip or foot replant is allowed at the projectile tick.
+      const walking=resolveHeroPose({heroId,tick:6,moving:true,
+        moveVector:{x,y},aimVector:{x:-x,y:-y},lastAttackTick:null});
+      const shooting=resolveHeroPose({heroId,tick:6,moving:true,
+        moveVector:{x,y},aimVector:{x:-x,y:-y},lastAttackTick:6});
+      assert(shooting.attackPhase==='release',heroId+'/'+name+' missing real release');
+      assert(shooting.travel.direction8===walking.travel.direction8 &&
+        shooting.view.direction8===walking.view.direction8,
+        heroId+'/'+name+' walk-attack silhouette snapped to aim');
+      assert(shooting.view.bodyScaleX===walking.view.bodyScaleX,
+        heroId+'/'+name+' sprite mirrored mid-stride');
+      for(const leg of ['leftLeg','rightLeg'])
+        assert(JSON.stringify(shooting.joints[leg])===JSON.stringify(walking.joints[leg]),
+          heroId+'/'+name+' '+leg+' teleported mid-stride');
+      assert(Math.abs(shooting.joints.weapon.rotation)<1.4,
+        heroId+'/'+name+' weapon spun beyond reasonable wrist motion');
+      // Verify two-axis aim, particularly north and south shots while strafing.
+      const up=resolveHeroPose({heroId,tick:6,moving:true,
+        moveVector:{x,y},aimVector:{x:0,y:-1},lastAttackTick:6});
+      const down=resolveHeroPose({heroId,tick:6,moving:true,
+        moveVector:{x,y},aimVector:{x:0,y:1},lastAttackTick:6});
+      assert(up.joints.weapon.y<down.joints.weapon.y,
+        heroId+'/'+name+' vertical aim rendered identically');
+      assert(up.view.direction8===down.view.direction8,
+        heroId+'/'+name+' aiming should not mirror walking body');
+      const c=document.createElement('canvas');c.width=80;c.height=80;
+      assert(renderHeroActor(c.getContext('2d'),{heroId,pose:shooting,
+        x:40,y:40,scale:.19}),heroId+'/'+name+' shooting canvas failed');
+      assert(hash(c).opaque>65,heroId+'/'+name+' shooting actor disappeared');
+      const cell=document.createElement('div');cell.className='pose';
+      c.dataset.hero=heroId;c.dataset.direction=name;c.dataset.step='attack';
+      const label=document.createElement('small');
+      label.textContent=heroId+' '+name+' / ATTACK';
+      cell.append(c,label);holder.append(cell);frames++;
     }
     assert(directions.size===8 && signatures.size>=7,
       heroId+' directions rendered indistinguishably');
@@ -91,7 +126,7 @@ def run(browser,engine,w,h):
         response=page.goto(URL+'/tests/characters/visual/preview.html',wait_until='networkidle')
         assert response and response.status==200,(engine,w,h,'preview HTTP failed')
         result=page.evaluate(EVALUATE)
-        assert result['frames']==48 and result['directions']==8,result
+        assert result['frames']==72 and result['directions']==8,result
         assert not errors,(engine,w,h,errors)
         if ROOT:
             path=Path(ROOT)/engine/f'{w}x{h}'
@@ -109,7 +144,7 @@ def main():
                 for w,h in SIZES: run(browser,engine,w,h)
             finally:
                 browser.close()
-    print('WALK8 QA SYNTHETIC browser matrix passed: 3 heroes x 8 headings x 2 gait phases x 10 engine/viewports')
+    print('WALK8 QA SYNTHETIC passed: 3 heroes x 8 headings x (2 gait phases + opposed-aim attack) x 10 engine/viewports')
     print('LIVE_GAMEPLAY/PHYSICAL_DEVICE: NOT_RUN in this script; separate existing QA required')
 
 if __name__=='__main__': main()
