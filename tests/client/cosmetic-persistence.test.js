@@ -2,137 +2,102 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
-import {
- defaultProfile, saveProfile, unlockGoldCosmetic, SAVE_KEY
-} from '../../src/storage.js';
+import {defaultProfile} from '../../src/storage.js';
+import {createCampaign, applyCommand} from '../../src/progression/index.js';
+import {createCampaignClient} from '../../src/campaignClient.js';
 
-const source = readFileSync(new URL('../../src/main.js', import.meta.url), 'utf8');
-function extract(startText, endText) {
- const start = source.indexOf(startText);
- const end = source.indexOf(endText, start + startText.length);
- assert.ok(start !== -1 && end > start, `expected production code: ${startText}`);
- return source.slice(start, end);
-}
-const persistSource = extract('function persist(', '\nfunction notify(');
-const actionSource = extract('function handleAction(action,id){', '\nfunction showPauseFromSettings()');
+const source=readFileSync(new URL('../../src/main.js',import.meta.url),'utf8');
+const begin=source.indexOf('async function handleAction(action,id){');
+const end=source.indexOf('\nfunction showPauseFromSettings()',begin);
+assert.ok(begin>=0&&end>begin,'test uses production application action handlers');
+const actions=source.slice(begin,end);
 
-// Test the actual application handlers with the actual storage schema. This
-// intentionally stubs rendering/audio, not profile grants or persistence.
-function setup({profile = defaultProfile(), original = null, denyWrite = false, dropWrite = false} = {}) {
- const saved = new Map();
- if (original !== null) saved.set(SAVE_KEY, original);
- let attemptedWrites = 0;
- const storage = {
-  getItem(key) {return saved.get(key) ?? null},
-  setItem(key, value) {
-   attemptedWrites++;
-   if (denyWrite) throw new Error('quota/permission denied');
-   if (!dropWrite) saved.set(key, value);
-  }
+async function setup({owned=false,failure=null,gate=null}={}){
+ const legacy=defaultProfile();legacy.gold=130;if(owned)legacy.owned.push('ember');
+ let durable=createCampaign(legacy),visible=durable,writes=0;
+ const toasts=[],sounds=[],wardrobes=[];
+ const client=createCampaignClient({store:{
+  async load(){return {ok:true,code:'LOADED',state:structuredClone(durable)}},
+  async dispatch(command,{expectedRevision}){
+   writes++;
+   if(gate)await gate;
+   if(failure)return {ok:false,code:failure,state:structuredClone(durable)};
+   assert.equal(expectedRevision,durable.revision);
+   const result=applyCommand(durable,command);
+   if(result.ok)durable=structuredClone(result.state);
+   return result;
+  },
+ },onChange:next=>{visible=next}});
+ await client.load();
+ const context={
+  commitCommand:async command=>{const result=await client.dispatch(command);if(!result.ok)toasts.push(result.code);return result},
+  notify:message=>toasts.push(message),sound:{play:id=>sounds.push(id)},
+  showWardrobe:()=>wardrobes.push(structuredClone(visible.profile)),
  };
- const toasts = [], sounds = [], wardrobes = [];
- const context = {
-  initialProfile: profile,
-  saveProfile: candidate => saveProfile(candidate, storage),
-  unlockGoldCosmetic,
-  notify: message => toasts.push(message),
-  sound: {play: id => sounds.push(id)},
-  showWardrobe: () => wardrobes.push(JSON.parse(JSON.stringify(context.activeProfile())))
- };
- runInNewContext(`let profile = initialProfile;
-${persistSource}
-${actionSource}
-globalThis.activeProfile = () => profile;
-globalThis.performAction = (action,id) => handleAction(action,id);`, context);
- return {
-  run: (action,id) => context.performAction(action,id),
-  profile: () => JSON.parse(JSON.stringify(context.activeProfile())),
-  raw: () => saved.get(SAVE_KEY),
-  get attemptedWrites() {return attemptedWrites},
-  toasts, sounds, wardrobes
- };
+ runInNewContext(`${actions}\nglobalThis.performAction=handleAction`,context);
+ return {run:(action,id)=>context.performAction(action,id),client,
+  visible:()=>visible,durable:()=>durable,writes:()=>writes,toasts,sounds,wardrobes};
 }
 
-function spendable() {
- const profile = defaultProfile();
- profile.gold = 130;
- return profile;
-}
-function withEmber() {
- const profile = defaultProfile();
- profile.skin = 'apprentice';
- profile.owned.push('ember');
- profile.gold = 40;
- return profile;
-}
-const saveError = 'ไม่สามารถบันทึกข้อมูลในเบราว์เซอร์นี้ได้';
-
-test('confirmed unlock commits only after storage readback and presents success', () => {
- const before = spendable();
- const h = setup({profile: before, original: JSON.stringify(before)});
- h.run('unlock', 'ember');
- assert.equal(h.profile().gold, 10);
- assert.equal(h.profile().owned.includes('ember'), true);
- assert.equal(JSON.parse(h.raw()).gold, 10);
- assert.equal(h.wardrobes.at(-1).owned.includes('ember'), true);
- assert.deepEqual(h.sounds, ['unlock']);
- assert.deepEqual(h.toasts, ['ปลดล็อกสกินสำเร็จ']);
+test('unlock and equip become visible only after durable transaction completes',async()=>{
+ let release;const gate=new Promise(resolve=>release=resolve);
+ const h=await setup({gate});
+ const pending=h.run('unlock','ember');
+ await Promise.resolve();
+ assert.equal(h.visible().profile.gold,130);
+ assert.equal(h.visible().profile.owned.includes('ember'),false);
+ assert.deepEqual(h.sounds,[]);
+ release();await pending;
+ assert.equal(h.visible().profile.gold,10);
+ assert.equal(h.durable().profile.gold,10);
+ assert.equal(h.wardrobes.at(-1).owned.includes('ember'),true);
+ assert.deepEqual(h.sounds,['unlock']);
+ await h.run('equip','ember');
+ assert.equal(h.visible().profile.skin,'ember');
+ assert.equal(h.durable().profile.skin,'ember');
 });
 
-test('denied write keeps profile and visible wardrobe unchanged, with save error shown', () => {
- const before = spendable(), bytes = JSON.stringify(before);
- const h = setup({profile: before, original: bytes, denyWrite: true});
- h.run('unlock', 'ember');
- assert.deepEqual(h.profile(), before);
- assert.deepEqual(h.wardrobes.at(-1), before);
- assert.equal(h.raw(), bytes, 'original storage bytes must remain unchanged');
- assert.deepEqual(h.toasts, [saveError]);
- assert.deepEqual(h.sounds, []);
- assert.equal(h.attemptedWrites, 1);
-});
-
-test('future-version and malformed existing saves block grants without modifying original bytes', () => {
- for (const bytes of ['{"version":42,"futureInventory":["ember"]}', '{broken']) {
-  const before = spendable(), h = setup({profile: before, original: bytes});
-  h.run('unlock', 'ember');
-  assert.deepEqual(h.profile(), before);
-  assert.deepEqual(h.wardrobes.at(-1), before);
-  assert.equal(h.raw(), bytes);
-  assert.equal(h.attemptedWrites, 0);
-  assert.deepEqual(h.toasts, [saveError]);
-  assert.deepEqual(h.sounds, []);
+test('failed, corrupt and future-save responses cannot grant, spend or present success',async()=>{
+ for(const failure of ['WRITE_FAILED','STORAGE_UNAVAILABLE','CORRUPT_SAVE','UNSUPPORTED_SAVE']){
+  const h=await setup({failure}),before=structuredClone(h.visible());
+  await h.run('unlock','ember');
+  assert.deepEqual(h.visible(),before);
+  assert.deepEqual(h.durable(),before);
+  assert.deepEqual(h.wardrobes.at(-1),before.profile);
+  assert.deepEqual(h.sounds,[]);
+  assert.deepEqual(h.toasts,[failure]);
  }
 });
 
-test('equip does not select cosmetic when persistence fails', () => {
- const before = withEmber(), bytes = JSON.stringify(before);
- const h = setup({profile: before, original: bytes, denyWrite: true});
- h.run('equip', 'ember');
- assert.deepEqual(h.profile(), before);
- assert.deepEqual(h.wardrobes.at(-1), before);
- assert.equal(h.raw(), bytes);
- assert.deepEqual(h.sounds, []);
- assert.deepEqual(h.toasts, [saveError]);
+test('equipping on failed transaction leaves durable and displayed skin unchanged',async()=>{
+ const h=await setup({owned:true,failure:'WRITE_FAILED'});
+ await h.run('equip','ember');
+ assert.equal(h.visible().profile.skin,'apprentice');
+ assert.equal(h.durable().profile.skin,'apprentice');
+ assert.equal(h.wardrobes.at(-1).skin,'apprentice');
+ assert.deepEqual(h.sounds,[]);
 });
 
-test('silently discarded write cannot change active skin or hide failed-save toast', () => {
- const before = withEmber(), bytes = JSON.stringify(before);
- const h = setup({profile: before, original: bytes, dropWrite: true});
- h.run('equip', 'ember');
- assert.deepEqual(h.profile(), before);
- assert.deepEqual(h.wardrobes.at(-1), before);
- assert.equal(h.raw(), bytes);
- assert.deepEqual(h.sounds, []);
- assert.deepEqual(h.toasts, [saveError]);
- assert.equal(h.attemptedWrites, 1);
+test('rapid duplicate purchase gestures cannot deduct twice',async()=>{
+ const h=await setup();
+ await Promise.all([h.run('unlock','ember'),h.run('unlock','ember')]);
+ assert.equal(h.durable().profile.gold,10);
+ assert.equal(h.durable().revision,1);
+ assert.equal(h.durable().profile.owned.filter(id=>id==='ember').length,1);
+ assert.deepEqual(h.sounds,['unlock']);
 });
 
-test('confirmed equip updates both UI and durable profile without an unlock toast', () => {
- const before = withEmber(), h = setup({profile: before, original: JSON.stringify(before)});
- h.run('equip', 'ember');
- assert.equal(h.profile().skin, 'ember');
- assert.equal(h.wardrobes.at(-1).skin, 'ember');
- assert.equal(JSON.parse(h.raw()).skin, 'ember');
- assert.deepEqual(h.sounds, ['equip']);
- assert.deepEqual(h.toasts, []);
+test('stale-tab conflicts refresh the displayed balance but do not retry a purchase silently',async()=>{
+ const original=createCampaign(defaultProfile());
+ const updated=structuredClone(original);updated.revision=3;updated.profile.gold=300;
+ let dispatches=0;
+ const h=createCampaignClient({store:{
+  async load(){return {ok:true,state:original}},
+  async dispatch(_command,options){dispatches++;assert.equal(options.expectedRevision,0);return {ok:false,code:'STALE_STATE',state:updated}},
+ }});
+ await h.load();
+ const result=await h.dispatch({type:'UNLOCK_COSMETIC',cosmeticId:'ember'});
+ assert.equal(result.ok,false);assert.equal(dispatches,1);
+ assert.equal(h.getState().profile.gold,300);
+ assert.equal(h.getState().profile.owned.includes('ember'),false);
 });

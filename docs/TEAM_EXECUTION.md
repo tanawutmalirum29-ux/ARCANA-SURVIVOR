@@ -1,9 +1,20 @@
 # ARCANA SURVIVOR — Concurrent Team Work Order
 
-Mission status: **APPOINTED / START_AUTHORIZED / WORKER_SESSIONS_NOT_YET_CONFIRMED**.
-CEO integration board: [#21](https://github.com/tanawutmalirum29-ux/ARCANA-SURVIVOR/issues/21).
-Governance: [appointment-CEO RULES](https://github.com/tanawutmalirum29-ux/appointment-CEO/blob/main/RULES.md).
-Baseline: `ae1c5706f22ca05a60f4cf4201e6ad3ed63b18fd` (2026-10-20).
+Current campaign mission: **START_AUTHORIZED / WORKER_SESSIONS_CONFIRMED**, integration [#61](https://github.com/tanawutmalirum29-ux/ARCANA-SURVIVOR/issues/61), based on `efeb314c7e706a3a70d7a3ba209592b673ffc88c`.
+
+The current work shares integration branch `feat/arcana-lobby-progression` under an explicit integration lock. Workers edit disjoint paths and do not checkout, commit, push or merge. The integration lead owns repository operations and shared wiring. Current role Issues supersede the historical appointment table for this mission:
+
+| Role | Issue | Current owned paths |
+|---|---|---|
+| Progression | #62 | `src/progression/**`, `tests/progression/**` |
+| Combat | #63 | `src/engine.js`, `src/gameplay/**`, `tests/gameplay/**` |
+| Lobby | #64 | `src/ui/**`, `src/lobby.css` |
+| Independent QA | #65 | `tests/qa/**`, `scripts/lobby_qa.py`, `scripts/browser_qa.py`, `scripts/ceo_showcase_qa.py` |
+| Integration lead | #61 | main, campaign store/client, renderer, shared integration tests, docs and CI |
+
+All final changes require exact-head CI and independent QA before the integration lead merges. Online/commerce release gates remain in force.
+
+The earlier appointment board below is historical context for retained modules, not the current worker status.
 
 ## Ready-to-run parallel lanes
 | Role | Appointment | Git branch | Owned files | Scope |

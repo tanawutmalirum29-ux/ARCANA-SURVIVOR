@@ -12,6 +12,12 @@ export function warningGeometry(flash) {
   const radius = Math.max(12, Number.isFinite(flash?.radius) ? flash.radius : 170);
   const pattern = [0, 1, 2].includes(flash?.pattern) ? flash.pattern : -1;
   const angle = Number.isFinite(flash?.angle) ? flash.angle : 0;
+  // Configured chapter attacks carry the very same angles consumed by combat.
+  // The wider grove fan and citadel star must never be understated on screen.
+  if(pattern !== -1 && Array.isArray(flash?.angles) && flash.angles.length > 0 &&
+      flash.angles.length <= 12 && flash.angles.every(Number.isFinite)) {
+    return {x,y,radius,pattern,label:['RING','FAN','STAR'][pattern],angles:[...flash.angles]};
+  }
   if (pattern === 0) {
     // 12 projectiles fan around 360 degrees; rotation only changes where
     // individual bullets start, never the coverage.

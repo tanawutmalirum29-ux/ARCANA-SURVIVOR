@@ -39,7 +39,7 @@ jobs:
       - name: Build static demo
         run: npm run build
       - name: Validate generated entrypoint
-        run: test -s dist/index.html && test -s dist/src/engine.js
+        run: test -s dist/index.html && test -s dist/src/engine.js && test -s dist/src/ui/lobby.js && test -s dist/src/progression/index.js && test -s dist/src/gameplay/run-config.js
 
   browser-qa:
     runs-on: ubuntu-latest
@@ -70,21 +70,87 @@ jobs:
           cat /tmp/arcana-dev-server.log
           exit 1
       - name: Chromium + WebKit on five viewport sizes
+        env:
+          DEBUG: pw:browser
         run: python scripts/browser_qa.py --served --browsers chromium webkit
       - name: Mounted showcase Chromium + WebKit full viewport gate
         run: python scripts/ceo_showcase_qa.py --browsers chromium webkit
+      - name: Campaign lobby, migration and real-tab atomic reward gate
+        env:
+          DEBUG: pw:browser
+        run: python scripts/lobby_qa.py --browsers chromium webkit
       - name: Dormant Event v2 localStorage Chromium and WebKit fault gate
         run: python scripts/ceo_event_storage_qa.py
       - name: Dormant Event atomic IndexedDB real-tab concurrency gate
         run: python scripts/ceo_event_cross_tab_qa.py
+      - name: Collect runner resource and browser process diagnostics
+        if: ${{ always() }}
+        run: |
+          echo "== Cgroup memory events =="
+          cat /sys/fs/cgroup/memory.events || true
+          echo "== Memory availability =="
+          free -m || true
+          echo "== Browser processes =="
+          ps -eo pid,ppid,rss,stat,comm --sort=-rss | head -25 || true
       # Capture failure-time QA screenshots only, without weakening any gate.
       # QA_LAYOUT_FAILURE JSON remains in browser job logs. On crashed WebKit
       # processes screenshots might be unavailable; do not treat this as PASS.
       - name: Upload WebKit/Chromium layout failure screenshots
-        if: ${{ failure() }}
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: browser-layout-failure-${{ github.run_id }}-${{ github.run_attempt }}
-          path: /tmp/arcana-qa-layout-*.png
+          path: |
+            /tmp/arcana-qa-layout-*.png
+            /tmp/arcana-lobby-*.png
+          if-no-files-found: ignore
+          retention-days: 7
+
+  webkit-isolated-diagnostics:
+    # Extra evidence. The full browser-qa job above remains a mandatory gate.
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install independent WebKit engine
+        run: |
+          python -m pip install playwright==1.57.0
+          python -m playwright install --with-deps webkit
+      - name: Start dedicated HTTP server
+        run: |
+          node scripts/dev-server.mjs > /tmp/arcana-webkit-isolation-server.log 2>&1 &
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:4173/ > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/arcana-webkit-isolation-server.log
+          exit 1
+      - name: Isolate WebKit 768x1024 and 844x390 without weakening full acceptance
+        env:
+          DEBUG: pw:browser
+        run: |
+          python scripts/lobby_qa.py --browsers webkit --layout-only --viewport 768x1024 --viewport 844x390
+      - name: Isolated runner crash diagnostics
+        if: ${{ always() }}
+        run: |
+          cat /sys/fs/cgroup/memory.events || true
+          free -m || true
+          ps -eo pid,ppid,rss,stat,comm --sort=-rss | head -25 || true
+      - name: Upload isolated WebKit screenshots
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: webkit-isolation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: /tmp/arcana-lobby-*.png
           if-no-files-found: ignore
           retention-days: 7

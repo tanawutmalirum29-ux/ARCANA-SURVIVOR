@@ -1,14 +1,37 @@
 """CEO VFX integration smoke on HTTP origin; emulated inputs, not physical phone."""
 import argparse, os
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, expect
 SIZES=[(320,568),(390,844),(768,1024),(844,390),(1440,900)]
+def profile(page):
+    """Read the same durable transaction store as the app, never its old cache."""
+    return page.evaluate("""async () => {
+      const {createCampaignStore}=await import('/src/campaignStore.js');
+      const store=createCampaignStore();
+      try {
+        const result=await store.load();
+        if (!result.ok) throw Error('Campaign read: '+result.code);
+        return result.state.profile;
+      } finally {store.close();}
+    }""")
+
+def open_wardrobe(page, keyboard=False):
+    # Wardrobe belongs to the Character tab in the five-tab lobby.
+    if page.locator('[data-action="wardrobe"]').count()==0:
+        page.locator('[data-lobby-tab="hero"]').click()
+    if keyboard:
+        page.locator('[data-action="wardrobe"]').focus()
+        page.keyboard.press('Enter')
+    else:
+        page.locator('[data-action="wardrobe"]').click()
+
 def check(browser,engine,w,h,origin):
     touch=w<1000
     page=browser.new_page(viewport={'width':w,'height':h},has_touch=touch,is_mobile=touch,device_scale_factor=1)
     errors=[]
     page.on('pageerror',lambda e:errors.append(str(e)))
     page.goto(origin,wait_until='networkidle')
-    page.locator('[data-action="wardrobe"]').click()
+    page.locator('[data-lobby-tab="adventure"]').wait_for()
+    open_wardrobe(page)
     assert page.locator('.skin-card').count()==8
     assert page.locator('[data-action="preview"]').count()==8
     page.locator('[data-action="preview"][data-id="crimson"]').click()
@@ -20,24 +43,38 @@ def check(browser,engine,w,h,origin):
     assert box and box['x']>=-1 and box['y']>=-1 and box['x']+box['width']<=w+1 and box['y']+box['height']<=h+1,(engine,w,h,box)
     assert page.evaluate('document.documentElement.scrollWidth<=innerWidth+1')
     page.locator('[data-vfx-quality="medium"]').click()
-    assert page.locator('[data-vfx-quality="medium"]').get_attribute('aria-pressed')=='true'
+    expect(page.locator('[data-vfx-quality="medium"]')).to_have_attribute('aria-pressed','true')
     page.locator('[data-vfx-motion]').click()
-    assert page.locator('[data-vfx-motion]').get_attribute('aria-pressed')=='true'
-    saved=page.evaluate("JSON.parse(localStorage.getItem('arcana-survivor-v1'))")
+    expect(page.locator('[data-vfx-motion]')).to_have_attribute('aria-pressed','true')
+    saved=profile(page)
     assert saved['settings']=={'vfx':'medium','reduceMotion':True},saved['settings']
     page.locator('[data-vfx-skin="moon"]').click()
     assert page.locator('[data-vfx-equip="moon"]').count()==0
     page.locator('[data-vfx-close]').click()
     page.reload(wait_until='networkidle')
-    saved=page.evaluate("JSON.parse(localStorage.getItem('arcana-survivor-v1'))")
+    saved=profile(page)
     assert saved['settings']['vfx']=='medium'
-    # Simulate legitimate free achievement skin in the v1 saved profile.
-    page.evaluate("""() => {const key='arcana-survivor-v1';const p=JSON.parse(localStorage.getItem(key));p.owned.push('moon');localStorage.setItem(key,JSON.stringify(p))}""")
+    # A fixture-backed completed run earns the real free achievement through
+    # the reducer and transactional store. This is not a full combat playthrough.
+    page.evaluate("""async () => {
+      const {createCampaignStore}=await import('/src/campaignStore.js');
+      const store=createCampaignStore();
+      try {
+        const started=await store.dispatch({type:'START_RUN',day:new Date().toISOString().slice(0,10)});
+        if (!started.ok) throw Error('Achievement fixture start: '+started.code);
+        const finished=await store.dispatch({type:'FINISH_RUN',
+          runId:started.details.runId,stats:{kills:30,seconds:60,won:false}});
+        if (!finished.ok || !finished.state.profile.owned.includes('moon'))
+          throw Error('Achievement fixture finish: '+finished.code);
+      } finally {store.close();}
+    }""")
     page.reload(wait_until='networkidle')
-    page.locator('[data-action="wardrobe"]').click()
+    page.locator('[data-lobby-tab="adventure"]').wait_for()
+    open_wardrobe(page)
     page.locator('[data-action="preview"][data-id="moon"]').click()
     page.locator('[data-vfx-equip="moon"]').click()
-    stored=page.evaluate("JSON.parse(localStorage.getItem('arcana-survivor-v1'))")
+    page.locator('.vfx-showcase').wait_for(state='detached')
+    stored=profile(page)
     assert stored['skin']=='moon'
     assert page.locator('.vfx-showcase').count()==0
     page.locator('[data-action="home"]').click()
@@ -50,6 +87,7 @@ def keyboard_and_system_motion(browser,engine,w,h,origin):
     errors=[]
     page.on('pageerror',lambda e:errors.append(str(e)))
     page.goto(origin,wait_until='networkidle')
+    page.locator('[data-lobby-tab="adventure"]').wait_for()
     assert page.evaluate("matchMedia('(prefers-reduced-motion: reduce)').matches")
     # Count scheduled Canvas preview frames, not the game's own 'frame' callback.
     page.evaluate("""() => {
@@ -60,8 +98,7 @@ def keyboard_and_system_motion(browser,engine,w,h,origin):
         return native(fn);
       };
     }""")
-    page.locator('[data-action="wardrobe"]').focus()
-    page.keyboard.press('Enter')
+    open_wardrobe(page, keyboard=True)
     page.locator('[data-action="preview"][data-id="apprentice"]').focus()
     page.keyboard.press('Space')
     assert page.locator('.vfx-showcase').is_visible()

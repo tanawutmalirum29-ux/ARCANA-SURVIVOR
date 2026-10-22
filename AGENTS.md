@@ -16,5 +16,5 @@ This repository follows **the live generic governance** from:
 If central RULES.md and this document conflict, central RULES.md takes precedence. `APPOINTED` and a branch existing are **not proof of an autonomous running agent**.
 
 ## Current appointment board
-CEO #21. Game #22. VFX #23. Economy #24. Events #25. QA #26.
+Current campaign integration #61; Progression #62; Combat #63; Lobby #64; independent QA #65. Earlier #21–#26 appointments are historical.
 Separate branches are recorded in [docs/TEAM_EXECUTION.md](docs/TEAM_EXECUTION.md).
