@@ -92,6 +92,15 @@ EVALUATE = r'''async () => {
           heroId+'/'+name+' '+leg+' teleported mid-stride');
       assert(Math.abs(shooting.joints.weapon.rotation)<1.4,
         heroId+'/'+name+' weapon spun beyond reasonable wrist motion');
+      // Verify two-axis aim, particularly north and south shots while strafing.
+      const up=resolveHeroPose({heroId,tick:6,moving:true,
+        moveVector:{x,y},aimVector:{x:0,y:-1},lastAttackTick:6});
+      const down=resolveHeroPose({heroId,tick:6,moving:true,
+        moveVector:{x,y},aimVector:{x:0,y:1},lastAttackTick:6});
+      assert(up.joints.weapon.y<down.joints.weapon.y,
+        heroId+'/'+name+' vertical aim rendered identically');
+      assert(up.view.direction8===down.view.direction8,
+        heroId+'/'+name+' aiming should not mirror walking body');
       const c=document.createElement('canvas');c.width=80;c.height=80;
       assert(renderHeroActor(c.getContext('2d'),{heroId,pose:shooting,
         x:40,y:40,scale:.19}),heroId+'/'+name+' shooting canvas failed');
