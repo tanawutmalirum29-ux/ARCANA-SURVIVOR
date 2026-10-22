@@ -79,6 +79,10 @@ jobs:
         env:
           ARCANA_QA_ARTIFACTS: /tmp/arcana-hero-visual
         run: python scripts/hero_visual_qa.py
+      - name: Three-hero Walk8 Canvas contact sheets on Chromium and WebKit
+        env:
+          ARCANA_WALK8_ARTIFACTS: /tmp/arcana-walk8
+        run: python scripts/hero_walk8_qa.py
       - name: Campaign lobby, migration and real-tab atomic reward gate
         env:
           DEBUG: pw:browser
@@ -108,6 +112,7 @@ jobs:
             /tmp/arcana-qa-layout-*.png
             /tmp/arcana-lobby-*.png
             /tmp/arcana-hero-visual/**/*.png
+            /tmp/arcana-walk8/**/*.png
           if-no-files-found: ignore
           retention-days: 7
 
