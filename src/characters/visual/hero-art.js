@@ -85,8 +85,8 @@ export function heroActorSvg({heroId='mage',skin=null,pose=null,weaponStyle=null
   return '<svg class="lb-hero-art canonical-hero-art" data-hero="'+rig.id+
     '" data-signature="'+rig.signature+
     '" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 350" role="img" aria-label="'+
-    rig.name+' hero"><g class="canonical-hero-actor lb-art-float"'+actorTransform+'>'+
-    rig.parts.map(part => svgPart(part,palette,pose)).join('')+'</g></svg>';
+    rig.name+' hero"><g class="lb-art-float"><g class="canonical-hero-actor"'+actorTransform+'>'+
+    rig.parts.map(part => svgPart(part,palette,pose)).join('')+'</g></g></svg>';
 }
 export const renderHeroActorSvg = heroActorSvg;
 // Render (x,y) at actor center, in CSS pixels; scale=.17 gives a compact map hero.
