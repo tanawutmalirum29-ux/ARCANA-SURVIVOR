@@ -44,7 +44,7 @@ test('fresh and legacy campaigns preserve the one wallet, earned cosmetics and e
 test('strict validation fails closed for malformed wallets, IDs, bounds, duplicate equipment and unsupported stats', () => {
   const baseline = wealthy();
   const corruptions = [
-    s => s.schemaVersion = 3, s => s.revision = -1, s => s.profile.gold = NaN, s => s.profile.gold = Infinity,
+    s => s.schemaVersion = 4, s => s.progression.wardrobe.mage.equipped = 'ranger:base', s => s.revision = -1, s => s.profile.gold = NaN, s => s.profile.gold = Infinity,
     s => s.progression.materials.essence = -1, s => s.progression.materials.gems = 12,
     s => s.progression.inventory[0].level = 31, s => s.progression.inventory[0].rarity = 6,
     s => s.progression.inventory.push(copy(s.progression.inventory[0])), s => s.progression.equipment.armor = 'item-1',
@@ -68,7 +68,9 @@ test('all malformed and unaffordable commands preserve state identity and wallet
   reject(state, { type: 'SELECT_CHAPTER', chapterId: 'citadel' }, 'LOCKED');
   reject(state, { type: 'CLAIM_MISSION', missionId: 'first_run' }, 'NOT_READY');
   reject(state, { type: 'CLAIM_SEASON', tier: 1 }, 'NOT_READY');
-  reject(state, { type: 'UNLOCK_COSMETIC', cosmeticId: 'crimson' }, 'LOCKED');
+  reject(state, { type: 'UNLOCK_COSMETIC', heroId: 'mage', cosmeticId: 'mage:crimson' }, 'LOCKED');
+  reject(state, { type: 'UNLOCK_COSMETIC', cosmeticId: 'mage:ember' }, 'INVALID_COMMAND');
+  reject(state, { type: 'UNLOCK_COSMETIC', heroId: 'mage', cosmeticId: 'guardian:ember' }, 'INVALID_COMMAND');
 });
 
 test('run identity is durable, immutable while upgrading, and consumed exactly once after reload', () => {
@@ -256,14 +258,29 @@ test('daily challenge stats and seed are independent of bought upgrades and gran
 });
 
 test('cosmetics and settings never affect power, retain previews, and cannot forge paid ownership', () => {
-  let state = wealthy(); const before = deriveLoadout(state);
-  state = step(state, { type: 'UNLOCK_COSMETIC', cosmeticId: 'ember' }).state;
-  state = step(state, { type: 'EQUIP_COSMETIC', cosmeticId: 'ember' }).state;
+  let state = wealthy(); const before = deriveLoadout(state); const gold = state.profile.gold;
+  const owner = 'mage';
+  // The legacy 120-GOLD unlock is one transaction, granting each hero its own variant.
+  state = step(state, { type: 'UNLOCK_COSMETIC', heroId: owner, cosmeticId: 'mage:ember' }).state;
+  assert.equal(state.profile.gold, gold - 120);
+  for (const heroId of ['mage', 'guardian', 'ranger']) {
+    const slot = state.progression.wardrobe[heroId];
+    assert.ok(slot.owned.includes(`${heroId}:ember`));
+    assert.equal(slot.equipped, `${heroId}:base`);
+  }
+  state = step(state, { type: 'EQUIP_COSMETIC', heroId: owner, cosmeticId: 'mage:ember' }).state;
+  assert.equal(state.progression.wardrobe.mage.equipped, 'mage:ember');
+  assert.equal(state.progression.wardrobe.guardian.equipped, 'guardian:base');
+  assert.equal(state.progression.wardrobe.ranger.equipped, 'ranger:base');
   state = step(state, { type: 'PROFILE_SETTINGS', settings: { vfx: 'low', reduceMotion: true } }).state;
   assert.deepEqual(deriveLoadout(state), before);
-  reject(state, { type: 'UNLOCK_COSMETIC', cosmeticId: 'celestial' }, 'LOCKED');
-  reject(state, { type: 'EQUIP_COSMETIC', cosmeticId: 'crimson' }, 'NOT_OWNED');
-  assert.equal(state.profile.gold, 900000 - 120);
+  reject(state, { type: 'UNLOCK_COSMETIC', heroId: 'guardian', cosmeticId: 'guardian:ember' }, 'ALREADY_OWNED');
+  reject(state, { type: 'UNLOCK_COSMETIC', heroId: owner, cosmeticId: 'mage:celestial' }, 'LOCKED');
+  reject(state, { type: 'EQUIP_COSMETIC', heroId: owner, cosmeticId: 'mage:crimson' }, 'LOCKED');
+  reject(state, { type: 'EQUIP_COSMETIC', heroId: owner, cosmeticId: 'guardian:ember' }, 'INVALID_COMMAND');
+  reject(state, { type: 'EQUIP_COSMETIC', heroId: owner, cosmeticId: 'mage:moon' }, 'NOT_OWNED');
+  reject(state, { type: 'EQUIP_COSMETIC', cosmeticId: 'mage:base' }, 'INVALID_COMMAND');
+  assert.equal(state.profile.gold, gold - 120);
 });
 
 test('max levels, reset refunds and capped wallets cannot generate currency through loops', () => {
