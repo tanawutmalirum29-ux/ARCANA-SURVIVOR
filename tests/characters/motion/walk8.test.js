@@ -91,6 +91,17 @@ test('Canvas signed profile and backward cloak ordering follow SVG',()=>{
   }
 });
 
+test('near-vertical joystick noise does not flip N and S sprites',()=>{
+  for (const heroId of heroes) {
+    for (const y of [-1,1]) {
+      const samples=[-1e-7,0,1e-7].map(x =>
+        resolveHeroPose(inputs(heroId,{x,y},30)));
+      assert.equal(new Set(samples.map(p=>p.travel.direction8)).size,1);
+      assert.ok(samples.every(p=>p.travel.bodyScaleX>0));
+    }
+  }
+});
+
 test('nonfinite vectors and stationary attacks never synthesize steps or projectiles',()=>{
   const p=resolveHeroPose({heroId:'ranger',tick:50,moving:true,
     moveVector:{x:Infinity,y:NaN},targetPresent:false,lastAttackTick:null});
