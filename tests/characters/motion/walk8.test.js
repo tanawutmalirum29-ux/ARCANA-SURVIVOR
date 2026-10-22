@@ -178,6 +178,23 @@ test('weapon arm crosses body toward opposite-side targets without flipping feet
   }
 });
 
+test('opposite north/south shots have distinct weapon pitch and height without foot snapping',()=>{
+  for (const heroId of heroes) for (const [x,y] of vectors) {
+    const base=inputs(heroId,{x,y},180,{lastAttackTick:180});
+    const north=resolveHeroPose({...base,aimVector:{x:0,y:-1}});
+    const south=resolveHeroPose({...base,aimVector:{x:0,y:1}});
+    assert.equal(north.view.direction8,south.view.direction8);
+    assert.deepEqual(north.joints.leftLeg,south.joints.leftLeg);
+    assert.deepEqual(north.joints.rightLeg,south.joints.rightLeg);
+    assert.ok(north.joints.weapon.y<south.joints.weapon.y,
+      heroId+' must raise weapon for north instead of recycling south pose');
+    assert.notEqual(north.joints.rightArm.rotation,south.joints.rightArm.rotation,
+      heroId+' aim pitch must animate shoulder as well as weapon');
+    assert.equal(north.attackPhase,'release');
+    assert.equal(south.attackPhase,'release');
+  }
+});
+
 test('stationary confirmed attack may face its target and keeps exact shot tick',()=>{
   for (const heroId of heroes) {
     const idle={heroId,tick:75,moving:false,moveVector:{x:0,y:0},
