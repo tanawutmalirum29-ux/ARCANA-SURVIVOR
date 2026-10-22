@@ -13,9 +13,9 @@ const freeze = value => {
 
 const mage = {
   id: 'mage', name: 'Astra', signature: 'staff',
-  palette: { primary: '#99b7ff', shadow: '#6175b9', dark: '#121b3d',
+  palette: { primary: '#99c9ff', shadow: '#6175b9', dark: '#121b3d',
     inner: '#080f26', trim: '#dfcda4', metal: '#b3c0de', leather: '#a99069',
-    glow: '#99b7ff', face: '#080f26' },
+    glow: '#99c9ff', face: '#080f26' },
   // Named pivots are stable. ENGINEER-MOTION owns the numeric pose timelines.
   parts: [
     G('cape', 160, 160, [
@@ -63,9 +63,9 @@ const mage = {
 
 const guardian = {
   id: 'guardian', name: 'Orin', signature: 'sword-shield',
-  palette: { primary: '#a8bddd', shadow: '#5d719a', dark: '#1b2949',
+  palette: { primary: '#a0d9b1', shadow: '#5d719a', dark: '#1b2949',
     inner: '#0b142a', trim: '#e4c991', metal: '#cad8df', leather: '#8c6e54',
-    glow: '#c6ddff', face: '#101728' },
+    glow: '#a0d9b1', face: '#101728' },
   parts: [
     G('cape', 160, 158, [
       P('M143 102q-37 34-64 144l55 34 62-2 48-32q-30-111-65-143Z', 'inner', 'shadow'),
@@ -121,9 +121,9 @@ const guardian = {
 
 const ranger = {
   id: 'ranger', name: 'Lyra', signature: 'bow',
-  palette: { primary: '#9fe1c1', shadow: '#4a8a86', dark: '#173c46',
+  palette: { primary: '#ebb991', shadow: '#4a8a86', dark: '#173c46',
     inner: '#0c1c30', trim: '#dfc894', metal: '#b1ccd0', leather: '#9c7856',
-    glow: '#baf8df', face: '#0a1726' },
+    glow: '#ebb991', face: '#0a1726' },
   parts: [
     G('cape', 160, 156, [
       P('M151 88Q105 117 83 262l56 17 25-34 43 35 40-37Q203 106 169 88Z', 'inner', 'shadow'),
