@@ -1,5 +1,5 @@
 import {defaultProfile, SAVE_KEY} from './storage.js';
-import {createCampaign, validateCampaign, applyCommand} from './progression/index.js';
+import {createCampaign, validateCampaign, validateCampaignV2, migrateCampaignV2ToV3, applyCommand} from './progression/index.js';
 
 export const CAMPAIGN_DB = 'arcana-campaign-v2';
 export const CAMPAIGN_STORE = 'campaign';
@@ -102,23 +102,47 @@ export function createCampaignStore(options = {}) {
       request.onsuccess = () => {
         try {
           current = request.result;
-          let fresh = false;
+          let fresh = false, migrated = false;
           if (current === undefined) {
             const legacy = readLegacy();
             if (!legacy.ok) {result={...legacy,state:null}; return;}
             current = createCampaign(legacy.profile);
             if (!validateCampaign(current)) {result={ok:false,code:'INVALID_MIGRATION',state:null}; return;}
             fresh = true;
+          } else if (current?.schemaVersion === 2) {
+            // Versioned migration happens once inside this exact IDB transaction.
+            // Reject invalid v2/future data without overwriting the stored record.
+            if (!validateCampaignV2(current)) {
+              result={ok:false,code:'CORRUPT_SAVE',state:null}; return;
+            }
+            if (current.revision >= Number.MAX_SAFE_INTEGER - 1) {
+              result={ok:false,code:'LIMIT_REACHED',state:null}; return;
+            }
+            const upgraded = migrateCampaignV2ToV3(current);
+            if (!upgraded) {result={ok:false,code:'INVALID_MIGRATION',state:null}; return;}
+            upgraded.revision = current.revision + 1;
+            if (!validateCampaign(upgraded)) {result={ok:false,code:'INVALID_MIGRATION',state:null}; return;}
+            current = upgraded;
+            migrated = true;
           } else if (!validateCampaign(current)) {
-            result={ok:false, code:current?.schemaVersion !== 2 ? 'UNSUPPORTED_SAVE' : 'CORRUPT_SAVE', state:null};
+            result={ok:false, code:current?.schemaVersion !== 3 ? 'UNSUPPORTED_SAVE' : 'CORRUPT_SAVE', state:null};
             return;
           }
           if (expectedRevision !== undefined && current.revision !== expectedRevision) {
-            result={ok:false,code:'STALE_STATE',state:current}; return;
+            result={ok:false,code:'STALE_STATE',state:current};
+            if (migrated) objectStore.put(current,CAMPAIGN_KEY);
+            return;
           }
           if (command === null) {
-            result={ok:true,code:fresh?'MIGRATED':'LOADED',state:current};
-            if (fresh) objectStore.put(current,CAMPAIGN_KEY);
+            result={ok:true,code:fresh || migrated ? 'MIGRATED' : 'LOADED',state:current};
+            if (fresh || migrated) objectStore.put(current,CAMPAIGN_KEY);
+            return;
+          }
+          // A stale v2 client must reload; do not execute its command during
+          // a storage migration even when expectedRevision was omitted.
+          if (migrated) {
+            result={ok:false,code:'STALE_STATE',state:current};
+            objectStore.put(current,CAMPAIGN_KEY);
             return;
           }
           result = applyCommand(current, command);

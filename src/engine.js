@@ -1,6 +1,13 @@
 /* Deterministic, renderer-agnostic 60Hz simulation. No DOM, storage, network or cosmetic imports. */
 import { normalizeRunConfig, modeRules, bossIdentity } from './gameplay/run-config.js';
 import { updateSupports } from './gameplay/supports.js';
+
+// Presentation-only side channel. Never stored on the deterministic simulation,
+// serialized runConfig or save, and never consulted for combat outcomes.
+const playerFireEvents = new WeakMap();
+export function getLastPlayerFireEvent(game) {
+  return game && typeof game === 'object' ? playerFireEvents.get(game) || null : null;
+}
 export const STEP = 1 / 60;
 export const WORLD = { width: 2200, height: 1500 };
 export const BOSS_AT = 9 * 60;
@@ -216,8 +223,16 @@ function updateSkills(s) {
     const enemy = targetNearest(s, p);
     if (enemy) {
       const rangerBonus = configured && s.runConfig.heroId === 'ranger' && p.movingTicks >= 60 ? 1.12 : 1;
-      const bolt = shoot(s, p.x, p.y, unit(enemy.x - p.x, enemy.y - p.y), true, p.attack * (1 + (s.skills.bolt - 1) * .24) * rangerBonus * (configured ? p.skillMultiplier : 1),
+      const aim = unit(enemy.x - p.x, enemy.y - p.y);
+      const bolt = shoot(s, p.x, p.y, aim, true, p.attack * (1 + (s.skills.bolt - 1) * .24) * rangerBonus * (configured ? p.skillMultiplier : 1),
         configured && s.runConfig.weaponEffect === 'rapid' ? 517.5 : 450);
+      // Emit only for a successfully created *player* projectile; a full friendly
+      // shot cap or missing target cannot fabricate an attack animation. The event
+      // remains readable even if the projectile hits and vanishes this same tick.
+      if (bolt) playerFireEvents.set(s, Object.freeze({
+        tick: s.tick, shotId: bolt.id, originX: bolt.x, originY: bolt.y,
+        aimX: aim.x, aimY: aim.y, intervalTicks: p.fireDelay,
+      }));
       if (bolt && configured && s.runConfig.weaponEffect === 'pierce') { bolt.pierce = 2; bolt.hitIds = []; }
       p.fireTimer = p.fireDelay;
     }
