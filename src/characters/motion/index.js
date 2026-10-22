@@ -109,12 +109,6 @@ export function resolveHeroPose(input = {}) {
   // Absolute world aim angles here used to roll idle swords/staves/bows by 180°.
   // Only a modest local wrist tilt belongs in these part transforms.
   const aimTilt = active ? clamp(aim.x * .17, -.17, .17) : 0;
-  // Attack crosses the visible body if the enemy lies on the weapon's
-  // opposite side. This changes the arm/wrist arc, never stride or hit logic.
-  // Mirrored west-facing art reverses the local horizontal axis.
-  const localAimX = aim.x * (view.bodyScaleX < 0 ? -1 : 1);
-  const attackSide = active && localAimX < -.25 ? -1 : 1;
-  const attackGesture = gesture * attackSide;
   // While running, keep the entire silhouette anchored to the *walk* heading.
   // The old attack toggle instantly mirrored the whole actor for a shot behind
   // the hero, swapping legs and handedness in the middle of a stride.
@@ -130,6 +124,12 @@ export function resolveHeroPose(input = {}) {
     bodyScaleX: round(westView ? -profile : profile),
     backView: Boolean((walking || active) && viewY < -.55),
   };
+  // Attack crosses the visible body if the enemy lies on the weapon's
+  // opposite side. This changes the arm/wrist arc, never stride or hit logic.
+  // Mirrored west-facing art reverses the local horizontal axis.
+  const localAimX = aim.x * (view.bodyScaleX < 0 ? -1 : 1);
+  const attackSide = active && localAimX < -.25 ? -1 : 1;
+  const attackGesture = gesture * attackSide;
   const joints = {
     root: transform(), torso: transform(), head: transform(),
     robe: transform(), cape: transform(),
