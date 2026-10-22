@@ -105,6 +105,18 @@ export function resolveHeroPose(input = {}) {
   const brace = phase === 'windup' ? t : phase === 'charge' ? 1
     : phase === 'release' ? 1 - t * .4 : phase === 'recover' ? (1 - t) * .6 : 0;
   const attackWeight = active ? (phase === 'recover' ? 1 - t : t || 1) : 0;
+  // Travel controls footfall even while firing. The visible torso/silhouette
+  // turns to a *confirmed* attack aim during its pose, allowing strafing shots.
+  const viewDirection = active ? direction8 : travel.direction8;
+  const viewX = active ? aim.x : travel.x;
+  const viewY = active ? aim.y : travel.y;
+  const profile = 1 - .24*Math.abs(viewX);
+  const westView = viewDirection==='W'||viewDirection==='SW'||viewDirection==='NW';
+  const view = {
+    direction8: viewDirection,
+    bodyScaleX: round(westView ? -profile : profile),
+    backView: Boolean((walking || active) && viewY < -.55),
+  };
   const joints = {
     root: transform(), torso: transform(), head: transform(),
     robe: transform(), cape: transform(),
@@ -192,7 +204,7 @@ export function resolveHeroPose(input = {}) {
     attackProgress: round(attack.progress), attackWeight: round(attackWeight),
     tick, fireIntervalTicks: attack.interval,
     facing: {angle: round(angle), direction8, x: round(aim.x), y: round(aim.y)},
-    joints, fx, travel,
+    joints, fx, travel, view,
     reducedMotion: reduced,
   };
 }
