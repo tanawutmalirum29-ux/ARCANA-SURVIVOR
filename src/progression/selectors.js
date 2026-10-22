@@ -82,7 +82,7 @@ export function getCommandCost(state, command) {
     case 'UPGRADE_RESEARCH': { const next = (p.research[command.researchId] || 0) + 1; return { gold: 50 * next, research: 5 * next }; }
     case 'UPGRADE_BUILDING': { const next = (p.homestead.buildings[command.buildingId] || 0) + 1; return { gold: 70 * next, research: 5 * next }; }
     case 'BUY_OFFER': return clone(byId(SHOP_OFFERS, command.offerId)?.cost || {});
-    case 'UNLOCK_COSMETIC': return command.cosmeticId === 'ember' ? { gold: 120 } : {};
+    case 'UNLOCK_COSMETIC': return typeof command.cosmeticId === 'string' && command.cosmeticId.endsWith(':ember') ? { gold: 120 } : {};
     default: return {};
   }
 }
