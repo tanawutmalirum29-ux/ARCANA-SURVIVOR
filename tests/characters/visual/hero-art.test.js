@@ -116,3 +116,25 @@ test('no Canvas Path2D is a safe, non-throwing SVG fallback signal', () => {
     if (old!==undefined) globalThis.Path2D=old;
   }
 });
+
+test('Motion #69 pose.joints map to rig parts and release hides Lyra arrow', () => {
+  const pose={joints:{
+    root:{x:1,y:-3,rotation:.1},
+    leftArm:{x:-2,y:4,rotation:.5},
+    rightLeg:{x:3,y:-1,rotation:-.2},
+    shield:{x:2,y:-2,rotation:.4},
+  },fx:{arrowVisible:false,bowDraw:0}};
+  const orin=heroActorSvg({heroId:'guardian',pose});
+  assert.match(orin,/class="canonical-hero-actor" transform=/);
+  assert.match(orin,/data-actor-part="armLeft" transform=/);
+  assert.match(orin,/data-actor-part="legRight" transform=/);
+  assert.match(orin,/data-actor-part="offhand" transform=/);
+  const lyra=heroActorSvg({heroId:'ranger',pose});
+  assert.match(lyra,/data-actor-part="arrow" visibility="hidden"/);
+  const windup=heroActorSvg({heroId:'ranger',pose:{
+    ...pose,fx:{arrowVisible:true,bowDraw:1}
+  }});
+  assert.match(windup,/data-actor-part="arrow" transform=/);
+  assert.notEqual(windup,lyra);
+  assert.ok(getCanonicalHeroArt('mage').parts.some(part=>part.name==='robe'));
+});
