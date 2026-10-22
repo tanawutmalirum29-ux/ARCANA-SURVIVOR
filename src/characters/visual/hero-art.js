@@ -14,7 +14,7 @@ const color = n => typeof n === 'string' && COLOR.test(n) ? n : null;
 const number = n => String(Number(n.toFixed(3)));
 
 export function getCanonicalHeroArt(heroId = 'mage') {
-  return HERO_RIGS[heroId] || HERO_RIGS.mage;
+  return Object.hasOwn(HERO_RIGS, heroId) ? HERO_RIGS[heroId] : HERO_RIGS.mage;
 }
 // Skin is presentation-only. Gameplay weaponId is NOT a visual weapon class:
 // each hero permanently retains a recognisable signature staff, sword+shield or bow.
@@ -28,10 +28,11 @@ export function resolveHeroPalette(heroId = 'mage', skin = null, weaponStyle = n
   const trim = color(s.trim) || rig.palette.trim;
   const metal = color(w.metal) || color(s.metal) || rig.palette.metal;
   const leather = color(w.leather) || rig.palette.leather;
-  const key = [rig.id,primary,glow,shadow,trim,metal,leather].join('|');
+  const weaponGlow = color(w.glow) || glow;
+  const key = [rig.id,primary,glow,shadow,trim,metal,leather,weaponGlow].join('|');
   if (palettes.has(key)) return palettes.get(key);
   const palette = Object.freeze({ ...rig.palette, primary, glow, shadow, trim, metal,
-    leather, weaponGlow: color(w.glow) || glow });
+    leather, weaponGlow });
   if (palettes.size >= 64) palettes.clear();
   palettes.set(key, palette);
   return palette;
