@@ -1,13 +1,9 @@
 import {defaultProfile, SAVE_KEY} from './storage.js';
-import {createCampaign, validateCampaign, applyCommand} from './progression/index.js';
+import {createCampaign, validateCampaign, validateCampaignV2, migrateCampaignV2ToV3, validateLegacyProfile, applyCommand} from './progression/index.js';
 
 export const CAMPAIGN_DB = 'arcana-campaign-v2';
 export const CAMPAIGN_STORE = 'campaign';
 export const CAMPAIGN_KEY = 'profile';
-
-const plain = value => value !== null && typeof value === 'object' && !Array.isArray(value);
-const count = value => Number.isSafeInteger(value) && value >= 0 && value <= 999999;
-const knownCosmetics = new Set(['apprentice','ember','moon']);
 
 // Missing data is the only case where defaults are permitted. An unreadable,
 // future, or malformed save is preserved in place and cannot become a grant.
@@ -16,16 +12,11 @@ export function migrateLegacyBytes(bytes) {
   if (typeof bytes !== 'string') return {ok:false, code:'LEGACY_READ_FAILED'};
   let data;
   try {data = JSON.parse(bytes);} catch {return {ok:false, code:'LEGACY_CORRUPT'};}
-  if (!plain(data)) return {ok:false, code:'LEGACY_CORRUPT'};
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return {ok:false, code:'LEGACY_CORRUPT'};
   if (data.version !== 1) return {ok:false, code:'LEGACY_UNSUPPORTED'};
-  if (!['gold','runs','totalKills','bestSeconds'].every(key => count(data[key])) ||
-      !Array.isArray(data.owned) || !data.owned.includes('apprentice') ||
-      data.owned.some(id => typeof id !== 'string' || !knownCosmetics.has(id)) ||
-      !data.owned.includes(data.skin) || !plain(data.settings) ||
-      !['low','medium','high'].includes(data.settings.vfx) ||
-      typeof data.settings.reduceMotion !== 'boolean') {
-    return {ok:false, code:'LEGACY_CORRUPT'};
-  }
+  // Historical unknown fields/duplicates must NOT be silently discarded.
+  // The domain validator enforces exact v1 shape, settings and earned IDs.
+  if (!validateLegacyProfile(data)) return {ok:false, code:'LEGACY_CORRUPT'};
   return {ok:true, source:'v1', profile:{
     version:1, gold:data.gold, runs:data.runs, totalKills:data.totalKills,
     bestSeconds:data.bestSeconds, skin:data.skin, owned:[...new Set(data.owned)],
@@ -102,23 +93,47 @@ export function createCampaignStore(options = {}) {
       request.onsuccess = () => {
         try {
           current = request.result;
-          let fresh = false;
+          let fresh = false, migrated = false;
           if (current === undefined) {
             const legacy = readLegacy();
             if (!legacy.ok) {result={...legacy,state:null}; return;}
             current = createCampaign(legacy.profile);
             if (!validateCampaign(current)) {result={ok:false,code:'INVALID_MIGRATION',state:null}; return;}
             fresh = true;
+          } else if (current?.schemaVersion === 2) {
+            // Versioned migration happens once inside this exact IDB transaction.
+            // Reject invalid v2/future data without overwriting the stored record.
+            if (!validateCampaignV2(current)) {
+              result={ok:false,code:'CORRUPT_SAVE',state:null}; return;
+            }
+            if (current.revision >= Number.MAX_SAFE_INTEGER - 1) {
+              result={ok:false,code:'LIMIT_REACHED',state:null}; return;
+            }
+            const upgraded = migrateCampaignV2ToV3(current);
+            if (!upgraded) {result={ok:false,code:'INVALID_MIGRATION',state:null}; return;}
+            upgraded.revision = current.revision + 1;
+            if (!validateCampaign(upgraded)) {result={ok:false,code:'INVALID_MIGRATION',state:null}; return;}
+            current = upgraded;
+            migrated = true;
           } else if (!validateCampaign(current)) {
-            result={ok:false, code:current?.schemaVersion !== 2 ? 'UNSUPPORTED_SAVE' : 'CORRUPT_SAVE', state:null};
+            result={ok:false, code:current?.schemaVersion !== 3 ? 'UNSUPPORTED_SAVE' : 'CORRUPT_SAVE', state:null};
             return;
           }
           if (expectedRevision !== undefined && current.revision !== expectedRevision) {
-            result={ok:false,code:'STALE_STATE',state:current}; return;
+            result={ok:false,code:'STALE_STATE',state:current};
+            if (migrated) objectStore.put(current,CAMPAIGN_KEY);
+            return;
           }
           if (command === null) {
-            result={ok:true,code:fresh?'MIGRATED':'LOADED',state:current};
-            if (fresh) objectStore.put(current,CAMPAIGN_KEY);
+            result={ok:true,code:fresh || migrated ? 'MIGRATED' : 'LOADED',state:current};
+            if (fresh || migrated) objectStore.put(current,CAMPAIGN_KEY);
+            return;
+          }
+          // A stale v2 client must reload; do not execute its command during
+          // a storage migration even when expectedRevision was omitted.
+          if (migrated) {
+            result={ok:false,code:'STALE_STATE',state:current};
+            objectStore.put(current,CAMPAIGN_KEY);
             return;
           }
           result = applyCommand(current, command);
