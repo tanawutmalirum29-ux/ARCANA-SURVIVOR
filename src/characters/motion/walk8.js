@@ -25,7 +25,10 @@ export function resolveEightWayWalk({heroId='mage',tick=0,moving=false,moveVecto
   // Signed silhouette width makes west/east visibly different without changing
   // the rig, palette, equipment identity or the attack-facing direction.
   const profile = walking ? 1 - .24 * Math.abs(x) : 1;
-  const bodyScaleX = walking && x < -1e-9 ? -profile : profile;
+  // Follow the quantized facing rather than noisy near-zero analog X;
+  // a near-vertical stick must not flip the whole actor each tick.
+  const westFacing = direction8 === 'SW' || direction8 === 'W' || direction8 === 'NW';
+  const bodyScaleX = walking && westFacing ? -profile : profile;
   const backView = walking && y < -.55;
   const t = Math.max(0, Math.floor(finite(tick))) % style.period;
   const phase = t * TAU/style.period;
