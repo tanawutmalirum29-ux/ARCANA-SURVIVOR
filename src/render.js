@@ -61,6 +61,9 @@ function playerAvatar(ctx,x,y,profile,s,t,options){
    const hero=s.runConfig.heroId;
    if(hero==='guardian'){
      ctx.fillStyle='#758fb3';ctx.strokeStyle=GOLD;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(-25,-7);ctx.lineTo(-10,-7);ctx.lineTo(-10,7);ctx.lineTo(-17,16);ctx.lineTo(-25,7);ctx.closePath();ctx.fill();ctx.stroke();
+     // Older canvases without Path2D still retain Orin's sword silhouette.
+     ctx.strokeStyle='#e3eaf3';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(13,17);ctx.lineTo(27,-18);ctx.stroke();
+     ctx.strokeStyle=GOLD;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(9,7);ctx.lineTo(19,11);ctx.stroke();
    }else if(hero==='ranger'){
      ctx.strokeStyle='#a8e1b7';ctx.lineWidth=3;ctx.beginPath();ctx.arc(19,1,16,-1.25,1.25);ctx.stroke();ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(24,-14);ctx.lineTo(24,16);ctx.stroke();
    }
