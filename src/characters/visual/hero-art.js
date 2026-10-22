@@ -7,6 +7,7 @@ export const HERO_ART_PARTS = Object.freeze(['cape', 'legLeft', 'legRight', 'tor
   'weapon', 'armLeft', 'offhand', 'armRight', 'head', 'arrow', 'robe']);
 const paths = new Map(); // Compile each Path2D only once.
 const palettes = new Map();
+const backOrders = new Map(); // Fixed hero part order; calculated once, not each frame.
 const COLOR = /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
 const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
 const finite = (n, fallback = 0) => Number.isFinite(n) ? n : fallback;
@@ -60,6 +61,24 @@ function rootFor(pose) {
 const arrowVisible = pose => !pose?.fx || pose.fx.arrowVisible !== false;
 const bobFor = pose => clamp(finite(pose?.bob),-30,30);
 const swatch = (name,palette) => palette[name] || 'none';
+// Directional silhouette is shared by SVG and Canvas. No mutation to the rig.
+// North-facing cloak sits in front of the torso; equipment remains visible.
+function partsFor(rig,pose) {
+  if (!pose?.travel?.backView) return rig.parts;
+  if (backOrders.has(rig.id)) return backOrders.get(rig.id);
+  const accessory = new Set(['weapon','offhand','arrow']);
+  const ordered = Object.freeze([
+    ...rig.parts.filter(p=>p.name!=='cape'&&!accessory.has(p.name)),
+    ...rig.parts.filter(p=>p.name==='cape'),
+    ...rig.parts.filter(p=>accessory.has(p.name)),
+  ]);
+  backOrders.set(rig.id,ordered);
+  return ordered;
+}
+function bodyScale(pose) {
+  const s=finite(pose?.travel?.bodyScaleX,1);
+  return s===0 ? 1 : Math.sign(s)*clamp(Math.abs(s),.65,1);
+}
 function svgPart(part,palette,pose) {
   if (part.name === 'arrow' && !arrowVisible(pose)) return '<g data-actor-part="arrow" visibility="hidden"/>';
   const { rotation,dx,dy } = poseFor(pose,part.name);
@@ -79,14 +98,18 @@ export function heroActorSvg({heroId='mage',skin=null,pose=null,weaponStyle=null
   const palette = resolveHeroPalette(rig.id,skin,weaponStyle);
   const bob = bobFor(pose);
   const root = rootFor(pose);
-  const actorTransform = (root.dx || root.dy || root.rotation || bob) ?
+  const side = bodyScale(pose);
+  const sideTransform = side===1 ? '' :
+    ' translate(160 185) scale('+number(side)+' 1) translate(-160 -185)';
+  const actorTransform = (root.dx || root.dy || root.rotation || bob || side!==1) ?
     ' transform="translate('+number(root.dx)+' '+number(root.dy)+') rotate('+
-    number(root.rotation*180/Math.PI)+' 160 185) translate(0 '+number(bob)+')"' : '';
+    number(root.rotation*180/Math.PI)+' 160 185)'+sideTransform+
+    ' translate(0 '+number(bob)+')"' : '';
   return '<svg class="lb-hero-art canonical-hero-art" data-hero="'+rig.id+
     '" data-signature="'+rig.signature+
     '" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 350" role="img" aria-label="'+
     rig.name+' hero"><g class="canonical-hero-actor"'+actorTransform+'>'+
-    rig.parts.map(part => svgPart(part,palette,pose)).join('')+'</g></svg>';
+    partsFor(rig,pose).map(part => svgPart(part,palette,pose)).join('')+'</g></svg>';
 }
 export const renderHeroActorSvg = heroActorSvg;
 // Render (x,y) at actor center, in CSS pixels; scale=.17 gives a compact map hero.
@@ -105,8 +128,9 @@ export function renderHeroActor(ctx,{heroId='mage',skin=null,pose=null,
     const root = rootFor(pose);
     ctx.translate(root.dx,root.dy);
     ctx.rotate(root.rotation);
+    ctx.scale(bodyScale(pose),1);
     ctx.translate(-HERO_ART_VIEWBOX.anchorX,-HERO_ART_VIEWBOX.anchorY+bobFor(pose));
-    for (const part of rig.parts) {
+    for (const part of partsFor(rig,pose)) {
       if (part.name === 'arrow' && !arrowVisible(pose)) continue;
       const {x:px,y:py} = part.pivot;
       const {rotation,dx,dy} = poseFor(pose,part.name);
