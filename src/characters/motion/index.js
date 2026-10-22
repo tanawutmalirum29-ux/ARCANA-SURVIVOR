@@ -105,11 +105,18 @@ export function resolveHeroPose(input = {}) {
   const brace = phase === 'windup' ? t : phase === 'charge' ? 1
     : phase === 'release' ? 1 - t * .4 : phase === 'recover' ? (1 - t) * .6 : 0;
   const attackWeight = active ? (phase === 'recover' ? 1 - t : t || 1) : 0;
-  // Travel controls footfall even while firing. The visible torso/silhouette
-  // turns to a *confirmed* attack aim during its pose, allowing strafing shots.
-  const viewDirection = active ? direction8 : travel.direction8;
-  const viewX = active ? aim.x : travel.x;
-  const viewY = active ? aim.y : travel.y;
+  // Canonical rig weapons are already upright in local actor coordinates.
+  // Absolute world aim angles here used to roll idle swords/staves/bows by 180°.
+  // Only a modest local wrist tilt belongs in these part transforms.
+  const aimTilt = active ? clamp(aim.x * .17, -.17, .17) : 0;
+  // While running, keep the entire silhouette anchored to the *walk* heading.
+  // The old attack toggle instantly mirrored the whole actor for a shot behind
+  // the hero, swapping legs and handedness in the middle of a stride.
+  // Stationary targeting may turn the actor, but must not reverse moving feet.
+  const aimingInPlace = !walking && (active || targetPresent);
+  const viewDirection = aimingInPlace ? direction8 : travel.direction8;
+  const viewX = aimingInPlace ? aim.x : travel.x;
+  const viewY = aimingInPlace ? aim.y : travel.y;
   const profile = 1 - .24*Math.abs(viewX);
   const westView = viewDirection==='W'||viewDirection==='SW'||viewDirection==='NW';
   const view = {
@@ -137,7 +144,7 @@ export function resolveHeroPose(input = {}) {
     joints.rightLeg = transform(step * .33, 0, .13 * walkWave);
     joints.leftArm = transform(0, -.3 * idleWave, .09 * idleWave - .12 * walkWave + gesture * .22);
     joints.rightArm = transform(0, -Math.abs(gesture) * 2.4, -.06 * idleWave + gesture * .6);
-    joints.weapon = transform(0, -Math.abs(gesture) * 3.7, angle + Math.PI / 2 + gesture * .58);
+    joints.weapon = transform(0, -Math.abs(gesture) * 3.7, aimTilt + gesture * .58);
     fx.staffGlow = phase === 'charge' ? .4 + .6 * t : phase === 'release' ? 1 - t * .3 : 0;
   } else if (heroId === 'guardian') {
     // Deliberately heavy footfall. Sword shoulder winds up independently of legs.
@@ -150,7 +157,7 @@ export function resolveHeroPose(input = {}) {
     joints.rightLeg = transform(step * .58, Math.max(0, -alternate) * -1.9, .25 * walkWave);
     joints.leftArm = transform(-brace * 1.4, -brace * 1.9, -.12 * walkWave - brace * .31);
     joints.rightArm = transform(0, -Math.abs(gesture) * 2.5, .1 * walkWave + gesture * .92);
-    joints.weapon = transform(0, -Math.abs(gesture) * 2.5, angle + Math.PI / 2 + gesture * 1.06);
+    joints.weapon = transform(0, -Math.abs(gesture) * 2.5, aimTilt + gesture * .82);
     joints.shield = transform(-brace * 1.4, -brace * 1.4, -brace * .28);
     fx.bladeArc = phase === 'release' ? 1 - t : 0;
     fx.shieldBrace = brace;
@@ -164,7 +171,7 @@ export function resolveHeroPose(input = {}) {
     joints.rightLeg = transform(step * .7, Math.max(0, -alternate) * -1.4, .24 * walkWave);
     joints.leftArm = transform(0, -brace * 1.6, -.07 * walkWave + brace * .32);
     joints.rightArm = transform(-brace * 2.6, -brace * 1.2, .09 * walkWave - brace * .54);
-    joints.weapon = transform(-brace * .6, -brace * 1.5, angle + Math.PI / 2 + gesture * .16);
+    joints.weapon = transform(-brace * .6, -brace * 1.5, aimTilt + gesture * .16);
     fx.bowDraw = phase === 'windup' ? t * .7 : phase === 'charge' ? .7 + .3 * t
       : phase === 'release' ? 0 : phase === 'recover' ? 0 : 0;
     fx.arrowVisible = phase === 'windup' || phase === 'charge';
@@ -197,6 +204,22 @@ export function resolveHeroPose(input = {}) {
         joints.shield.rotation+travel.armSwing*.24);
     }
   }
+
+  // Weapon art has a different named pivot from the sword/staff/bow arm.
+  // Follow the shoulder's arc (as well as its translation) so hands and
+  // weapons travel together on strides, attacks and recoveries.
+  // This is a visual-only calculation, never feeds projectile trajectories.
+  const hand = joints.rightArm;
+  const offset = heroId === 'ranger' ? {x: 29, y: -5}
+    : heroId === 'guardian' ? {x: 33, y: -3} : {x: 23, y: 8};
+  const wrist = hand.rotation * .72;
+  const wristX = offset.x * (Math.cos(wrist)-1) - offset.y * Math.sin(wrist);
+  const wristY = offset.x * Math.sin(wrist) + offset.y * (Math.cos(wrist)-1);
+  joints.weapon = transform(
+    joints.weapon.x + hand.x + wristX,
+    joints.weapon.y + hand.y + wristY,
+    joints.weapon.rotation + hand.rotation * .16
+  );
 
   return {
     heroId, state: active ? 'attack' : walking ? 'walk' : 'idle',
