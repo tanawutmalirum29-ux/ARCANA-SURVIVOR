@@ -2,6 +2,9 @@ import { WORLD } from './engine.js';
 import { COSMETICS } from './storage.js';
 import { visualBudget } from './visual/presentation.js';
 import { paintBossWarning } from './visual/warnings.js';
+import {getSkinDefinition} from './characters/skins/index.js';
+import {renderHeroActor} from './characters/visual/hero-art.js';
+import {resolveHeroPose} from './characters/motion/index.js';
 
 const GOLD = '#ebd8a1';
 const PI2 = Math.PI * 2;
@@ -61,8 +64,10 @@ function playerAvatar(ctx,x,y,profile,s,t,options){
    }else if(hero==='ranger'){
      ctx.strokeStyle='#a8e1b7';ctx.lineWidth=3;ctx.beginPath();ctx.arc(19,1,16,-1.25,1.25);ctx.stroke();ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(24,-14);ctx.lineTo(24,16);ctx.stroke();
    }
+   if(hero==='mage'){
    const staffColor={piercing_staff:'#a7e8f2',gale_scepter:'#9fe4b8'}[s.runConfig.weaponId]||skin.projectile;
    ctx.strokeStyle=GOLD;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(19,19);ctx.lineTo(25,-16);ctx.stroke();diamond(ctx,25,-18,7,staffColor);
+   }
    if(s.player.shield>0)ring(ctx,0,0,31,'#94dafa',2);
  }
  ctx.restore();
@@ -86,8 +91,10 @@ function enemyAvatar(ctx,e,t,reducedMotion=false){
  if(e.hp<e.maxHp){ctx.fillStyle='#1d233c';ctx.fillRect(-e.radius,-e.radius-15,e.radius*2,4);ctx.fillStyle='#e9a6c1';ctx.fillRect(-e.radius,-e.radius-15,e.radius*2*(e.hp/e.maxHp),4)}
  ctx.restore();
 }
-export function drawScene(canvas,ctx,s,profile,time=0){
- const skin=COSMETICS.find(x=>x.id===profile.skin)||COSMETICS[0];
+export function drawScene(canvas,ctx,s,profile,time=0,visual={}){
+ const heroId=visual.appearance?.heroId||s.runConfig?.heroId||'mage';
+ const selected=getSkinDefinition(visual.appearance?.skinId);
+ const skin=selected?.heroId===heroId?selected:(COSMETICS.find(x=>x.id===profile.skin)||COSMETICS[0]);
  const reduceMotion=Boolean(profile.settings?.reduceMotion || (typeof window.matchMedia==='function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches));
  const options=visualBudget(profile.settings?.vfx || 'medium',reduceMotion);
  const bounds=canvas.getBoundingClientRect(),w=bounds.width||360,h=bounds.height||640;
@@ -113,7 +120,18 @@ export function drawScene(canvas,ctx,s,profile,time=0){
  }
  if(s.skills.orbit){for(let i=0;i<3;i++){const a=i*PI2/3+(options.reducedMotion?0:time*2);const r=(70+s.skills.orbit*5)*(s.runConfig?.modifiers.orbitRadius||1);const x=s.player.x+Math.cos(a)*r,y=s.player.y+Math.sin(a)*r;glow(ctx,x,y,'#ff9365',24,.45*options.glow);diamond(ctx,x,y,10,'#ffbe83')}}
  for(const actor of s.supportActors||[]){const color={wisp:'#b5d5ff',sprite:'#b6e6c4',owl:'#ecd9ac'}[actor.id]||'#d9c5f3';glow(ctx,actor.x,actor.y,color,24,.3*options.glow);ellipse(ctx,actor.x,actor.y+6,10,4,'#0005');diamond(ctx,actor.x,actor.y,10,color);diamond(ctx,actor.x,actor.y,4,'#fff9ec')}
- playerAvatar(ctx,s.player.x,s.player.y,profile,s,time,options);
+ const m=visual.movement||{x:0,y:0};
+ const shot=visual.fireEvent;
+ const enemy=s.enemies.find(e=>e.hp>0&&Math.hypot(e.x-s.player.x,e.y-s.player.y)<440);
+ const pose=resolveHeroPose({heroId,tick:s.tick,moving:Math.hypot(m.x,m.y)>.001,moveVector:m,
+  aimVector:shot?{x:shot.aimX,y:shot.aimY}:enemy?{x:enemy.x-s.player.x,y:enemy.y-s.player.y}:m,
+  lastAttackTick:shot?.tick??null,attackIntervalTicks:s.player.fireDelay,
+  targetPresent:Boolean(enemy),reducedMotion:options.reducedMotion});
+ ctx.save();ctx.globalAlpha=options.reducedMotion?1:(s.player.invuln>0&&s.player.invuln%8<4?.45:1);
+ const hasRig=renderHeroActor(ctx,{heroId,skin,pose,x:s.player.x,y:s.player.y,scale:.20});
+ if(hasRig&&s.player.shield>0)ring(ctx,s.player.x,s.player.y,31,'#94dafa',2);
+ ctx.restore();
+ if(!hasRig)playerAvatar(ctx,s.player.x,s.player.y,profile,s,time,options);
  ctx.restore();
  const distantBoss=s.enemies.find(enemy=>enemy.type==='boss'&&enemy.hp>0&&(enemy.x<cam.x+20||enemy.x>cam.x+w-20||enemy.y<cam.y+20||enemy.y>cam.y+h-20));
  if(distantBoss){

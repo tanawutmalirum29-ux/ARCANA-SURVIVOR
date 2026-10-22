@@ -1,6 +1,8 @@
 import { COSMETICS } from '../storage.js';
 import { createFrameProfiler, getSkinGallery, getSkinPreview, normalizeQuality, visualBudget } from './presentation.js';
 import { paintSkinPreview } from './paint.js';
+import {renderHeroActor} from '../characters/visual/hero-art.js';
+import {resolveHeroPose} from '../characters/motion/index.js';
 
 const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, c => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
@@ -86,7 +88,14 @@ export function mountSkinShowcase({
     const skin = getSkinPreview(selectedId, profile, catalog);
     const began = performance.now();
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    paintSkinPreview(ctx, skin, { width, height, time: now / 1000, quality: currentQuality, reducedMotion: reduce });
+    const heroId=catalog.find(entry=>entry.id===selectedId)?.heroId;
+    if(heroId&&typeof Path2D==='function'){
+      ctx.clearRect(0,0,width,height);
+      ctx.fillStyle='#131c2e';ctx.fillRect(0,0,width,height);
+      const pose=resolveHeroPose({heroId,tick:reduce?0:Math.floor(now/1000*60),moving:false,reducedMotion:reduce});
+      const art=catalog.find(entry=>entry.id===selectedId);
+      renderHeroActor(ctx,{heroId,skin:art,pose,x:width/2,y:height*.58,scale:Math.min(width/340,height/310)*.7});
+    } else paintSkinPreview(ctx, skin, { width, height, time: now / 1000, quality: currentQuality, reducedMotion: reduce });
     profiler.add(performance.now() - began);
     frame++;
     if (frame % 60 === 0) {
