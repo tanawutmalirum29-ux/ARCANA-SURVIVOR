@@ -4,7 +4,7 @@ import { HERO_RIGS, HERO_IDS } from './rigs.js';
 export { HERO_IDS };
 export const HERO_ART_VIEWBOX = Object.freeze({ width: 320, height: 350, anchorX: 160, anchorY: 185 });
 export const HERO_ART_PARTS = Object.freeze(['cape', 'legLeft', 'legRight', 'torso',
-  'weapon', 'armLeft', 'offhand', 'armRight', 'head', 'arrow']);
+  'weapon', 'armLeft', 'offhand', 'armRight', 'head', 'arrow', 'robe']);
 const paths = new Map(); // Compile each Path2D only once.
 const palettes = new Map();
 const COLOR = /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
@@ -37,15 +37,31 @@ export function resolveHeroPalette(heroId = 'mage', skin = null, weaponStyle = n
   palettes.set(key, palette);
   return palette;
 }
-// ENGINEER-MOTION owns timelines. rotation in radians, dx/dy/bob in source pixels.
+// ENGINEER-MOTION #69 uses pose.joints with x/y/rotation in local actor units.
+// Keep the original named-part dx/dy input too for preview/static client callers.
+const MOTION_JOINTS = Object.freeze({
+  legLeft: 'leftLeg', legRight: 'rightLeg',
+  armLeft: 'leftArm', armRight: 'rightArm', offhand: 'shield', arrow: 'weapon',
+});
 function poseFor(pose, name) {
-  const v = pose?.parts?.[name] ?? pose?.[name];
+  const joint = MOTION_JOINTS[name] || name;
+  const v = pose?.parts?.[name] ?? pose?.[name] ?? pose?.joints?.[joint];
+  const bowDraw = name === 'arrow' ? clamp(finite(pose?.fx?.bowDraw),0,1) : 0;
   return { rotation: clamp(finite(v?.rotation),-Math.PI,Math.PI),
-    dx: clamp(finite(v?.dx),-80,80), dy: clamp(finite(v?.dy),-80,80) };
+    dx: clamp(finite(v?.dx ?? v?.x),-80,80)-bowDraw*13,
+    dy: clamp(finite(v?.dy ?? v?.y),-80,80) };
 }
+function rootFor(pose) {
+  const v = pose?.joints?.root ?? pose?.root;
+  return { rotation: clamp(finite(v?.rotation),-Math.PI,Math.PI),
+    dx: clamp(finite(v?.dx ?? v?.x),-80,80),
+    dy: clamp(finite(v?.dy ?? v?.y),-80,80) };
+}
+const arrowVisible = pose => !pose?.fx || pose.fx.arrowVisible !== false;
 const bobFor = pose => clamp(finite(pose?.bob),-30,30);
 const swatch = (name,palette) => palette[name] || 'none';
 function svgPart(part,palette,pose) {
+  if (part.name === 'arrow' && !arrowVisible(pose)) return '<g data-actor-part="arrow" visibility="hidden"/>';
   const { rotation,dx,dy } = poseFor(pose,part.name);
   const { x,y } = part.pivot;
   const transform = (rotation || dx || dy) ?
@@ -62,11 +78,14 @@ export function heroActorSvg({heroId='mage',skin=null,pose=null,weaponStyle=null
   const rig = getCanonicalHeroArt(heroId);
   const palette = resolveHeroPalette(rig.id,skin,weaponStyle);
   const bob = bobFor(pose);
+  const root = rootFor(pose);
+  const actorTransform = (root.dx || root.dy || root.rotation || bob) ?
+    ' transform="translate('+number(root.dx)+' '+number(root.dy)+') rotate('+
+    number(root.rotation*180/Math.PI)+' 160 185) translate(0 '+number(bob)+')"' : '';
   return '<svg class="lb-hero-art canonical-hero-art" data-hero="'+rig.id+
     '" data-signature="'+rig.signature+
     '" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 350" role="img" aria-label="'+
-    rig.name+' hero"><g class="canonical-hero-actor"'+
-    (bob ? ' transform="translate(0 '+number(bob)+')"' : '')+'>'+
+    rig.name+' hero"><g class="canonical-hero-actor"'+actorTransform+'>'+
     rig.parts.map(part => svgPart(part,palette,pose)).join('')+'</g></svg>';
 }
 export const renderHeroActorSvg = heroActorSvg;
@@ -83,8 +102,12 @@ export function renderHeroActor(ctx,{heroId='mage',skin=null,pose=null,
   try {
     ctx.translate(finite(x),finite(y));
     ctx.scale(factor,factor);
+    const root = rootFor(pose);
+    ctx.translate(root.dx,root.dy);
+    ctx.rotate(root.rotation);
     ctx.translate(-HERO_ART_VIEWBOX.anchorX,-HERO_ART_VIEWBOX.anchorY+bobFor(pose));
     for (const part of rig.parts) {
+      if (part.name === 'arrow' && !arrowVisible(pose)) continue;
       const {x:px,y:py} = part.pivot;
       const {rotation,dx,dy} = poseFor(pose,part.name);
       ctx.save();
