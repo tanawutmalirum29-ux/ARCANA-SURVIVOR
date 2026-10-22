@@ -8,11 +8,37 @@ none of these tests claim physical phone or backend security evidence.
 import argparse
 import json
 import os
+import time
 from playwright.sync_api import sync_playwright, expect
 
 ORIGIN = os.environ.get('ARCANA_QA_URL', 'http://127.0.0.1:4173')
 SIZES = [(320, 568), (390, 844), (768, 1024), (844, 390), (1440, 900)]
 TABS = ['shop', 'hero', 'adventure', 'growth', 'events']
+
+
+def runner_resources():
+    """Observe Linux CI pressure without changing browser/test behavior."""
+    result = {'monotonic_s': round(time.monotonic(), 2)}
+    for key in ('memory.current', 'memory.max', 'memory.events'):
+        try:
+            with open('/sys/fs/cgroup/' + key, encoding='utf-8') as source:
+                result[key] = source.read().strip()[:500]
+        except OSError:
+            pass
+    try:
+        result['loadavg'] = list(os.getloadavg())
+    except OSError:
+        pass
+    return result
+
+
+def page_lifecycle(page, browser):
+    events = []
+    page.on('crash', lambda _: events.append('PAGE_CRASH'))
+    page.on('close', lambda _: events.append('PAGE_CLOSED'))
+    page.context.on('close', lambda _: events.append('CONTEXT_CLOSED'))
+    browser.on('disconnected', lambda _: events.append('BROWSER_DISCONNECTED'))
+    return events
 
 SETUP = """async () => {
   const [storage, core, legacy] = await Promise.all([
@@ -59,9 +85,14 @@ SETUP = """async () => {
 }"""
 
 
-def capture(page, engine, size, phase, error):
+def capture(page, engine, size, phase, error, lifecycle=None):
     record = {'browser': engine, 'viewport': list(size), 'phase': phase,
-              'error': str(error)}
+              'error': str(error), 'lifecycle': list(lifecycle or []),
+              'runner': runner_resources()}
+    try:
+        record['page_closed'] = page.is_closed()
+    except Exception as status_error:
+        record['page_status_error'] = repr(status_error)
     try:
         record['dom'] = page.evaluate("""() => ({
           width:innerWidth, height:innerHeight, scrollWidth:document.documentElement.scrollWidth,
@@ -70,11 +101,15 @@ def capture(page, engine, size, phase, error):
           alerts:[...document.querySelectorAll('[role="alert"], [data-save-error]')].map(x=>x.textContent),
           text:document.body.innerText.slice(0,2500)
         })""")
-        path = f'/tmp/arcana-lobby-failure-{engine}-{size[0]}x{size[1]}-{phase}.png'
-        page.screenshot(path=path, timeout=5000)
-        record['screenshot'] = path
     except Exception as probe_error:
         record['probe_error'] = str(probe_error)
+    if not record.get('page_closed', False):
+        try:
+            path = f'/tmp/arcana-lobby-failure-{engine}-{size[0]}x{size[1]}-{phase}.png'
+            page.screenshot(path=path, timeout=5000)
+            record['screenshot'] = path
+        except Exception as screenshot_error:
+            record['screenshot_error'] = str(screenshot_error)
     print('LOBBY_QA_FAILURE ' + json.dumps(record, ensure_ascii=False), flush=True)
 
 
@@ -97,6 +132,7 @@ def layout(browser, engine, size):
     context = browser.new_context(viewport={'width':width, 'height':height},
                                   has_touch=width<1000, is_mobile=width<1000)
     page = context.new_page()
+    lifecycle = page_lifecycle(page, browser)
     errors = []
     page.on('pageerror', lambda error: errors.append(str(error)))
     page.on('console', lambda message: errors.append(message.text) if message.type=='error' else None)
@@ -160,7 +196,7 @@ def layout(browser, engine, size):
         assert not errors, errors
         print('PASS', engine, f'{width}x{height}', 'five tabs, hit targets, overflow, keyboard, settings return', flush=True)
     except Exception as error:
-        capture(page, engine, size, phase, error)
+        capture(page, engine, size, phase, error, lifecycle=lifecycle)
         raise
     finally:
         context.close()
@@ -668,21 +704,39 @@ def migration_checks(browser, engine):
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--browsers',nargs='+',choices=['chromium','webkit'],default=['chromium','webkit'])
+    parser.add_argument('--layout-only',action='store_true',
+                        help='Additional isolated viewport diagnostic; cannot replace full CI gate')
+    parser.add_argument('--viewport',action='append',choices=['%dx%d'%size for size in SIZES],
+                        help='Only with --layout-only. Restrict to a known viewport for crash isolation')
     args=parser.parse_args()
+    if args.viewport and not args.layout_only:
+        parser.error('--viewport requires --layout-only')
+    sizes = [size for size in SIZES if not args.viewport or '%dx%d'%size in args.viewport]
     with sync_playwright() as playwright:
         for engine in args.browsers:
-            for size in SIZES:
+            for size in sizes:
+                print('LOBBY_QA_BROWSER_START', json.dumps({
+                    'browser':engine,'viewport':size,'runner':runner_resources()}),flush=True)
                 browser=getattr(playwright,engine).launch(headless=True)
-                try:layout(browser,engine,size)
+                try:
+                    layout(browser,engine,size)
+                finally:
+                    browser.close()
+                    print('LOBBY_QA_BROWSER_CLOSED',engine,size,runner_resources(),flush=True)
+            if not args.layout_only:
+                browser=getattr(playwright,engine).launch(headless=True)
+                try:
+                    migration_checks(browser,engine)
+                    transaction_checks(browser,engine)
+                    progression_ui(browser,engine)
+                    live_resource_victory(browser,engine)
                 finally:browser.close()
-            browser=getattr(playwright,engine).launch(headless=True)
-            try:
-                migration_checks(browser,engine)
-                transaction_checks(browser,engine)
-                progression_ui(browser,engine)
-                live_resource_victory(browser,engine)
-            finally:browser.close()
-    print('LOBBY QA COMPLETE:',len(args.browsers)*len(SIZES),'layout combinations + both-browser migration/transaction gates',flush=True)
+    if args.layout_only:
+        print('LOBBY ISOLATED DIAGNOSTIC COMPLETE:',len(args.browsers)*len(sizes),
+              'viewport cases; DOES NOT replace full browser acceptance',flush=True)
+    else:
+        print('LOBBY QA COMPLETE:',len(args.browsers)*len(sizes),
+              'layout combinations + both-browser migration/transaction gates',flush=True)
 
 
 if __name__=='__main__':
