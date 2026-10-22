@@ -55,12 +55,33 @@ for (const heroId of heroes) {
     assert.equal(fired.attackPhase,'release');
     assert.equal(fired.facing.direction8,'E');
     assert.equal(fired.travel.direction8,'W');
+    assert.equal(fired.view.direction8,'E','visual weapon faces real shot target');
+    assert.ok(fired.view.bodyScaleX>0 && walking.view.bodyScaleX<0,
+      'running west while shooting east retains west footwork but faces east');
     assert.deepEqual(fired.joints.leftLeg,walking.joints.leftLeg);
     assert.deepEqual(fired.joints.rightLeg,walking.joints.rightLeg);
     const noShot=resolveHeroPose(inputs(heroId,move,84,{targetPresent:true}));
     assert.equal(noShot.attackPhase,'none');
   });
 }
+
+test('actual shot turns silhouette without reversing the walking direction',()=>{
+  for(const heroId of heroes){
+    const walk=resolveHeroPose(inputs(heroId,{x:1,y:0},96));
+    const shot=resolveHeroPose(inputs(heroId,{x:1,y:0},96,{
+      lastAttackTick:96,aimVector:{x:-1,y:-1}}));
+    assert.equal(shot.travel.direction8,'E');
+    assert.equal(shot.view.direction8,'NW');
+    assert.ok(shot.view.bodyScaleX<0);
+    assert.equal(shot.view.backView,true);
+    assert.deepEqual(walk.joints.leftLeg,shot.joints.leftLeg);
+    assert.deepEqual(walk.joints.rightLeg,shot.joints.rightLeg);
+    const html=heroActorSvg({heroId,pose:shot});
+    assert.match(html, /scale\(-0\./);
+    assert.ok(html.indexOf('data-actor-part="cape"')>
+      html.indexOf('data-actor-part="head"'));
+  }
+});
 
 test('Canvas signed profile and backward cloak ordering follow SVG',()=>{
   const prior=globalThis.Path2D;
