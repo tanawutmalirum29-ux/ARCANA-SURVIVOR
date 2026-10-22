@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hero identity comparison | #68</title>
+<style>
+:root{color-scheme:dark;font:14px/1.45 system-ui}
+body{background:#0d1428;color:#e9e6da;padding:18px;margin:0}
+h1{font-size:21px}p{color:#acb7c7}
+.matrix{display:grid;grid-template-columns:125px repeat(4,minmax(128px,1fr));max-width:1100px;gap:8px}
+.cell{border:1px solid #52617f;background:radial-gradient(ellipse at 50% 58%,#294069,#141a31 72%);border-radius:8px;min-height:110px;padding:12px;text-align:center}
+.head{background:#232c42;min-height:auto;font-weight:700}
+.actor{height:180px;display:flex;align-items:center;justify-content:center}
+.actor svg{width:164px;height:180px}
+.small{height:180px;display:flex;align-items:center;justify-content:center}
+.small svg{width:50px;height:55px}
+.small canvas{width:56px;height:56px;image-rendering:auto}
+.label{font-size:12px;color:#d5c3a2;margin-top:4px}
+@media(max-width:720px){.matrix{grid-template-columns:100px repeat(4,150px);overflow:visible}body{overflow-x:auto}}
+</style></head>
+<body>
+<h1>Hero visual reference matrix — issue #68</h1>
+<p>Baseline: old lobby cards in src/ui/icons.js. Compare identity, weapons and palette with the new canonical actor at lobby/card and 50px map sizes. No stage rune is part of the canonical actor. Canvas map frames below exercise the same rig as SVG.</p>
+<div id="matrix" class="matrix"></div>
+<script type="module">
+import {heroArt} from '../../../src/ui/icons.js';
+import {heroActorSvg,renderHeroActor} from '../../../src/characters/visual/hero-art.js';
+const heroes=[
+  ['mage','Astra / staff','#99c9ff'],
+  ['guardian','Orin / sword + shield','#a0d9b1'],
+  ['ranger','Lyra / bow + arrow','#ebb991'],
+];
+const tile=(markup,label)=>'<div class="cell">'+markup+'<div class="label">'+label+'</div></div>';
+document.getElementById('matrix').innerHTML =
+  ['Hero','Original lobby source','Canonical lobby actor','SVG 50px','Canvas 56px'].map(x=>'<div class="cell head">'+x+'</div>').join('')+
+  heroes.map(([id,label,color])=>
+    '<div class="cell head">'+label+'</div>'+
+    tile('<div class="actor">'+heroArt(id,color,'reference-'+id,null)+'</div>','Original lobby design')+
+    tile('<div class="actor">'+heroActorSvg({heroId:id})+'</div>','New default actor / no stage')+
+    tile('<div class="small">'+heroActorSvg({heroId:id})+'</div>','CSS-sized vector fallback')+
+    tile('<div class="small"><canvas id="map-'+id+'" width="56" height="56"></canvas></div>','Real Canvas Path2D'))
+  .join('');
+for(const [id] of heroes){
+  const canvas=document.getElementById('map-'+id);
+  if(!renderHeroActor(canvas.getContext('2d'),{heroId:id,x:28,y:28,scale:0.16})){
+    canvas.setAttribute('aria-label','Path2D not supported; SVG above is fallback');
+  }
+}
+</script></body></html>
