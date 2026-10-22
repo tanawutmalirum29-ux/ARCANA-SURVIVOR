@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {defaultProfile} from '../src/storage.js';
+import {defaultProfile, SAVE_KEY} from '../src/storage.js';
 import {migrateLegacyBytes, createCampaignStore} from '../src/campaignStore.js';
 
 test('only a genuinely missing legacy key initializes a new campaign', () => {
@@ -21,7 +21,9 @@ test('malformed counts, false ownership, paid previews and invalid settings neve
   for (const patch of [
     {gold:-1},{runs:1.5},{bestSeconds:null},{totalKills:'10'},
     {skin:'moon'}, {owned:['apprentice','crimson']},
+    {owned:['apprentice','apprentice']}, {futureField:{purchased:true}},
     {settings:{vfx:'ultra',reduceMotion:false}}, {settings:{vfx:'low',reduceMotion:'yes'}},
+    {settings:{vfx:'low',reduceMotion:false,futureEntitlements:['unknown']}},
   ]) assert.equal(migrateLegacyBytes(JSON.stringify({...base,...patch})).ok,false);
 });
 
@@ -162,4 +164,54 @@ test('pure v2 migrator never silently coerces invalid data',()=>{
   assert.equal(validateCampaign(migrated),true);
   assert.deepEqual(good,before);
   assert.equal(migrated.revision,good.revision);
+});
+
+test('unknown legacy v1 fields survive unchanged on failed migration',async()=>{
+  const unknown = JSON.stringify({...defaultProfile(), extraProgress:{owned:['future-skin']}});
+  let reads=0, writes=0;
+  const legacyStorage={
+    getItem(){reads++;return unknown;},
+    setItem(){writes++;throw Error('unexpected legacy overwrite');},
+  };
+  const fake=fakeIndexedDb();
+  const store=createCampaignStore({indexedDB:fake.factory,legacyStorage});
+  const result=await store.load();
+  assert.equal(result.ok,false);
+  assert.equal(result.code,'LEGACY_CORRUPT');
+  assert.ok(reads>0);
+  assert.equal(writes,0);
+  assert.equal(fake.records.size,0);
+  assert.equal(legacyStorage.getItem(),unknown);
+  store.close();
+});
+
+test('valid v1 migrates directly to durable v3 once without modifying localStorage',async()=>{
+  const original={...defaultProfile(),gold:317,totalKills:90,runs:4,bestSeconds:201,
+    skin:'moon',owned:['apprentice','moon','ember'],settings:{vfx:'medium',reduceMotion:true}};
+  const raw=JSON.stringify(original);
+  let writes=0;
+  const legacyStorage={
+    getItem(key){assert.equal(key,SAVE_KEY);return raw;},
+    setItem(){writes++;throw Error('legacy data must be read-only');},
+  };
+  const fake=fakeIndexedDb();
+  const store=createCampaignStore({indexedDB:fake.factory,legacyStorage});
+  const first=await store.load();
+  assert.equal(first.ok,true);assert.equal(first.code,'MIGRATED');
+  assert.equal(first.state.schemaVersion,3);
+  assert.equal(first.state.revision,0);
+  assert.deepEqual(first.state.profile,original);
+  assert.equal(validateCampaign(first.state),true);
+  for(const heroId of ['mage','guardian','ranger']) {
+    const slot=first.state.progression.wardrobe[heroId];
+    assert.deepEqual(slot.owned,[`${heroId}:base`,`${heroId}:ember`,`${heroId}:moon`]);
+    assert.equal(slot.equipped,`${heroId}:moon`);
+  }
+  const again=await store.load();
+  assert.equal(again.code,'LOADED');
+  assert.deepEqual(again.state,first.state);
+  assert.deepEqual(fake.records.get('profile'),first.state);
+  assert.equal(legacyStorage.getItem(SAVE_KEY),raw);
+  assert.equal(writes,0);
+  store.close();
 });
