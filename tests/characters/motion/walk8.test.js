@@ -158,6 +158,26 @@ test('attack lifecycle preserves walk silhouette despite opposite projectile aim
   }
 });
 
+test('weapon arm crosses body toward opposite-side targets without flipping feet',()=>{
+  for(const heroId of heroes){
+    for(const dir of [{x:1,y:0},{x:-1,y:0},{x:0,y:1},{x:0,y:-1}]){
+      const base=inputs(heroId,dir,150,{lastAttackTick:150});
+      const facingRight=resolveHeroPose({...base,aimVector:{x:1,y:0}});
+      const facingLeft=resolveHeroPose({...base,aimVector:{x:-1,y:0}});
+      assert.equal(facingRight.attackPhase,'release');
+      assert.equal(facingLeft.attackPhase,'release');
+      assert.equal(facingRight.view.direction8,facingLeft.view.direction8);
+      assert.deepEqual(facingRight.joints.leftLeg,facingLeft.joints.leftLeg);
+      assert.deepEqual(facingRight.joints.rightLeg,facingLeft.joints.rightLeg);
+      // Distinct local attack swing arcs, and neither weapon leaves its grip.
+      assert.notEqual(facingRight.joints.rightArm.rotation,
+        facingLeft.joints.rightArm.rotation,heroId+' arm does not follow shot side');
+      assert.ok(Math.abs(facingRight.joints.weapon.rotation)<1.4);
+      assert.ok(Math.abs(facingLeft.joints.weapon.rotation)<1.4);
+    }
+  }
+});
+
 test('stationary confirmed attack may face its target and keeps exact shot tick',()=>{
   for (const heroId of heroes) {
     const idle={heroId,tick:75,moving:false,moveVector:{x:0,y:0},
