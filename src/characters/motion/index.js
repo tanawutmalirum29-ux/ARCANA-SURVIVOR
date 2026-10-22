@@ -109,6 +109,12 @@ export function resolveHeroPose(input = {}) {
   // Absolute world aim angles here used to roll idle swords/staves/bows by 180°.
   // Only a modest local wrist tilt belongs in these part transforms.
   const aimTilt = active ? clamp(aim.x * .17, -.17, .17) : 0;
+  // Attack crosses the visible body if the enemy lies on the weapon's
+  // opposite side. This changes the arm/wrist arc, never stride or hit logic.
+  // Mirrored west-facing art reverses the local horizontal axis.
+  const localAimX = aim.x * (view.bodyScaleX < 0 ? -1 : 1);
+  const attackSide = active && localAimX < -.25 ? -1 : 1;
+  const attackGesture = gesture * attackSide;
   // While running, keep the entire silhouette anchored to the *walk* heading.
   // The old attack toggle instantly mirrored the whole actor for a shot behind
   // the hero, swapping legs and handedness in the middle of a stride.
@@ -143,8 +149,8 @@ export function resolveHeroPose(input = {}) {
     joints.leftLeg = transform(-step * .33, 0, -.13 * walkWave);
     joints.rightLeg = transform(step * .33, 0, .13 * walkWave);
     joints.leftArm = transform(0, -.3 * idleWave, .09 * idleWave - .12 * walkWave + gesture * .22);
-    joints.rightArm = transform(0, -Math.abs(gesture) * 2.4, -.06 * idleWave + gesture * .6);
-    joints.weapon = transform(0, -Math.abs(gesture) * 3.7, aimTilt + gesture * .58);
+    joints.rightArm = transform(0, -Math.abs(gesture) * 2.4, -.06 * idleWave + attackGesture * .6);
+    joints.weapon = transform(0, -Math.abs(gesture) * 3.7, aimTilt + attackGesture * .58);
     fx.staffGlow = phase === 'charge' ? .4 + .6 * t : phase === 'release' ? 1 - t * .3 : 0;
   } else if (heroId === 'guardian') {
     // Deliberately heavy footfall. Sword shoulder winds up independently of legs.
@@ -156,8 +162,8 @@ export function resolveHeroPose(input = {}) {
     joints.leftLeg = transform(-step * .58, Math.max(0, alternate) * -1.9, -.25 * walkWave);
     joints.rightLeg = transform(step * .58, Math.max(0, -alternate) * -1.9, .25 * walkWave);
     joints.leftArm = transform(-brace * 1.4, -brace * 1.9, -.12 * walkWave - brace * .31);
-    joints.rightArm = transform(0, -Math.abs(gesture) * 2.5, .1 * walkWave + gesture * .92);
-    joints.weapon = transform(0, -Math.abs(gesture) * 2.5, aimTilt + gesture * .82);
+    joints.rightArm = transform(0, -Math.abs(gesture) * 2.5, .1 * walkWave + attackGesture * .92);
+    joints.weapon = transform(0, -Math.abs(gesture) * 2.5, aimTilt + attackGesture * .82);
     joints.shield = transform(-brace * 1.4, -brace * 1.4, -brace * .28);
     fx.bladeArc = phase === 'release' ? 1 - t : 0;
     fx.shieldBrace = brace;
@@ -170,8 +176,8 @@ export function resolveHeroPose(input = {}) {
     joints.leftLeg = transform(-step * .7, Math.max(0, alternate) * -1.4, -.24 * walkWave);
     joints.rightLeg = transform(step * .7, Math.max(0, -alternate) * -1.4, .24 * walkWave);
     joints.leftArm = transform(0, -brace * 1.6, -.07 * walkWave + brace * .32);
-    joints.rightArm = transform(-brace * 2.6, -brace * 1.2, .09 * walkWave - brace * .54);
-    joints.weapon = transform(-brace * .6, -brace * 1.5, aimTilt + gesture * .16);
+    joints.rightArm = transform(-brace * 2.6, -brace * 1.2, .09 * walkWave - brace * .54 * attackSide);
+    joints.weapon = transform(-brace * .6, -brace * 1.5, aimTilt + attackGesture * .16);
     fx.bowDraw = phase === 'windup' ? t * .7 : phase === 'charge' ? .7 + .3 * t
       : phase === 'release' ? 0 : phase === 'recover' ? 0 : 0;
     fx.arrowVisible = phase === 'windup' || phase === 'charge';
