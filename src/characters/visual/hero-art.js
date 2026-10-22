@@ -64,7 +64,7 @@ const swatch = (name,palette) => palette[name] || 'none';
 // Directional silhouette is shared by SVG and Canvas. No mutation to the rig.
 // North-facing cloak sits in front of the torso; equipment remains visible.
 function partsFor(rig,pose) {
-  if (!pose?.travel?.backView) return rig.parts;
+  if (!(pose?.view?.backView ?? pose?.travel?.backView)) return rig.parts;
   if (backOrders.has(rig.id)) return backOrders.get(rig.id);
   const accessory = new Set(['weapon','offhand','arrow']);
   const ordered = Object.freeze([
@@ -76,7 +76,7 @@ function partsFor(rig,pose) {
   return ordered;
 }
 function bodyScale(pose) {
-  const s=finite(pose?.travel?.bodyScaleX,1);
+  const s=finite(pose?.view?.bodyScaleX ?? pose?.travel?.bodyScaleX,1);
   return s===0 ? 1 : Math.sign(s)*clamp(Math.abs(s),.65,1);
 }
 function svgPart(part,palette,pose) {
