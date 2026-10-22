@@ -1,13 +1,9 @@
 import {defaultProfile, SAVE_KEY} from './storage.js';
-import {createCampaign, validateCampaign, validateCampaignV2, migrateCampaignV2ToV3, applyCommand} from './progression/index.js';
+import {createCampaign, validateCampaign, validateCampaignV2, migrateCampaignV2ToV3, validateLegacyProfile, applyCommand} from './progression/index.js';
 
 export const CAMPAIGN_DB = 'arcana-campaign-v2';
 export const CAMPAIGN_STORE = 'campaign';
 export const CAMPAIGN_KEY = 'profile';
-
-const plain = value => value !== null && typeof value === 'object' && !Array.isArray(value);
-const count = value => Number.isSafeInteger(value) && value >= 0 && value <= 999999;
-const knownCosmetics = new Set(['apprentice','ember','moon']);
 
 // Missing data is the only case where defaults are permitted. An unreadable,
 // future, or malformed save is preserved in place and cannot become a grant.
@@ -16,16 +12,11 @@ export function migrateLegacyBytes(bytes) {
   if (typeof bytes !== 'string') return {ok:false, code:'LEGACY_READ_FAILED'};
   let data;
   try {data = JSON.parse(bytes);} catch {return {ok:false, code:'LEGACY_CORRUPT'};}
-  if (!plain(data)) return {ok:false, code:'LEGACY_CORRUPT'};
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return {ok:false, code:'LEGACY_CORRUPT'};
   if (data.version !== 1) return {ok:false, code:'LEGACY_UNSUPPORTED'};
-  if (!['gold','runs','totalKills','bestSeconds'].every(key => count(data[key])) ||
-      !Array.isArray(data.owned) || !data.owned.includes('apprentice') ||
-      data.owned.some(id => typeof id !== 'string' || !knownCosmetics.has(id)) ||
-      !data.owned.includes(data.skin) || !plain(data.settings) ||
-      !['low','medium','high'].includes(data.settings.vfx) ||
-      typeof data.settings.reduceMotion !== 'boolean') {
-    return {ok:false, code:'LEGACY_CORRUPT'};
-  }
+  // Historical unknown fields/duplicates must NOT be silently discarded.
+  // The domain validator enforces exact v1 shape, settings and earned IDs.
+  if (!validateLegacyProfile(data)) return {ok:false, code:'LEGACY_CORRUPT'};
   return {ok:true, source:'v1', profile:{
     version:1, gold:data.gold, runs:data.runs, totalKills:data.totalKills,
     bestSeconds:data.bestSeconds, skin:data.skin, owned:[...new Set(data.owned)],
