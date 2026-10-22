@@ -7,6 +7,7 @@
  * targetPresent is an optional verified targeting signal used only for
  * anticipatory windup/charge; it never causes a release or modifies gameplay.
  */
+import {resolveEightWayWalk} from './walk8.js';
 const TAU = Math.PI * 2;
 const HEROES = Object.freeze(['mage', 'guardian', 'ranger']);
 const DIRECTIONS = Object.freeze(['E', 'SE', 'S', 'SW', 'W', 'NW', 'N', 'NE']);
@@ -85,6 +86,8 @@ export function resolveHeroPose(input = {}) {
   const angle = Math.atan2(aim.y, aim.x);
   const direction8 = DIRECTIONS[Math.round((angle + TAU) / (TAU / 8)) % 8];
   const reduced = Boolean(input.reducedMotion);
+  // Locomotion uses travel, not target/weapon aim. Tick only; no frame time.
+  const travel = resolveEightWayWalk({heroId,tick,moving:walking,moveVector:move,reducedMotion:reduced});
   const targetPresent = input.targetPresent === true;
   const attack = attackTimeline(tick, input.lastAttackTick, input.attackIntervalTicks, targetPresent, input.nextAttackTick);
   const phase = attack.phase;
@@ -155,13 +158,41 @@ export function resolveHeroPose(input = {}) {
     fx.arrowVisible = phase === 'windup' || phase === 'charge';
   }
 
+  // Directional footwork is derived only from the movement vector, not aiming.
+  // It remains deterministic when the simulation pauses or attacks during a step.
+  if (walking) {
+    const l = travel.legs.left, r = travel.legs.right;
+    joints.leftLeg = transform(l.x,l.y,l.rotation);
+    joints.rightLeg = transform(r.x,r.y,r.rotation);
+    const upper = travel.upper, drift = travel.cape, root = travel.root;
+    const armFactor = active ? .22 : 1; // Preserve confirmed weapon attacks.
+    joints.root = transform(joints.root.x+root.x,joints.root.y+root.y,joints.root.rotation+root.rotation);
+    joints.torso = transform(joints.torso.x+upper.x*.55,joints.torso.y+upper.y*.35,
+      joints.torso.rotation+upper.rotation);
+    joints.head = transform(joints.head.x+upper.x*.7,joints.head.y+upper.y*.5,
+      joints.head.rotation+upper.rotation*.25);
+    joints.cape = transform(joints.cape.x+drift.x,joints.cape.y+drift.y,
+      joints.cape.rotation+drift.rotation);
+    joints.leftArm = transform(joints.leftArm.x+upper.x*.22,joints.leftArm.y+upper.y*.23,
+      joints.leftArm.rotation+travel.armSwing*armFactor);
+    joints.rightArm = transform(joints.rightArm.x+upper.x*.22,joints.rightArm.y+upper.y*.23,
+      joints.rightArm.rotation-travel.armSwing*armFactor);
+    if (heroId==='mage') {
+      joints.robe = transform(joints.robe.x+drift.x*.32,joints.robe.y+drift.y*.4,
+        joints.robe.rotation+drift.rotation*.6);
+    } else if (heroId==='guardian') {
+      joints.shield = transform(joints.shield.x+upper.x*.16,joints.shield.y,
+        joints.shield.rotation+travel.armSwing*.24);
+    }
+  }
+
   return {
     heroId, state: active ? 'attack' : walking ? 'walk' : 'idle',
     locomotion: walking ? 'walk' : 'idle', attackPhase: phase,
     attackProgress: round(attack.progress), attackWeight: round(attackWeight),
     tick, fireIntervalTicks: attack.interval,
     facing: {angle: round(angle), direction8, x: round(aim.x), y: round(aim.y)},
-    joints, fx,
+    joints, fx, travel,
     reducedMotion: reduced,
   };
 }
