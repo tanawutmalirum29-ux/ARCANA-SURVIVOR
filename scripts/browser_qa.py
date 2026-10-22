@@ -222,7 +222,10 @@ def scenario(browser, browser_name, size):
         page.locator('[data-action="settings"]').click()
         page.locator('[data-action="vfx"]').click()
         expect(page.get_by_text('LOW', exact=True)).to_have_count(1)
-        page.locator('[data-action="motion"]').click()
+        # Capture actual page/process lifecycle if WebKit unexpectedly closes
+        # during the normal settings click; never force a click or ignore a crash.
+        click_with_lifecycle_evidence(page, '[data-action="motion"]',
+                                      browser_name, w, h, lifecycle, errors)
         expect(page.get_by_text('ON', exact=True)).to_have_count(1)
         page.locator('[data-action="sound"]').click()
         assert page.get_by_text('SOUND OFF', exact=True).count() == 1
