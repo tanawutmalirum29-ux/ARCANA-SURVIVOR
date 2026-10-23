@@ -1,0 +1,1 @@
+AI Control Center smoke test: website can commit without GitHub login.
