@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { resolveHeroPose } from '../../../src/characters/motion/index.js';
-import { heroActorSvg, HERO_RIGS } from '../../../src/characters/visual/hero-art.js';
+import { heroActorSvg } from '../../../src/characters/visual/hero-art.js';
+import { HERO_RIGS } from '../../../src/characters/visual/rigs.js';
 
 // Actor-space contacts derive from the actual path coordinates in mage rigs.
 // Palm (230,153) belongs to armRight pivot (206,166). The staff contact
