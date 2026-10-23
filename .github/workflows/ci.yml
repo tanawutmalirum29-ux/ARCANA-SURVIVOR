@@ -108,6 +108,10 @@ jobs:
         env:
           ARCANA_QA_ARTIFACTS: /tmp/astra-visual-proof
         run: python scripts/astra_visual_qa.py
+      - name: Orin sword/shield and cape eight-heading SVG/Canvas screenshots
+        env:
+          ARCANA_QA_ARTIFACTS: /tmp/orin-visual-proof
+        run: python scripts/orin_visual_qa.py
       - name: Pre-polish baseline Astra source comparison (exact same tick and input)
         env:
           ARCANA_QA_URL: http://127.0.0.1:4174
@@ -153,6 +157,7 @@ jobs:
             /tmp/arcana-qa-layout-*.png
             /tmp/arcana-lobby-*.png
             /tmp/arcana-hero-visual/**/*.png
+            /tmp/orin-visual-proof/**/*.png
             /tmp/arcana-walk8/**/*.png
             /tmp/astra-visual-proof/**/*.png
             /tmp/astra-visual-proof/report.json
