@@ -1,0 +1,32 @@
+name: Remove accidental CEO Issue 102 (one-time)
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/remove-erroneous-issue-102-once.yml'
+permissions:
+  contents: read
+  issues: write
+jobs:
+  delete-mistaken-issue:
+    if: github.event.head_commit.message == 'chore(issue102): one-time cleanup without OWNER involvement'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete exactly the void appointment Issue 102
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = 'tanawutmalirum29-ux/ARCANA-SURVIVOR'
+          node_id=$(gh api "repos/$GITHUB_REPOSITORY/issues/102" --jq '.node_id')
+          title=$(gh api "repos/$GITHUB_REPOSITORY/issues/102" --jq '.title')
+          state=$(gh api "repos/$GITHUB_REPOSITORY/issues/102" --jq '.state')
+          test "$node_id" = 'I_kwDOVPssF88AAAABZZMIqA'
+          test "$state" = 'closed'
+          test "$title" = 'VOID — CEO Issue appointment cancelled; use AI Control Center D1 organization room'
+          gh api graphql -f query='mutation($id:ID!){deleteIssue(input:{issueId:$id}){repository{id}}}' -f id="$node_id"
+          if gh api "repos/$GITHUB_REPOSITORY/issues/102" >/dev/null 2>&1; then
+            echo 'Issue 102 still exists: deletion unverified'
+            exit 1
+          fi
+          echo 'Verified: only Issue 102 permanently deleted'
