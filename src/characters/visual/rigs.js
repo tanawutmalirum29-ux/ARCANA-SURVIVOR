@@ -86,6 +86,27 @@ const mage = {
   ],
 };
 
+
+/**
+ * Rear-only hood for Astra. Keep the same pivot/name as the animated front head
+ * so the normal fixed-tick head joint works in both SVG and real Canvas.
+ * Crucially there is no forward face aperture or eye-glow geometry.
+ * The back panel reads as continuous cloth rather than a mask looking at us.
+ */
+export const ASTRA_REAR_HOOD = freeze(G('head', 160, 115, [
+  // Same outlined silhouette as the forward hood so turning never pops in size.
+  P('M117 116Q127 83 147 71L160 57 174 72Q195 79 207 116L188 143 160 153 132 142Z', 'shadow', 'trim', 2),
+  // Single closed back cloth panel covers the front-face location.
+  P('M126 112Q136 89 160 78Q184 89 195 112L186 140Q172 149 160 151Q143 148 134 139Z', 'primary', 'metal', 1.8),
+  // Side seam shadows and stitched hood panels taper naturally into the yoke.
+  P('M132 111Q139 97 146 93L142 125 152 146Q140 141 134 132Z', 'shadow', 'none'),
+  P('M188 110Q181 97 175 93L180 126 169 145Q182 139 187 131Z', 'shadow', 'none'),
+  P('M144 94Q151 86 160 82Q169 85 176 94M160 84Q159 109 160 137M141 134Q160 145 179 134', 'none', 'trim', 2),
+  // The single embroidered star is a garment detail, not front-facing eyes.
+  P('M160 104 164 113 174 115 165 120 162 131 156 122 146 119 156 115Z', 'trim', 'shadow', 1.6),
+  P('M139 137Q150 147 160 149Q174 147 183 137', 'none', 'metal', 2),
+]));
+
 const guardian = {
   id: 'guardian', name: 'Orin', signature: 'sword-shield',
   palette: { primary: '#a0d9b1', shadow: '#5d719a', dark: '#1b2949',
