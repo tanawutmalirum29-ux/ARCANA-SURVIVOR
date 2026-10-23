@@ -100,14 +100,14 @@ test('Canvas signed profile and backward cloak ordering follow SVG',()=>{
       assert.ok(scales.some(v=>v[0]<0&&v[1]===1),'Canvas horizontal mirror');
       const n=heroActorSvg({heroId,pose:north});
       const s=heroActorSvg({heroId,pose:front});
-      if (heroId === 'mage') {
-        assert.ok(n.indexOf('data-actor-part="cape"')<
-          n.indexOf('data-actor-part="head"'),
-          'Astra collar must tuck under the hood in back view');
-      } else {
+      if (heroId === 'ranger') {
         assert.ok(n.indexOf('data-actor-part="cape"')>
           n.indexOf('data-actor-part="head"'),
-          'original guardian/ranger back cape ordering unchanged');
+          'Lyra back cloak ordering remains unchanged');
+      } else {
+        assert.ok(n.indexOf('data-actor-part="cape"')<
+          n.indexOf('data-actor-part="head"'),
+          'Astra and Orin rear helmets must occlude the shoulder collar');
       }
       assert.ok(s.indexOf('data-actor-part="cape"')<
         s.indexOf('data-actor-part="head"'),'front-facing cape behind the face');
