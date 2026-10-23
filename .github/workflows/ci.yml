@@ -43,7 +43,9 @@ jobs:
 
   browser-qa:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Astra source + live-map captures extend the original full browser gate.
+    # Hosted apt mirrors can be slow; retain every existing assertion and job.
+    timeout-minutes: 45
     permissions:
       contents: read
     steps:
