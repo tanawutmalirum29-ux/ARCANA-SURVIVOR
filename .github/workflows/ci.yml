@@ -89,6 +89,10 @@ jobs:
         env:
           ARCANA_QA_ARTIFACTS: /tmp/astra-visual-proof
         run: python scripts/astra_visual_qa.py
+      - name: Actual Astra map Canvas and 8-way keyboard combat capture
+        env:
+          ARCANA_LIVE_ARTIFACTS: /tmp/astra-live-proof
+        run: python scripts/astra_live_qa.py
       - name: Campaign lobby, migration and real-tab atomic reward gate
         env:
           DEBUG: pw:browser
@@ -121,6 +125,9 @@ jobs:
             /tmp/arcana-walk8/**/*.png
             /tmp/astra-visual-proof/**/*.png
             /tmp/astra-visual-proof/report.json
+            /tmp/astra-live-proof/**/*.png
+            /tmp/astra-live-proof/**/*.webm
+            /tmp/astra-live-proof/report.json
           if-no-files-found: ignore
           retention-days: 7
 
