@@ -146,8 +146,10 @@ def equip_through_ui(page, variant, folder):
     if variant!="base":
         page.locator('[data-action="equip"][data-id="'+expected+'"]').click()
     active=page.locator(".skin-card.active")
-    assert active.count()==1 and active.locator('[data-action][data-id="'+expected+'"]').count(), (
-        "Wearable skin is not active in real wardrobe UI",expected)
+    expect(active).to_have_count(1)
+    expect(active.locator('[data-action][data-id="'+expected+'"]')).to_have_count(1)
+    assert store(page)["progression"]["wardrobe"]["guardian"]["equipped"]==expected, (
+        "EQUIP_COSMETIC did not persist real selected skin",expected)
     if variant=="base":
         # Event and premium art is an intentionally locked preview, not an
         # entitlement. Prove that the real UI does not offer equip or checkout.
@@ -270,11 +272,13 @@ def run_one(browser,engine,width,height,variant):
             for key in keys:
                 page.keyboard.down(key)
                 held.add(key)
-            page.clock.run_for(120)
+            excursion_ms=120
+            page.clock.run_for(excursion_ms)
             if page.locator(".upgrade-option").count():
                 page.locator(".upgrade-option").first.click()
             if page.evaluate("!!globalThis.__orinQA.dir"):
                 page.clock.run_for(90)
+                excursion_ms+=90
             shot=capture_qa(page,direction,folder/(direction+"-real-scene.png"),skin)
             assert shot["event"]["direction8"]==direction,(direction,shot)
             frames.append(shot)
@@ -283,7 +287,7 @@ def run_one(browser,engine,width,height,variant):
                 held.discard(key)
             opposites=[OPPOSITE[key] for key in keys]
             for key in opposites:page.keyboard.down(key)
-            page.clock.run_for(120 if len(frames)%2 else 210)
+            page.clock.run_for(excursion_ms)
             for key in opposites:page.keyboard.up(key)
             if page.locator(".upgrade-option").count():
                 page.locator(".upgrade-option").first.click()
