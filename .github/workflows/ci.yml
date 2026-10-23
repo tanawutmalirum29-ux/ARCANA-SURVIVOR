@@ -114,14 +114,6 @@ jobs:
         env:
           ARCANA_LIVE_ARTIFACTS: /tmp/astra-live-proof
         run: python scripts/astra_live_qa.py
-      - name: Campaign lobby, migration and real-tab atomic reward gate
-        env:
-          DEBUG: pw:browser
-        run: python scripts/lobby_qa.py --browsers chromium webkit
-      - name: Dormant Event v2 localStorage Chromium and WebKit fault gate
-        run: python scripts/ceo_event_storage_qa.py
-      - name: Dormant Event atomic IndexedDB real-tab concurrency gate
-        run: python scripts/ceo_event_cross_tab_qa.py
       - name: Collect runner resource and browser process diagnostics
         if: ${{ always() }}
         run: |
@@ -151,6 +143,61 @@ jobs:
             /tmp/astra-live-proof/report.json
             /tmp/astra-baseline-proof/**/*.png
             /tmp/astra-baseline-proof/report.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+  campaign-transaction-qa:
+    # Give real-tab IndexedDB/migration/reward QA a fresh isolated runner;
+    # these assertions were previously executed after long visual/browser
+    # capture sequences and WebKit sometimes closed during the transaction race.
+    # Splitting runners strengthens the gate: ALL existing tests remain mandatory.
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Playwright and browser dependencies for transactions
+        run: |
+          python -m pip install playwright==1.57.0
+          python -m playwright install --with-deps chromium webkit
+      - name: Start independent campaign HTTP server
+        run: |
+          node scripts/dev-server.mjs > /tmp/arcana-transaction-server.log 2>&1 &
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:4173/ > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/arcana-transaction-server.log
+          exit 1
+      - name: Campaign lobby, migration and real-tab atomic reward gate
+        env:
+          DEBUG: pw:browser
+        run: python scripts/lobby_qa.py --browsers chromium webkit
+      - name: Dormant Event v2 localStorage Chromium and WebKit fault gate
+        run: python scripts/ceo_event_storage_qa.py
+      - name: Dormant Event atomic IndexedDB real-tab concurrency gate
+        run: python scripts/ceo_event_cross_tab_qa.py
+      - name: Campaign QA runner diagnostics
+        if: ${{ always() }}
+        run: |
+          cat /sys/fs/cgroup/memory.events || true
+          free -m || true
+          ps -eo pid,ppid,rss,stat,comm --sort=-rss | head -25 || true
+      - name: Upload campaign/browser error captures
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: campaign-transaction-captures-${{ github.run_id }}-${{ github.run_attempt }}
+          path: /tmp/arcana-lobby-*.png
           if-no-files-found: ignore
           retention-days: 7
 
