@@ -169,6 +169,8 @@ jobs:
             /tmp/astra-live-proof/**/*.webm
             /tmp/orin-live-proof/**/*.png
             /tmp/orin-live-proof/**/*.webm
+            /tmp/orin-live-proof/report.json
+            /tmp/orin-visual-proof/report.json
             /tmp/astra-live-proof/report.json
             /tmp/astra-baseline-proof/**/*.png
             /tmp/astra-baseline-proof/report.json
