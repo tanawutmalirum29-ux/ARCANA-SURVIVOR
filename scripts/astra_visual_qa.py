@@ -18,12 +18,14 @@ from playwright.sync_api import sync_playwright
 
 URL = os.environ.get("ARCANA_QA_URL", "http://127.0.0.1:4173").rstrip("/")
 OUT = Path(os.environ.get("ARCANA_QA_ARTIFACTS", "/tmp/astra-visual-qa"))
+SOURCE_LABEL = os.environ.get("ASTRA_SOURCE_LABEL", "CANDIDATE").strip()
+EXPECT_SPLIT = os.environ.get("ASTRA_EXPECT_SPLIT_CAPE", "1") != "0"
 SIZES = ((320, 568), (390, 844), (768, 1024), (844, 390), (1440, 900))
 DIRECTIONS = ((1,0),(1,1),(0,1),(-1,1),(-1,0),(-1,-1),(0,-1),(1,-1))
 LABELS = ("E", "SE", "S", "SW", "W", "NW", "N", "NE")
 PHASES = ("walk", "charge", "release", "recover")
 
-BUILD = """async ({directions,labels,phases}) => {
+BUILD = """async ({directions,labels,phases,sourceLabel,expectSplit}) => {
   const {heroActorSvg, renderHeroActor} =
     await import('/src/characters/visual/hero-art.js');
   const {resolveHeroPose} =
@@ -46,11 +48,11 @@ BUILD = """async ({directions,labels,phases}) => {
         throw Error(labels[i]+' wrong phase: '+pose.attackPhase);
       }
       const svg=heroActorSvg({heroId:'mage',pose});
-      if(!svg.includes('data-actor-part="capeTail"'))throw Error('Astra hem missing');
+      if(expectSplit && !svg.includes('data-actor-part="capeTail"'))throw Error('Astra hem missing');
       const tile=document.createElement('div');
       tile.style.cssText='background:#1e2c40;border:1px solid #526881;padding:6px;text-align:center;min-width:0;';
       const heading=document.createElement('div');
-      heading.textContent='SYNTHETIC source / '+labels[i]+' / '+phase+' / tick 100';
+      heading.textContent='SYNTHETIC '+sourceLabel+' / '+labels[i]+' / '+phase+' / tick 100';
       const art=document.createElement('div');
       art.style.cssText='height:240px;display:flex;align-items:center;justify-content:center';
       art.innerHTML=svg;
@@ -95,7 +97,8 @@ def main():
                             engine,width,height,"preview missing")
                         result = page.evaluate(BUILD, {
                             "directions": DIRECTIONS, "labels": LABELS,
-                            "phases": PHASES,
+                            "phases": PHASES, "sourceLabel": SOURCE_LABEL,
+                            "expectSplit": EXPECT_SPLIT,
                         })
                         assert result["frames"] == len(DIRECTIONS)*len(PHASES)
                         assert not errors, (engine,width,height,errors)
@@ -115,6 +118,7 @@ def main():
     report=OUT/"report.json"
     report.write_text(json.dumps({
       "classification":"SYNTHETIC source render; NOT live gameplay or physical hardware",
+      "source_label":SOURCE_LABEL,
       "checks":summary},indent=2),encoding="utf-8")
     print(report)
     print("PASS:",len(summary),"browser/viewport matrices;",
