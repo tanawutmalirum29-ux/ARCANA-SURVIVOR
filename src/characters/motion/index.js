@@ -243,6 +243,23 @@ export function resolveHeroPose(input = {}) {
     );
   }
 
+  if (heroId === 'guardian') {
+    // Orin's collar is pinned to his breastplate, not free-floating fabric.
+    // Torso pivot is (161,164); cloak pivot (160,120). Resolve the exact
+    // transformed collar point after locomotion and attacking are composed.
+    const torso = joints.torso, angle = torso.rotation;
+    const collarX = torso.x + 1 - Math.cos(angle) + 44 * Math.sin(angle);
+    const collarY = torso.y + 44 - Math.sin(angle) - 44 * Math.cos(angle);
+    joints.cape = transform(collarX, collarY, angle * .72);
+    const trailing = walking && !reduced
+      ? Math.sin((tick - 4) * TAU / config.walkTicks) : 0;
+    joints.capeTail = transform(
+      collarX - travel.x * (walking ? 1.5 : 0) - trailing * .8,
+      collarY + travel.y * (walking ? .7 : 0),
+      angle * .4 - trailing * .055
+    );
+  }
+
   // Weapon art has a different named pivot from the sword/staff/bow arm.
   // Follow the shoulder's arc (as well as its translation) so hands and
   // weapons travel together on strides, attacks and recoveries.
@@ -261,8 +278,33 @@ export function resolveHeroPose(input = {}) {
     const staffX = 229 + 21 * Math.sin(staffAngle);
     const staffY = 174 - 21 * Math.cos(staffAngle);
     joints.weapon = transform(palmX - staffX, palmY - staffY, staffAngle);
+  } else if (heroId === 'guardian') {
+    // Exact contact geometry for Orin, in 320x350 actor coordinates.
+    // His right glove point (233,185) must overlap sword handle (239,188)
+    // in idle, walk, windup, charge, release, recover and reduced motion.
+    const swordAngle = joints.weapon.rotation + hand.rotation * .16;
+    const palmX = 206 + hand.x + 27 * Math.cos(hand.rotation)
+      - 19 * Math.sin(hand.rotation);
+    const palmY = 166 + hand.y + 27 * Math.sin(hand.rotation)
+      + 19 * Math.cos(hand.rotation);
+    const handleX = 239 - 25 * Math.sin(swordAngle);
+    const handleY = 163 + 25 * Math.cos(swordAngle);
+    joints.weapon = transform(palmX - handleX, palmY - handleY, swordAngle);
+
+    // Bracing must not disconnect the shield from the supporting left hand.
+    // Shield reference (99,193) follows glove point (100,195) exactly.
+    const left = joints.leftArm, shieldAngle = joints.shield.rotation;
+    const gloveX = 117 + left.x - 17 * Math.cos(left.rotation)
+      - 27 * Math.sin(left.rotation);
+    const gloveY = 168 + left.y - 17 * Math.sin(left.rotation)
+      + 27 * Math.cos(left.rotation);
+    const gripX = 96 + 3 * Math.cos(shieldAngle)
+      - 6 * Math.sin(shieldAngle);
+    const gripY = 187 + 3 * Math.sin(shieldAngle)
+      + 6 * Math.cos(shieldAngle);
+    joints.shield = transform(gloveX - gripX, gloveY - gripY, shieldAngle);
   } else {
-    // Exact original guardian/ranger pose algorithm retained.
+    // Ranger pose and projectile-facing semantics remain unchanged.
     const offset = heroId === 'ranger' ? {x: 29, y: -5}
       : {x: 33, y: -3};
     const wrist = hand.rotation * .72;
