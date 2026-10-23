@@ -150,7 +150,10 @@ export function resolveHeroPose(input = {}) {
     joints.torso = transform(0, 0, .035 * walkWave);
     joints.head = transform(0, -.3 * idleWave, -.045 * idleWave);
     joints.robe = transform(-.45 * walkWave, .1 * idleWave, .08 * walkWave);
-    joints.cape = transform(-.7 * walkWave, 0, -.12 * walkWave - .06 * idleWave);
+    // Shoulder cape follows the torso rigidly after locomotion is composed.
+    // capeTail provides delayed lower-cloth motion, not a drifting collar.
+    joints.cape = transform();
+    joints.capeTail = transform();
     joints.leftLeg = transform(-step * .33, 0, -.13 * walkWave);
     joints.rightLeg = transform(step * .33, 0, .13 * walkWave);
     joints.leftArm = transform(0, -.3 * idleWave, .09 * idleWave - .12 * walkWave + gesture * .22);
@@ -222,21 +225,55 @@ export function resolveHeroPose(input = {}) {
     }
   }
 
+  if (heroId === 'mage') {
+    // The garment's collar pivot is (160,119), while torso rotates around
+    // (160,160). Evaluate the collar point on that torso transform exactly.
+    // This eliminates top-cloth separation in N/NE/NW and during turn/attacks.
+    const shoulder = joints.torso;
+    const shoulderAngle = shoulder.rotation;
+    const collarX = shoulder.x + 41 * Math.sin(shoulderAngle);
+    const collarY = shoulder.y + 41 * (1 - Math.cos(shoulderAngle));
+    joints.cape = transform(collarX, collarY, shoulderAngle * .72);
+    const trailing = walking && !reduced
+      ? Math.sin((tick - 3) * TAU / config.walkTicks) : 0;
+    joints.capeTail = transform(
+      collarX - travel.x * (walking ? 1.5 : 0) - trailing * .9,
+      collarY + travel.y * (walking ? .7 : 0),
+      shoulderAngle * .4 - trailing * .055
+    );
+  }
+
   // Weapon art has a different named pivot from the sword/staff/bow arm.
   // Follow the shoulder's arc (as well as its translation) so hands and
   // weapons travel together on strides, attacks and recoveries.
   // This is a visual-only calculation, never feeds projectile trajectories.
   const hand = joints.rightArm;
-  const offset = heroId === 'ranger' ? {x: 29, y: -5}
-    : heroId === 'guardian' ? {x: 33, y: -3} : {x: 23, y: 8};
-  const wrist = hand.rotation * .72;
-  const wristX = offset.x * (Math.cos(wrist)-1) - offset.y * Math.sin(wrist);
-  const wristY = offset.x * Math.sin(wrist) + offset.y * (Math.cos(wrist)-1);
-  joints.weapon = transform(
-    joints.weapon.x + hand.x + wristX,
-    joints.weapon.y + hand.y + wristY,
-    joints.weapon.rotation + hand.rotation * .16
-  );
+  if (heroId === 'mage') {
+    // Contact-based grip: arm pivot (206,166), drawn palm (230,153),
+    // staff pivot (229,174), shaft contact (229,153). Solve the weapon
+    // translation after all wrist/aim motions so both points coincide,
+    // including mirrored headings and opposite-direction moving fire.
+    const staffAngle = joints.weapon.rotation + hand.rotation * .16;
+    const palmX = 206 + hand.x + 24 * Math.cos(hand.rotation)
+      + 13 * Math.sin(hand.rotation);
+    const palmY = 166 + hand.y + 24 * Math.sin(hand.rotation)
+      - 13 * Math.cos(hand.rotation);
+    const staffX = 229 + 21 * Math.sin(staffAngle);
+    const staffY = 174 - 21 * Math.cos(staffAngle);
+    joints.weapon = transform(palmX - staffX, palmY - staffY, staffAngle);
+  } else {
+    // Exact original guardian/ranger pose algorithm retained.
+    const offset = heroId === 'ranger' ? {x: 29, y: -5}
+      : {x: 33, y: -3};
+    const wrist = hand.rotation * .72;
+    const wristX = offset.x * (Math.cos(wrist)-1) - offset.y * Math.sin(wrist);
+    const wristY = offset.x * Math.sin(wrist) + offset.y * (Math.cos(wrist)-1);
+    joints.weapon = transform(
+      joints.weapon.x + hand.x + wristX,
+      joints.weapon.y + hand.y + wristY,
+      joints.weapon.rotation + hand.rotation * .16
+    );
+  }
 
   return {
     heroId, state: active ? 'attack' : walking ? 'walk' : 'idle',
