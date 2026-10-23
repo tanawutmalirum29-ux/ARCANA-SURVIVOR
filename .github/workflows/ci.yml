@@ -85,6 +85,10 @@ jobs:
         env:
           ARCANA_QA_ARTIFACTS: /tmp/arcana-hero-visual
         run: python scripts/hero_visual_qa.py
+      - name: Astra source eight-heading Canvas/SVG screenshots on Chromium and WebKit
+        env:
+          ARCANA_QA_ARTIFACTS: /tmp/astra-visual-proof
+        run: python scripts/astra_visual_qa.py
       - name: Campaign lobby, migration and real-tab atomic reward gate
         env:
           DEBUG: pw:browser
@@ -115,6 +119,8 @@ jobs:
             /tmp/arcana-lobby-*.png
             /tmp/arcana-hero-visual/**/*.png
             /tmp/arcana-walk8/**/*.png
+            /tmp/astra-visual-proof/**/*.png
+            /tmp/astra-visual-proof/report.json
           if-no-files-found: ignore
           retention-days: 7
 
