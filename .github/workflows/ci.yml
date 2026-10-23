@@ -187,7 +187,7 @@ jobs:
         env:
           DEBUG: pw:browser
         run: |
-          python scripts/lobby_qa.py --browsers webkit --layout-only --viewport 768x1024 --viewport 844x390
+                    python scripts/lobby_qa.py --browsers webkit --layout-only --viewport 768x1024 --viewport 844x390 --viewport 1440x900
       - name: Isolated runner crash diagnostics
         if: ${{ always() }}
         run: |
