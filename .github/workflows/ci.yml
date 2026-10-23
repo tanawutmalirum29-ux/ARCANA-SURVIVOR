@@ -48,6 +48,9 @@ jobs:
     # mirrors. Every existing mandatory browser assertion remains unchanged.
     container:
       image: mcr.microsoft.com/playwright/python:v1.57.0-noble
+      # Required for multi-tab WebKit/Chromium under Docker: avoid /dev/shm
+      # 64-MB container cap that closes renderers without an OOM event.
+      options: --ipc=host
     # GitHub changes the default shell inside a job container to sh.
     # Existing server/baseline readiness loops use Bash brace expansion.
     defaults:
@@ -167,6 +170,9 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright/python:v1.57.0-noble
+      # Required for multi-tab WebKit/Chromium under Docker: avoid /dev/shm
+      # 64-MB container cap that closes renderers without an OOM event.
+      options: --ipc=host
     defaults:
       run:
         shell: bash
@@ -223,6 +229,9 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright/python:v1.57.0-noble
+      # Required for multi-tab WebKit/Chromium under Docker: avoid /dev/shm
+      # 64-MB container cap that closes renderers without an OOM event.
+      options: --ipc=host
     defaults:
       run:
         shell: bash
@@ -276,6 +285,9 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright/python:v1.57.0-noble
+      # Required for multi-tab WebKit/Chromium under Docker: avoid /dev/shm
+      # 64-MB container cap that closes renderers without an OOM event.
+      options: --ipc=host
     defaults:
       run:
         shell: bash
