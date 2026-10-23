@@ -112,6 +112,9 @@ jobs:
           ASTRA_EXPECT_SPLIT_CAPE: '0'
           ASTRA_SOURCE_LABEL: BASELINE-a7f4a090
         run: |
+          # Checkout inside job container uses a host-owned worktree.
+          # Whitelist only the current checkout; do not suppress Git validation.
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git worktree add --detach /tmp/astra-before-polish a7f4a090566123b5c427b874f1978c29a1d9b62b
           python -m http.server 4174 --directory /tmp/astra-before-polish >/tmp/astra-baseline-server.log 2>&1 &
           for attempt in {1..30}; do
@@ -199,10 +202,6 @@ jobs:
         env:
           DEBUG: pw:browser
         run: python scripts/lobby_qa.py --browsers chromium webkit
-      - name: Dormant Event v2 localStorage Chromium and WebKit fault gate
-        run: python scripts/ceo_event_storage_qa.py
-      - name: Dormant Event atomic IndexedDB real-tab concurrency gate
-        run: python scripts/ceo_event_cross_tab_qa.py
       - name: Campaign QA runner diagnostics
         if: ${{ always() }}
         run: |
@@ -215,6 +214,60 @@ jobs:
         with:
           name: campaign-transaction-captures-${{ github.run_id }}-${{ github.run_attempt }}
           path: /tmp/arcana-lobby-*.png
+          if-no-files-found: ignore
+          retention-days: 7
+
+  event-atomic-qa:
+    # Isolate heavy multi-tab event stress from long campaign/transaction suite.
+    # Existing Chromium and WebKit assertions remain mandatory, unchanged.
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright/python:v1.57.0-noble
+    defaults:
+      run:
+        shell: bash
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify pinned Playwright Chromium and WebKit for Event QA
+        run: |
+          python -m pip install playwright==1.57.0
+          python -m playwright --version
+          ls -d /ms-playwright/chromium-* /ms-playwright/webkit-*
+      - name: Start independent event HTTP server
+        run: |
+          node scripts/dev-server.mjs > /tmp/arcana-event-server.log 2>&1 &
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:4173/ > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/arcana-event-server.log
+          exit 1
+      - name: Dormant Event v2 localStorage Chromium and WebKit fault gate
+        run: python scripts/ceo_event_storage_qa.py
+      - name: Dormant Event atomic IndexedDB real-tab concurrency gate
+        run: python scripts/ceo_event_cross_tab_qa.py
+      - name: Event QA runner resource diagnostics
+        if: ${{ always() }}
+        run: |
+          cat /sys/fs/cgroup/memory.events || true
+          free -m || true
+      - name: Upload event crash screenshots
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: event-qa-captures-${{ github.run_id }}-${{ github.run_attempt }}
+          path: /tmp/arcana-*.png
           if-no-files-found: ignore
           retention-days: 7
 
