@@ -157,7 +157,7 @@ jobs:
   webkit-isolated-diagnostics:
     # Extra evidence. The full browser-qa job above remains a mandatory gate.
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:
