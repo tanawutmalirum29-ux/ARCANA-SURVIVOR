@@ -136,6 +136,10 @@ jobs:
         env:
           ARCANA_LIVE_ARTIFACTS: /tmp/astra-live-proof
         run: python scripts/astra_live_qa.py
+      - name: Actual Orin map Canvas and 8-way keyboard combat capture
+        env:
+          ARCANA_LIVE_ARTIFACTS: /tmp/orin-live-proof
+        run: python scripts/orin_live_qa.py
       - name: Collect runner resource and browser process diagnostics
         if: ${{ always() }}
         run: |
@@ -163,6 +167,8 @@ jobs:
             /tmp/astra-visual-proof/report.json
             /tmp/astra-live-proof/**/*.png
             /tmp/astra-live-proof/**/*.webm
+            /tmp/orin-live-proof/**/*.png
+            /tmp/orin-live-proof/**/*.webm
             /tmp/astra-live-proof/report.json
             /tmp/astra-baseline-proof/**/*.png
             /tmp/astra-baseline-proof/report.json
