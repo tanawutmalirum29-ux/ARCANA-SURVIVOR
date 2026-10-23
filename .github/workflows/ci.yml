@@ -48,6 +48,8 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -89,6 +91,23 @@ jobs:
         env:
           ARCANA_QA_ARTIFACTS: /tmp/astra-visual-proof
         run: python scripts/astra_visual_qa.py
+      - name: Pre-polish baseline Astra source comparison (exact same tick and input)
+        env:
+          ARCANA_QA_URL: http://127.0.0.1:4174
+          ARCANA_QA_ARTIFACTS: /tmp/astra-baseline-proof
+          ASTRA_EXPECT_SPLIT_CAPE: '0'
+          ASTRA_SOURCE_LABEL: BASELINE-a7f4a090
+        run: |
+          git worktree add --detach /tmp/astra-before-polish a7f4a090566123b5c427b874f1978c29a1d9b62b
+          python -m http.server 4174 --directory /tmp/astra-before-polish >/tmp/astra-baseline-server.log 2>&1 &
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:4174/tests/characters/visual/preview.html >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:4174/tests/characters/visual/preview.html >/dev/null
+          python scripts/astra_visual_qa.py
       - name: Actual Astra map Canvas and 8-way keyboard combat capture
         env:
           ARCANA_LIVE_ARTIFACTS: /tmp/astra-live-proof
@@ -128,6 +147,8 @@ jobs:
             /tmp/astra-live-proof/**/*.png
             /tmp/astra-live-proof/**/*.webm
             /tmp/astra-live-proof/report.json
+            /tmp/astra-baseline-proof/**/*.png
+            /tmp/astra-baseline-proof/report.json
           if-no-files-found: ignore
           retention-days: 7
 
