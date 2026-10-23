@@ -112,6 +112,10 @@ jobs:
         env:
           ARCANA_QA_ARTIFACTS: /tmp/orin-visual-proof
         run: python scripts/orin_visual_qa.py
+      - name: Lyra bow/arrow/quiver/hood source eight-heading SVG/Canvas screenshots
+        env:
+          ARCANA_QA_ARTIFACTS: /tmp/lyra-visual-proof
+        run: python scripts/lyra_visual_qa.py
       - name: Pre-polish baseline Astra source comparison (exact same tick and input)
         env:
           ARCANA_QA_URL: http://127.0.0.1:4174
@@ -140,6 +144,10 @@ jobs:
         env:
           ARCANA_LIVE_ARTIFACTS: /tmp/orin-live-proof
         run: python scripts/orin_live_qa.py
+      - name: Actual Lyra map eight-way combat and equipped skin acceptance
+        env:
+          ARCANA_LIVE_ARTIFACTS: /tmp/lyra-live-proof
+        run: python scripts/lyra_live_qa.py
       - name: Collect runner resource and browser process diagnostics
         if: ${{ always() }}
         run: |
@@ -171,6 +179,11 @@ jobs:
             /tmp/orin-live-proof/**/*.webm
             /tmp/orin-live-proof/report.json
             /tmp/orin-visual-proof/report.json
+            /tmp/lyra-visual-proof/**/*.png
+            /tmp/lyra-visual-proof/report.json
+            /tmp/lyra-live-proof/**/*.png
+            /tmp/lyra-live-proof/**/*.webm
+            /tmp/lyra-live-proof/report.json
             /tmp/astra-live-proof/report.json
             /tmp/astra-baseline-proof/**/*.png
             /tmp/astra-baseline-proof/report.json

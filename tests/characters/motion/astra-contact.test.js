@@ -98,8 +98,8 @@ test('Astra split cape renders behind hood in back view and the other heroes ret
     'rear hood must occlude staff crossing behind the head');
   for(const [heroId,signature] of [['guardian','sword-shield'],['ranger','bow']]){
     assert.equal(HERO_RIGS[heroId].signature,signature);
-    assert.equal(HERO_RIGS[heroId].parts.some(p=>p.name==='capeTail'),heroId==='guardian',
-      heroId+' must not inherit Astra art; Orin has its own anchored cape tail');
+    assert.equal(HERO_RIGS[heroId].parts.some(p=>p.name==='capeTail'),heroId==='guardian'||heroId==='ranger',
+      heroId+' keeps its own anchored cape tail, not Astra artwork');
   }
   assert.ok(!svg.includes('NaN'),'nonfinite SVG');
 });

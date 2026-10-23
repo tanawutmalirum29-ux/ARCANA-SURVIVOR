@@ -157,4 +157,16 @@ export function drawScene(canvas,ctx,s,profile,time=0,visual={}){
    shieldValue:s.player.shield,bodyScaleX:pose.view.bodyScaleX};
   globalThis.__ARCANA_ORIN_QA_FRAME__(event,canvas);
  }
+ // Lyra's equivalent read-only evidence observes actual shots, bow draw
+ // and the visual rig AFTER the canonical Canvas draw, never affects combat.
+ if(heroId==='ranger' && typeof globalThis.__ARCANA_LYRA_QA_FRAME__==='function'){
+  globalThis.__ARCANA_LYRA_QA_FRAME__({
+   tick:s.tick,heroId,skinId:skin.id||null,
+   firedAtTick:shot?.tick??null,phase:pose.attackPhase,poseState:pose.state,
+   bowDraw:pose.fx.bowDraw,arrowVisible:pose.fx.arrowVisible,
+   direction8:pose.travel.direction8,moving:pose.locomotion==='walk',hasRig,
+   x:s.player.x-cam.x,y:s.player.y-cam.y,width:w,height:h,
+   bodyScaleX:pose.view.bodyScaleX
+  },canvas);
+ }
 }
