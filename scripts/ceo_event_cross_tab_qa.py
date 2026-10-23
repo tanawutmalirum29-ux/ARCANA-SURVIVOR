@@ -168,10 +168,14 @@ def check(browser,engine,w,h):
 
 with sync_playwright() as p:
     for engine in ['chromium','webkit']:
-        browser=getattr(p,engine).launch(headless=True)
-        try:
-            for w,h in SIZES:
+        for w,h in SIZES:
+            # Each viewport gets a fresh browser process, not just a context.
+            # All 12 two-tab races, persisted replay/claim/abort assertions and
+            # reload checks remain unchanged. This prevents leaked renderer
+            # resources from the previous viewport causing TargetClosedError.
+            browser=getattr(p,engine).launch(headless=True)
+            try:
                 check(browser,engine,w,h)
-        finally:
-            browser.close()
+            finally:
+                browser.close()
 print('EVENT INDEXEDDB TRANSACTION REAL-TAB QA COMPLETE: 4 PASS')
