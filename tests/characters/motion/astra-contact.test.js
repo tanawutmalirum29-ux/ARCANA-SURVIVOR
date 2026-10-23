@@ -111,12 +111,14 @@ test('Astra N/NW/NE rear hood never shows forward mask or glowing eyes on SVG or
   const inspect=(pose,heading)=>{
     assert.equal(pose.view.backView,true,heading+' rear orientation lost');
     const svg=heroActorSvg({heroId:'mage',pose});
-    const head=svg.match(/<g data-actor-part="head"(?: transform="[^"]*")?>([\\s\\S]*?)<\\/g>/);
-    assert.ok(head,heading+' head missing in SVG');
-    assert.ok(!head[1].includes(FACE),heading+' eyes facing camera during rear travel');
-    assert.ok(!head[1].includes('M131 113Q142 86'),
+    const headStart=svg.indexOf('<g data-actor-part="head"');
+    const headEnd=svg.indexOf('</g>',headStart);
+    assert.ok(headStart>=0 && headEnd>headStart,heading+' head missing in SVG');
+    const head=svg.slice(headStart,headEnd);
+    assert.ok(!head.includes(FACE),heading+' eyes facing camera during rear travel');
+    assert.ok(!head.includes('M131 113Q142 86'),
       heading+' front face aperture still rendered on rear hood');
-    assert.ok(head[1].includes(REAR_PANEL),heading+' back cloth panel missing');
+    assert.ok(head.includes(REAR_PANEL),heading+' back cloth panel missing');
     const order=[...svg.matchAll(/data-actor-part="([^"]+)"/g)].map(x=>x[1]);
     assert.ok(order.indexOf('cape')<order.indexOf('head'));
     assert.ok(order.indexOf('weapon')<order.indexOf('armRight'));
