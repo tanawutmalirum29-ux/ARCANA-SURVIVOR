@@ -30,7 +30,7 @@ BUILD = """async ({directions,labels,phases}) => {
     await import('/src/characters/motion/index.js');
   const host=document.createElement('section');
   host.id='astra-candidate-proof';
-  host.style.cssText='font:12px sans-serif;background:#142033;color:#f3f5fa;padding:12px;display:grid;grid-template-columns:repeat(4,minmax(160px,1fr));gap:12px;';
+  host.style.cssText='font:12px sans-serif;background:#142033;color:#f3f5fa;padding:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;';
   const checks=[];
   for(const phase of phases){
     for(let i=0;i<directions.length;i++){
