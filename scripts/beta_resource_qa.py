@@ -35,6 +35,12 @@ def check(browser,engine,w,h):
         initial=page.evaluate(READ_SAVE)
         assert initial['profile']['gold']==0,(engine,w,h,'fresh save unexpectedly funded')
         shop.click()
+        enabled=page.evaluate("async () => (await import('/src/testing/beta-resources.js')).BETA_TEST_MODE")
+        if not enabled:
+            assert page.locator('[data-beta-test-kit="true"]').count()==0, 'disabled beta UI still visible'
+            assert page.evaluate(READ_SAVE)['profile']['gold']==0, 'disabled beta mutated wallet'
+            print('PASS BETA_DISABLED',engine,f'{w}x{h}',flush=True)
+            return
         kit=page.locator('[data-beta-test-kit="true"]')
         expect(kit).to_be_visible()
         assert 'BETA TEST ONLY' in kit.inner_text()
