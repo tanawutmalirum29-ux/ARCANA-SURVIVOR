@@ -3,7 +3,7 @@
 import { HERO_RIGS, HERO_IDS } from './rigs.js';
 export { HERO_IDS };
 export const HERO_ART_VIEWBOX = Object.freeze({ width: 320, height: 350, anchorX: 160, anchorY: 185 });
-export const HERO_ART_PARTS = Object.freeze(['cape', 'legLeft', 'legRight', 'torso',
+export const HERO_ART_PARTS = Object.freeze(['capeTail', 'cape', 'legLeft', 'legRight', 'torso',
   'weapon', 'armLeft', 'offhand', 'armRight', 'head', 'arrow', 'robe']);
 const paths = new Map(); // Compile each Path2D only once.
 const palettes = new Map();
