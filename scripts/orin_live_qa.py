@@ -147,7 +147,7 @@ def equip_through_ui(page, variant, folder):
         page.locator('[data-action="equip"][data-id="'+expected+'"]').click()
     active=page.locator(".skin-card.active")
     expect(active).to_have_count(1)
-    expect(active.locator('[data-action][data-id="'+expected+'"]')).to_have_count(1)
+    expect(active.locator('[data-action="equip"][data-id="'+expected+'"]')).to_have_count(1)
     assert store(page)["progression"]["wardrobe"]["guardian"]["equipped"]==expected, (
         "EQUIP_COSMETIC did not persist real selected skin",expected)
     if variant=="base":
