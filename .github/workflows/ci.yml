@@ -159,11 +159,14 @@ jobs:
           retention-days: 7
 
   campaign-transaction-qa:
-    # Give real-tab IndexedDB/migration/reward QA a fresh isolated runner;
-    # these assertions were previously executed after long visual/browser
-    # capture sequences and WebKit sometimes closed during the transaction race.
-    # Splitting runners strengthens the gate: ALL existing tests remain mandatory.
+    # Fully isolated transaction/reward browser suite; all tests mandatory.
+    # Same pinned Playwright build with dependencies preinstalled, no slow APT.
     runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright/python:v1.57.0-noble
+    defaults:
+      run:
+        shell: bash
     timeout-minutes: 45
     permissions:
       contents: read
@@ -175,10 +178,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Install Playwright and browser dependencies for transactions
+      - name: Verify pinned Playwright Chromium and WebKit for transactions
         run: |
           python -m pip install playwright==1.57.0
-          python -m playwright install --with-deps chromium webkit
+          python -m playwright --version
+          test -d /ms-playwright
+          ls -d /ms-playwright/chromium-* /ms-playwright/webkit-*
       - name: Start independent campaign HTTP server
         run: |
           node scripts/dev-server.mjs > /tmp/arcana-transaction-server.log 2>&1 &
@@ -216,6 +221,11 @@ jobs:
   webkit-isolated-diagnostics:
     # Extra evidence. The full browser-qa job above remains a mandatory gate.
     runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright/python:v1.57.0-noble
+    defaults:
+      run:
+        shell: bash
     timeout-minutes: 30
     permissions:
       contents: read
@@ -227,10 +237,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Install independent WebKit engine
+      - name: Verify pinned independent WebKit engine
         run: |
           python -m pip install playwright==1.57.0
-          python -m playwright install --with-deps webkit
+          python -m playwright --version
+          ls -d /ms-playwright/webkit-*
       - name: Start dedicated HTTP server
         run: |
           node scripts/dev-server.mjs > /tmp/arcana-webkit-isolation-server.log 2>&1 &
