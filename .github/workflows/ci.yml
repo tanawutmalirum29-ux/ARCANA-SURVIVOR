@@ -69,6 +69,8 @@ jobs:
           done
           cat /tmp/arcana-dev-server.log
           exit 1
+      - name: Offline beta shop kit with real IndexedDB across browsers
+        run: python scripts/beta_resource_qa.py
       - name: Three-hero Walk8 Canvas contact sheets on Chromium and WebKit
         env:
           ARCANA_WALK8_ARTIFACTS: /tmp/arcana-walk8

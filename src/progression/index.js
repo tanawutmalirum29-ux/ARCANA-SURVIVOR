@@ -6,6 +6,7 @@ export * from './selectors.js';
 import { MAX_VALUE, HEROES, EQUIPMENT, SLOTS, RARITIES, CHAPTERS, MODES, RELICS, TALENTS, RUNES, JEWELS, ARTIFACTS, COMPANIONS, GUARDIANS, RESEARCH, BUILDINGS, MISSIONS, SHOP_OFFERS, SEASON_REWARDS } from './catalog.js';
 import { byId, clone, keys, integer, unique, validDay, weekOf, createItem, validateCampaign } from './state.js';
 import { HERO_IDS, getSkinDefinition, getEquippedSkin } from '../characters/skins/index.js';
+import { BETA_TEST_MODE, BETA_TEST_WALLET_FLOOR, BETA_TEST_SHARD_FLOOR, BETA_TEST_FRAGMENT_FLOOR, BETA_TEST_RUN_ACCESS } from '../testing/beta-resources.js';
 import { deriveLoadout, getFeatureState, getCommandCost, getCommandRewardPreview, getMissionProgress, isItemProtected } from './selectors.js';
 
 export const ERROR_MESSAGES = Object.freeze({
@@ -29,6 +30,7 @@ const COMMAND_FIELDS = Object.freeze({
   UPGRADE_ARTIFACT: ['artifactId'], UPGRADE_COMPANION: ['companionId'], UPGRADE_GUARDIAN: ['guardianId'], EQUIP_ARTIFACT: ['artifactId'], EQUIP_COMPANION: ['companionId'], EQUIP_GUARDIAN: ['guardianId'],
   UPGRADE_RESEARCH: ['researchId'], UPGRADE_BUILDING: ['buildingId'], CLAIM_HOMESTEAD: [], CLAIM_MISSION: ['missionId'], CLAIM_SEASON: ['tier'], BUY_OFFER: ['offerId'],
   FINISH_RUN: ['runId', 'stats'], ABANDON_RUN: ['runId'], PROFILE_SETTINGS: ['settings'], EQUIP_COSMETIC: ['heroId', 'cosmeticId'], UNLOCK_COSMETIC: ['heroId', 'cosmeticId'],
+  BETA_TEST_REFILL: [],
 });
 class RuleError extends Error { constructor(code) { super(code); this.code = code; } }
 const requireRule = (condition, code) => { if (!condition) throw new RuleError(code); };
@@ -125,6 +127,36 @@ function finishRun(state, command) {
 function execute(state, command) {
   const p = state.progression;
   switch (command.type) {
+    case 'BETA_TEST_REFILL': {
+      // Intentional opt-in tester faucet, serialized by the same IDB transaction
+      // and revision guard as every legitimate purchase. No premium entitlements,
+      // purchases, cosmetic ownership or fabricated wins are ever granted.
+      requireRule(BETA_TEST_MODE, 'LOCKED');
+      requireRule(p.activeRun === null, 'RUN_ACTIVE');
+      let changed = false;
+      const fill = (object, key, minimum) => {
+        if (object[key] < minimum) { object[key] = minimum; changed = true; }
+      };
+      fill(state.profile, 'gold', BETA_TEST_WALLET_FLOOR.gold);
+      for (const key of ['essence', 'research', 'dust']) fill(p.materials, key, BETA_TEST_WALLET_FLOOR[key]);
+      // Simulated access for progression feature gates, not verified wins:
+      // do not change mission counters, kills, history, claims or XP.
+      fill(state.profile, 'runs', BETA_TEST_RUN_ACCESS);
+      for (const hero of HEROES) fill(p.heroes[hero.id], 'shards', BETA_TEST_SHARD_FLOOR);
+      for (const relic of RELICS) fill(p.relics[relic.id], 'fragments', BETA_TEST_FRAGMENT_FLOOR);
+      const created = [];
+      for (const def of EQUIPMENT) {
+        for (const rarity of [0, 4]) {
+          if (p.inventory.some(item => item.definitionId === def.id && item.rarity === rarity)) continue;
+          requireRule(p.inventory.length < 1000, 'INVENTORY_FULL');
+          requireRule(p.nextItem < Number.MAX_SAFE_INTEGER - 1, 'LIMIT_REACHED');
+          const item = createItem(`item-${p.nextItem++}`, def.id, rarity);
+          p.inventory.push(item); created.push(item.id); changed = true;
+        }
+      }
+      requireRule(changed, 'NO_CHANGE');
+      return { beta: true, createdItems: created.length };
+    }
     case 'SELECT_HERO': {
       definition(HEROES, command.heroId); requireRule(p.heroes[command.heroId].level > 0, 'NOT_OWNED'); requireRule(p.heroId !== command.heroId, 'NO_CHANGE');
       p.heroId = command.heroId; if (p.supportHeroId === p.heroId) p.supportHeroId = null; break;
