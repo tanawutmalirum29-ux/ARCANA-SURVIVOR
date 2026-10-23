@@ -65,6 +65,14 @@ const swatch = (name,palette) => palette[name] || 'none';
 // North-facing cloak sits in front of the torso; equipment remains visible.
 function partsFor(rig,pose) {
   if (!(pose?.view?.backView ?? pose?.travel?.backView)) return rig.parts;
+  if (rig.id === 'mage') {
+    // In the back view the cape covers the robe/torso but tucks under the
+    // hood and forearms. This prevents a raised collar from masking Astra's
+    // neck or breaking the staff grip; other heroes retain exact old z-order.
+    const order = ['legLeft','legRight','robe','torso','capeTail','cape',
+      'armLeft','armRight','head','weapon'];
+    return order.map(name=>rig.parts.find(part=>part.name===name)).filter(Boolean);
+  }
   if (backOrders.has(rig.id)) return backOrders.get(rig.id);
   const accessory = new Set(['weapon','offhand','arrow']);
   const ordered = Object.freeze([
