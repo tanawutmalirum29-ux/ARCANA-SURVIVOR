@@ -43,6 +43,11 @@ jobs:
 
   browser-qa:
     runs-on: ubuntu-latest
+    # Use the official matching-version Playwright Python test image. It ships
+    # Chromium, WebKit and Ubuntu system dependencies, avoiding blocked apt
+    # mirrors. Every existing mandatory browser assertion remains unchanged.
+    container:
+      image: mcr.microsoft.com/playwright/python:v1.57.0-noble
     # Astra source + live-map captures extend the original full browser gate.
     # Hosted apt mirrors can be slow; retain every existing assertion and job.
     timeout-minutes: 45
@@ -58,10 +63,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Install Playwright and browser dependencies
+      - name: Verify pinned Playwright and preinstalled browser dependencies
         run: |
           python -m pip install playwright==1.57.0
-          python -m playwright install --with-deps chromium webkit
+          python -m playwright --version
+          test -d /ms-playwright
+          ls -d /ms-playwright/chromium-* /ms-playwright/webkit-*
       - name: Start real HTTP server
         run: |
           node scripts/dev-server.mjs > /tmp/arcana-dev-server.log 2>&1 &
