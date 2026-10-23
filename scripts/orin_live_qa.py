@@ -32,7 +32,7 @@ REAL_VARIANTS = ("base", "ember", "moon")
 # previews only in the current catalog (and the real transactional store).
 LOCKED_CONCEPTS = ("lantern", "crimson")
 
-QA_INIT = r"""() => {
+QA_INIT = r"""(() => {
   const qa = {frames:0,latest:null,dir:null,captures:{},attack:null,brace:null};
   const visible = e => e.hasRig && e.skinId && e.x>45 && e.y>45 &&
     e.x<e.width-45 && e.y<e.height-45;
@@ -52,7 +52,7 @@ QA_INIT = r"""() => {
     if(!qa.brace && ['windup','charge'].includes(event.phase) &&
        event.shieldBrace>.5)qa.brace=snap(canvas,event);
   };
-}"""
+})()"""
 
 # User's own save lives solely in a clean throwaway browser context.
 # Valid fixture preserves exact schema and authorized ownership classes.
@@ -171,7 +171,6 @@ def verify_lobby(page,expected,folder):
     for concept in LOCKED_CONCEPTS:
         assert "guardian:"+concept not in saved["progression"]["wardrobe"]["guardian"]["owned"]
     result=page.evaluate("""expected => {
-      const {getSkinDefinition}=globalThis.__orinQA; // getSkinDefinition comes from source below
       return import('/src/characters/skins/index.js').then(({getSkinDefinition})=>{
         const skin=getSkinDefinition(expected);
         const candidates=[...document.querySelectorAll('.canonical-hero-art[data-hero="guardian"]')];
