@@ -1,6 +1,6 @@
 // Pure actor renderer. Both SVG lobby and Canvas map use the same lobby-derived rig.
 // Does not access DOM, storage, simulation, gameplay weaponId or entitlements.
-import { HERO_RIGS, HERO_IDS, ASTRA_REAR_HOOD } from './rigs.js';
+import { HERO_RIGS, HERO_IDS, ASTRA_REAR_HOOD, ORIN_REAR_HELM } from './rigs.js';
 export { HERO_IDS };
 export const HERO_ART_VIEWBOX = Object.freeze({ width: 320, height: 350, anchorX: 160, anchorY: 185 });
 export const HERO_ART_PARTS = Object.freeze(['capeTail', 'cape', 'legLeft', 'legRight', 'torso',
@@ -74,6 +74,14 @@ function partsFor(rig,pose) {
       'weapon','armLeft','armRight','head'];
     return order.map(name=>name==='head'
       ? ASTRA_REAR_HOOD : rig.parts.find(part=>part.name===name)).filter(Boolean);
+  }
+  if (rig.id === 'guardian') {
+    // Steel helmet is closed when Orin faces away. Trailing cloth covers
+    // the rear breastplate, but both shield and sword remain identifiable.
+    const order = ['legLeft','legRight','torso','capeTail','cape',
+      'weapon','armLeft','offhand','armRight','head'];
+    return order.map(name=>name==='head'
+      ? ORIN_REAR_HELM : rig.parts.find(part=>part.name===name)).filter(Boolean);
   }
   if (backOrders.has(rig.id)) return backOrders.get(rig.id);
   const accessory = new Set(['weapon','offhand','arrow']);

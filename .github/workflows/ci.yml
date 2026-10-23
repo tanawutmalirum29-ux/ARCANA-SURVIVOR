@@ -108,6 +108,10 @@ jobs:
         env:
           ARCANA_QA_ARTIFACTS: /tmp/astra-visual-proof
         run: python scripts/astra_visual_qa.py
+      - name: Orin sword/shield and cape eight-heading SVG/Canvas screenshots
+        env:
+          ARCANA_QA_ARTIFACTS: /tmp/orin-visual-proof
+        run: python scripts/orin_visual_qa.py
       - name: Pre-polish baseline Astra source comparison (exact same tick and input)
         env:
           ARCANA_QA_URL: http://127.0.0.1:4174
@@ -132,6 +136,10 @@ jobs:
         env:
           ARCANA_LIVE_ARTIFACTS: /tmp/astra-live-proof
         run: python scripts/astra_live_qa.py
+      - name: Actual Orin map Canvas and 8-way keyboard combat capture
+        env:
+          ARCANA_LIVE_ARTIFACTS: /tmp/orin-live-proof
+        run: python scripts/orin_live_qa.py
       - name: Collect runner resource and browser process diagnostics
         if: ${{ always() }}
         run: |
@@ -153,11 +161,16 @@ jobs:
             /tmp/arcana-qa-layout-*.png
             /tmp/arcana-lobby-*.png
             /tmp/arcana-hero-visual/**/*.png
+            /tmp/orin-visual-proof/**/*.png
             /tmp/arcana-walk8/**/*.png
             /tmp/astra-visual-proof/**/*.png
             /tmp/astra-visual-proof/report.json
             /tmp/astra-live-proof/**/*.png
             /tmp/astra-live-proof/**/*.webm
+            /tmp/orin-live-proof/**/*.png
+            /tmp/orin-live-proof/**/*.webm
+            /tmp/orin-live-proof/report.json
+            /tmp/orin-visual-proof/report.json
             /tmp/astra-live-proof/report.json
             /tmp/astra-baseline-proof/**/*.png
             /tmp/astra-baseline-proof/report.json
