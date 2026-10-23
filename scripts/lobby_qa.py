@@ -724,13 +724,19 @@ def main():
                     browser.close()
                     print('LOBBY_QA_BROWSER_CLOSED',engine,size,runner_resources(),flush=True)
             if not args.layout_only:
-                browser=getattr(playwright,engine).launch(headless=True)
-                try:
-                    migration_checks(browser,engine)
-                    transaction_checks(browser,engine)
-                    progression_ui(browser,engine)
-                    live_resource_victory(browser,engine)
-                finally:browser.close()
+                # Keep every mandatory migration, real-tab transaction, UI,
+                # and 90-second victory/reward assertion. Give each suite a
+                # fresh browser process instead of retaining a WebKit process
+                # across multiple heavy contexts (which can crash mid-race).
+                for check_suite in (
+                    migration_checks, transaction_checks,
+                    progression_ui, live_resource_victory
+                ):
+                    browser=getattr(playwright,engine).launch(headless=True)
+                    try:
+                        check_suite(browser,engine)
+                    finally:
+                        browser.close()
     if args.layout_only:
         print('LOBBY ISOLATED DIAGNOSTIC COMPLETE:',len(args.browsers)*len(sizes),
               'viewport cases; DOES NOT replace full browser acceptance',flush=True)

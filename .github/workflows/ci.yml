@@ -43,21 +43,40 @@ jobs:
 
   browser-qa:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Use the official matching-version Playwright Python test image. It ships
+    # Chromium, WebKit and Ubuntu system dependencies, avoiding blocked apt
+    # mirrors. Every existing mandatory browser assertion remains unchanged.
+    container:
+      image: mcr.microsoft.com/playwright/python:v1.57.0-noble
+      # Required for multi-tab WebKit/Chromium under Docker: avoid /dev/shm
+      # 64-MB container cap that closes renderers without an OOM event.
+      options: --ipc=host
+    # GitHub changes the default shell inside a job container to sh.
+    # Existing server/baseline readiness loops use Bash brace expansion.
+    defaults:
+      run:
+        shell: bash
+    # Astra source + live-map captures extend the original full browser gate.
+    # Hosted apt mirrors can be slow; retain every existing assertion and job.
+    timeout-minutes: 45
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Install Playwright and browser dependencies
+      - name: Verify pinned Playwright and preinstalled browser dependencies
         run: |
           python -m pip install playwright==1.57.0
-          python -m playwright install --with-deps chromium webkit
+          python -m playwright --version
+          test -d /ms-playwright
+          ls -d /ms-playwright/chromium-* /ms-playwright/webkit-*
       - name: Start real HTTP server
         run: |
           node scripts/dev-server.mjs > /tmp/arcana-dev-server.log 2>&1 &
@@ -85,14 +104,34 @@ jobs:
         env:
           ARCANA_QA_ARTIFACTS: /tmp/arcana-hero-visual
         run: python scripts/hero_visual_qa.py
-      - name: Campaign lobby, migration and real-tab atomic reward gate
+      - name: Astra source eight-heading Canvas/SVG screenshots on Chromium and WebKit
         env:
-          DEBUG: pw:browser
-        run: python scripts/lobby_qa.py --browsers chromium webkit
-      - name: Dormant Event v2 localStorage Chromium and WebKit fault gate
-        run: python scripts/ceo_event_storage_qa.py
-      - name: Dormant Event atomic IndexedDB real-tab concurrency gate
-        run: python scripts/ceo_event_cross_tab_qa.py
+          ARCANA_QA_ARTIFACTS: /tmp/astra-visual-proof
+        run: python scripts/astra_visual_qa.py
+      - name: Pre-polish baseline Astra source comparison (exact same tick and input)
+        env:
+          ARCANA_QA_URL: http://127.0.0.1:4174
+          ARCANA_QA_ARTIFACTS: /tmp/astra-baseline-proof
+          ASTRA_EXPECT_SPLIT_CAPE: '0'
+          ASTRA_SOURCE_LABEL: BASELINE-a7f4a090
+        run: |
+          # Checkout inside job container uses a host-owned worktree.
+          # Whitelist only the current checkout; do not suppress Git validation.
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git worktree add --detach /tmp/astra-before-polish a7f4a090566123b5c427b874f1978c29a1d9b62b
+          python -m http.server 4174 --directory /tmp/astra-before-polish >/tmp/astra-baseline-server.log 2>&1 &
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:4174/tests/characters/visual/preview.html >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:4174/tests/characters/visual/preview.html >/dev/null
+          python scripts/astra_visual_qa.py
+      - name: Actual Astra map Canvas and 8-way keyboard combat capture
+        env:
+          ARCANA_LIVE_ARTIFACTS: /tmp/astra-live-proof
+        run: python scripts/astra_live_qa.py
       - name: Collect runner resource and browser process diagnostics
         if: ${{ always() }}
         run: |
@@ -115,13 +154,29 @@ jobs:
             /tmp/arcana-lobby-*.png
             /tmp/arcana-hero-visual/**/*.png
             /tmp/arcana-walk8/**/*.png
+            /tmp/astra-visual-proof/**/*.png
+            /tmp/astra-visual-proof/report.json
+            /tmp/astra-live-proof/**/*.png
+            /tmp/astra-live-proof/**/*.webm
+            /tmp/astra-live-proof/report.json
+            /tmp/astra-baseline-proof/**/*.png
+            /tmp/astra-baseline-proof/report.json
           if-no-files-found: ignore
           retention-days: 7
 
-  webkit-isolated-diagnostics:
-    # Extra evidence. The full browser-qa job above remains a mandatory gate.
+  campaign-transaction-qa:
+    # Fully isolated transaction/reward browser suite; all tests mandatory.
+    # Same pinned Playwright build with dependencies preinstalled, no slow APT.
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    container:
+      image: mcr.microsoft.com/playwright/python:v1.57.0-noble
+      # Required for multi-tab WebKit/Chromium under Docker: avoid /dev/shm
+      # 64-MB container cap that closes renderers without an OOM event.
+      options: --ipc=host
+    defaults:
+      run:
+        shell: bash
+    timeout-minutes: 45
     permissions:
       contents: read
     steps:
@@ -132,10 +187,181 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Install independent WebKit engine
+      - name: Verify pinned Playwright Chromium and WebKit for transactions
         run: |
           python -m pip install playwright==1.57.0
-          python -m playwright install --with-deps webkit
+          python -m playwright --version
+          test -d /ms-playwright
+          ls -d /ms-playwright/chromium-* /ms-playwright/webkit-*
+      - name: Start independent campaign HTTP server
+        run: |
+          node scripts/dev-server.mjs > /tmp/arcana-transaction-server.log 2>&1 &
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:4173/ > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/arcana-transaction-server.log
+          exit 1
+      - name: Chromium campaign lobby, migration and atomic reward gate
+        env:
+          DEBUG: pw:browser
+        run: python scripts/lobby_qa.py --browsers chromium
+      - name: Campaign QA runner diagnostics
+        if: ${{ always() }}
+        run: |
+          cat /sys/fs/cgroup/memory.events || true
+          free -m || true
+          ps -eo pid,ppid,rss,stat,comm --sort=-rss | head -25 || true
+      - name: Upload campaign/browser error captures
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: campaign-transaction-captures-${{ github.run_id }}-${{ github.run_attempt }}
+          path: /tmp/arcana-lobby-*.png
+          if-no-files-found: ignore
+          retention-days: 7
+
+  campaign-webkit-qa:
+    # Each browser tests the complete unmodified campaign suite in a clean
+    # process and runner, avoiding cross-engine WebKit renderer exhaustion.
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright/python:v1.57.0-noble
+      options: --ipc=host
+    defaults:
+      run:
+        shell: bash
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify pinned WebKit for independent campaign transactions
+        run: |
+          python -m pip install playwright==1.57.0
+          python -m playwright --version
+          ls -d /ms-playwright/webkit-*
+      - name: Start independent WebKit campaign server
+        run: |
+          node scripts/dev-server.mjs > /tmp/arcana-webkit-campaign-server.log 2>&1 &
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:4173/ > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/arcana-webkit-campaign-server.log
+          exit 1
+      - name: WebKit campaign lobby, migration and atomic reward gate
+        env:
+          DEBUG: pw:browser
+        run: python scripts/lobby_qa.py --browsers webkit
+      - name: Independent WebKit campaign crash diagnostics
+        if: ${{ always() }}
+        run: |
+          cat /sys/fs/cgroup/memory.events || true
+          free -m || true
+      - name: Upload WebKit campaign crash screenshots
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: campaign-webkit-qa-captures-${{ github.run_id }}-${{ github.run_attempt }}
+          path: /tmp/arcana-lobby-*.png
+          if-no-files-found: ignore
+          retention-days: 7
+
+  event-atomic-qa:
+    # Isolate heavy multi-tab event stress from long campaign/transaction suite.
+    # Existing Chromium and WebKit assertions remain mandatory, unchanged.
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright/python:v1.57.0-noble
+      # Required for multi-tab WebKit/Chromium under Docker: avoid /dev/shm
+      # 64-MB container cap that closes renderers without an OOM event.
+      options: --ipc=host
+    defaults:
+      run:
+        shell: bash
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify pinned Playwright Chromium and WebKit for Event QA
+        run: |
+          python -m pip install playwright==1.57.0
+          python -m playwright --version
+          ls -d /ms-playwright/chromium-* /ms-playwright/webkit-*
+      - name: Start independent event HTTP server
+        run: |
+          node scripts/dev-server.mjs > /tmp/arcana-event-server.log 2>&1 &
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:4173/ > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/arcana-event-server.log
+          exit 1
+      - name: Dormant Event v2 localStorage Chromium and WebKit fault gate
+        run: python scripts/ceo_event_storage_qa.py
+      - name: Dormant Event atomic IndexedDB real-tab concurrency gate
+        run: python scripts/ceo_event_cross_tab_qa.py
+      - name: Event QA runner resource diagnostics
+        if: ${{ always() }}
+        run: |
+          cat /sys/fs/cgroup/memory.events || true
+          free -m || true
+      - name: Upload event crash screenshots
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: event-qa-captures-${{ github.run_id }}-${{ github.run_attempt }}
+          path: /tmp/arcana-*.png
+          if-no-files-found: ignore
+          retention-days: 7
+
+  webkit-isolated-diagnostics:
+    # Extra evidence. The full browser-qa job above remains a mandatory gate.
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright/python:v1.57.0-noble
+      # Required for multi-tab WebKit/Chromium under Docker: avoid /dev/shm
+      # 64-MB container cap that closes renderers without an OOM event.
+      options: --ipc=host
+    defaults:
+      run:
+        shell: bash
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify pinned independent WebKit engine
+        run: |
+          python -m pip install playwright==1.57.0
+          python -m playwright --version
+          ls -d /ms-playwright/webkit-*
       - name: Start dedicated HTTP server
         run: |
           node scripts/dev-server.mjs > /tmp/arcana-webkit-isolation-server.log 2>&1 &
@@ -151,7 +377,7 @@ jobs:
         env:
           DEBUG: pw:browser
         run: |
-          python scripts/lobby_qa.py --browsers webkit --layout-only --viewport 768x1024 --viewport 844x390
+                    python scripts/lobby_qa.py --browsers webkit --layout-only --viewport 768x1024 --viewport 844x390 --viewport 1440x900
       - name: Isolated runner crash diagnostics
         if: ${{ always() }}
         run: |

@@ -1,9 +1,9 @@
 // Pure actor renderer. Both SVG lobby and Canvas map use the same lobby-derived rig.
 // Does not access DOM, storage, simulation, gameplay weaponId or entitlements.
-import { HERO_RIGS, HERO_IDS } from './rigs.js';
+import { HERO_RIGS, HERO_IDS, ASTRA_REAR_HOOD } from './rigs.js';
 export { HERO_IDS };
 export const HERO_ART_VIEWBOX = Object.freeze({ width: 320, height: 350, anchorX: 160, anchorY: 185 });
-export const HERO_ART_PARTS = Object.freeze(['cape', 'legLeft', 'legRight', 'torso',
+export const HERO_ART_PARTS = Object.freeze(['capeTail', 'cape', 'legLeft', 'legRight', 'torso',
   'weapon', 'armLeft', 'offhand', 'armRight', 'head', 'arrow', 'robe']);
 const paths = new Map(); // Compile each Path2D only once.
 const palettes = new Map();
@@ -65,6 +65,16 @@ const swatch = (name,palette) => palette[name] || 'none';
 // North-facing cloak sits in front of the torso; equipment remains visible.
 function partsFor(rig,pose) {
   if (!(pose?.view?.backView ?? pose?.travel?.backView)) return rig.parts;
+  if (rig.id === 'mage') {
+    // Keep shoulder yoke aligned to the torso, but NEVER display the
+    // front-facing eyes/mask when Astra runs N/NW/NE. The closed rear hood
+    // shares the head joint and pivot and occludes any staff crossing behind
+    // the skull. Draw the staff before the support arm/gripping hand.
+    const order = ['legLeft','legRight','robe','torso','capeTail','cape',
+      'weapon','armLeft','armRight','head'];
+    return order.map(name=>name==='head'
+      ? ASTRA_REAR_HOOD : rig.parts.find(part=>part.name===name)).filter(Boolean);
+  }
   if (backOrders.has(rig.id)) return backOrders.get(rig.id);
   const accessory = new Set(['weapon','offhand','arrow']);
   const ordered = Object.freeze([
