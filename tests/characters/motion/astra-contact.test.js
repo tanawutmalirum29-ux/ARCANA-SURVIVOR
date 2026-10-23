@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { resolveHeroPose } from '../../../src/characters/motion/index.js';
-import { heroActorSvg } from '../../../src/characters/visual/hero-art.js';
+import { heroActorSvg, renderHeroActor } from '../../../src/characters/visual/hero-art.js';
 import { HERO_RIGS } from '../../../src/characters/visual/rigs.js';
 
 // Actor-space contacts derive from the actual path coordinates in mage rigs.
@@ -94,11 +94,68 @@ test('Astra split cape renders behind hood in back view and the other heroes ret
   assert.ok(partOrder.indexOf('torso')<partOrder.indexOf('cape'));
   assert.ok(partOrder.indexOf('capeTail')<partOrder.indexOf('cape'));
   assert.ok(partOrder.indexOf('cape')<partOrder.indexOf('head'));
-  assert.ok(partOrder.indexOf('head')<partOrder.indexOf('weapon'));
+  assert.ok(partOrder.indexOf('weapon')<partOrder.indexOf('head'),
+    'rear hood must occlude staff crossing behind the head');
   for(const [heroId,signature] of [['guardian','sword-shield'],['ranger','bow']]){
     assert.equal(HERO_RIGS[heroId].signature,signature);
     assert.ok(!HERO_RIGS[heroId].parts.some(p=>p.name==='capeTail'),
       heroId+' was contaminated by Astra-specific geometry');
   }
   assert.ok(!svg.includes('NaN'),'nonfinite SVG');
+});
+
+test('Astra N/NW/NE rear hood never shows forward mask or glowing eyes on SVG or Canvas',()=>{
+  const backMoves=[['NW',-1,-1],['N',0,-1],['NE',1,-1]];
+  const FACE='m145 118 11 2m10 0 11-2';
+  const REAR_PANEL='M126 112Q136 89 160 78';
+  const inspect=(pose,heading)=>{
+    assert.equal(pose.view.backView,true,heading+' rear orientation lost');
+    const svg=heroActorSvg({heroId:'mage',pose});
+    const head=svg.match(/<g data-actor-part="head"(?: transform="[^"]*")?>([\\s\\S]*?)<\\/g>/);
+    assert.ok(head,heading+' head missing in SVG');
+    assert.ok(!head[1].includes(FACE),heading+' eyes facing camera during rear travel');
+    assert.ok(!head[1].includes('M131 113Q142 86'),
+      heading+' front face aperture still rendered on rear hood');
+    assert.ok(head[1].includes(REAR_PANEL),heading+' back cloth panel missing');
+    const order=[...svg.matchAll(/data-actor-part="([^"]+)"/g)].map(x=>x[1]);
+    assert.ok(order.indexOf('cape')<order.indexOf('head'));
+    assert.ok(order.indexOf('weapon')<order.indexOf('armRight'));
+    assert.ok(order.indexOf('armRight')<order.indexOf('head'));
+    const strokes=[];
+    const old=globalThis.Path2D;
+    globalThis.Path2D=class FakePath2D {constructor(d){this.d=d;}};
+    const ctx={
+      save(){},restore(){},translate(){},rotate(){},scale(){},
+      fill(path){strokes.push(path.d);},stroke(path){strokes.push(path.d);},
+      set lineJoin(v){},set lineCap(v){},set fillStyle(v){},
+      set strokeStyle(v){},set lineWidth(v){}
+    };
+    try{
+      assert.equal(renderHeroActor(ctx,{heroId:'mage',pose,x:30,y:30,scale:.2}),true);
+      assert.ok(strokes.some(x=>x.includes(REAR_PANEL)),heading+' rear Canvas missing');
+      assert.ok(!strokes.some(x=>x.includes(FACE)),heading+' forward eyes in Canvas');
+    }finally{
+      if(old===undefined)delete globalThis.Path2D;
+      else globalThis.Path2D=old;
+    }
+  };
+  for(const [heading,x,y] of backMoves){
+    for (const tick of [80,87,98,99,100,110,143]){
+      for(const state of ['walk','charge','release','recover']){
+        const props={heroId:'mage',tick,moving:true,
+          moveVector:{x,y},aimVector:{x:-x||1,y:1},attackIntervalTicks:30};
+        if(state==='release')props.lastAttackTick=tick;
+        if(state==='recover')props.lastAttackTick=tick-4;
+        if(state==='charge'){props.targetPresent=true;props.nextAttackTick=tick+6;}
+        inspect(resolveHeroPose(props),heading+'/'+tick+'/'+state);
+      }
+    }
+  }
+  for(const [heading,x,y] of [['S',0,1],['SW',-1,1],['SE',1,1]]){
+    const pose=resolveHeroPose({heroId:'mage',tick:100,moving:true,moveVector:{x,y}});
+    assert.equal(pose.view.backView,false,heading);
+    const front=heroActorSvg({heroId:'mage',pose});
+    assert.ok(front.includes(FACE),heading+' front-facing eyes lost');
+    assert.ok(!front.includes(REAR_PANEL),heading+' rear-only hood leaked into front view');
+  }
 });
