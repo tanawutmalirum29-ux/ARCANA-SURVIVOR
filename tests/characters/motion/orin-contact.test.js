@@ -71,7 +71,8 @@ test('Orin stationary attack, injury and reduced motion retain armour grip and s
   }
   assert.equal(getCanonicalHeroArt('guardian').signature,'sword-shield');
   assert.equal(HERO_RIGS.mage.parts.some(p=>p.name==='offhand'),false);
-  assert.equal(HERO_RIGS.ranger.parts.some(p=>p.name==='capeTail'),false);
+  assert.equal(HERO_RIGS.ranger.parts.some(p=>p.name==='capeTail'),true);
+  assert.equal(HERO_RIGS.mage.parts.some(p=>p.name==='quiver'),false);
 });
 test('N/NW/NE rear steel helm occludes face in SVG and cached Canvas',()=>{
   const FRONT_EYES='M145 119h10m14 0h10';

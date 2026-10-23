@@ -137,7 +137,7 @@ export function resolveHeroPose(input = {}) {
   const aimTilt = active ? clamp(localAimX * .17 + aimPitch, -.3, .3) : 0;
   const joints = {
     root: transform(), torso: transform(), head: transform(),
-    robe: transform(), cape: transform(),
+    robe: transform(), cape: transform(), capeTail: transform(), quiver: transform(),
     leftArm: transform(), rightArm: transform(),
     leftLeg: transform(), rightLeg: transform(),
     weapon: transform(), shield: transform(),
@@ -260,6 +260,24 @@ export function resolveHeroPose(input = {}) {
     );
   }
 
+  if (heroId === 'ranger') {
+    // Lyra's leaf-hood yoke, mantle and arrow quiver rotate with the chest.
+    // Her front collar and rear straps cannot disconnect on sharp turns.
+    const torso=joints.torso, ca=Math.cos(torso.rotation), sa=Math.sin(torso.rotation);
+    // torso pivot (162,173) to collar (160,136) = (-2,-37)
+    const collarX=162+torso.x-2*ca+37*sa-160;
+    const collarY=173+torso.y-2*sa-37*ca-136;
+    joints.cape=transform(collarX,collarY,torso.rotation*.85);
+    const trailing=walking&&!reduced
+      ? Math.sin((tick-3)*TAU/config.walkTicks) : 0;
+    joints.capeTail=transform(collarX-travel.x*(walking?1.3:0)-trailing*.8,
+      collarY+travel.y*(walking?.6:0),torso.rotation*.38-trailing*.055);
+    // quiver pivot (192,143), relative to torso (162,173) = (30,-30).
+    const quiverX=162+torso.x+30*ca+30*sa-192;
+    const quiverY=173+torso.y+30*sa-30*ca-143;
+    joints.quiver=transform(quiverX,quiverY,torso.rotation);
+  }
+
   // Weapon art has a different named pivot from the sword/staff/bow arm.
   // Follow the shoulder's arc (as well as its translation) so hands and
   // weapons travel together on strides, attacks and recoveries.
@@ -304,17 +322,14 @@ export function resolveHeroPose(input = {}) {
       + 6 * Math.cos(shieldAngle);
     joints.shield = transform(gloveX - gripX, gloveY - gripY, shieldAngle);
   } else {
-    // Ranger pose and projectile-facing semantics remain unchanged.
-    const offset = heroId === 'ranger' ? {x: 29, y: -5}
-      : {x: 33, y: -3};
-    const wrist = hand.rotation * .72;
-    const wristX = offset.x * (Math.cos(wrist)-1) - offset.y * Math.sin(wrist);
-    const wristY = offset.x * Math.sin(wrist) + offset.y * (Math.cos(wrist)-1);
-    joints.weapon = transform(
-      joints.weapon.x + hand.x + wristX,
-      joints.weapon.y + hand.y + wristY,
-      joints.weapon.rotation + hand.rotation * .16
-    );
+    // Lyra's grip pin is also the bow's local rotation pivot (234,156).
+    // The right glove palm (231,159) is fixed to it through every shot and
+    // foot plant. The drawn arrow shares this transform then travels 13 units
+    // backward as bowDraw increases; no fictitious projectile is created.
+    const angle=joints.weapon.rotation+hand.rotation*.16;
+    const palmX=205+hand.x+26*Math.cos(hand.rotation)+2*Math.sin(hand.rotation);
+    const palmY=161+hand.y+26*Math.sin(hand.rotation)-2*Math.cos(hand.rotation);
+    joints.weapon=transform(palmX-234,palmY-156,angle);
   }
 
   return {

@@ -212,62 +212,127 @@ export const ORIN_REAR_HELM = freeze(G('head', 161, 115, [
   P('M160 53 161 84M140 82 181 82', 'none', 'metal', 2),
 ]));
 
+// Lyra: moonwood ranger. All pieces remain Path2D-compatible with lobby SVG.
+// The leaf hood, brass-limbed recurved bow, feathered quiver, layered leather
+// cuirass, boots and split wind mantle form a silhouette unlike Orin/Astra.
 const ranger = {
   id: 'ranger', name: 'Lyra', signature: 'bow',
-  palette: { primary: '#ebb991', shadow: '#4a8a86', dark: '#173c46',
-    inner: '#0c1c30', trim: '#dfc894', metal: '#b1ccd0', leather: '#9c7856',
-    glow: '#ebb991', face: '#0a1726' },
+  palette: { primary: '#ebb991', shadow: '#377b78', dark: '#123342',
+    inner: '#091b2c', trim: '#e9c98c', metal: '#aecbd0', leather: '#936748',
+    glow: '#ebb991', face: '#101e2f' },
   parts: [
-    G('cape', 160, 156, [
-      P('M151 88Q105 117 83 262l56 17 25-34 43 35 40-37Q203 106 169 88Z', 'inner', 'shadow'),
-      P('M146 103q-31 54-42 147l34 14 27-34 38 29 21-17q-34-110-48-138Z', 'shadow', 'trim'),
-      P('M103 234 90 280 140 258m64-1 25 34 16-44', 'none', 'primary', 3),
+    // Both cape pieces share the same collar attachment; only the lower
+    // mantle gets delayed motion. It never floats away from her shoulders.
+    G('capeTail', 160, 136, [
+      P('M131 129Q107 169 84 248L76 272 110 290 140 279 158 290 182 276 214 290 243 269Q228 192 192 130Z', 'inner', 'shadow', 2.8),
+      P('M139 143Q109 206 100 265L132 279 159 271 189 282 224 264Q210 200 183 143Z', 'shadow', 'primary', 2.1),
+      P('M95 263 132 281 158 273 190 285 226 266M124 178Q115 210 111 250M194 181Q213 223 220 252', 'none', 'trim', 2.5),
+      P('M147 227 160 239 172 227 166 251 159 259 151 248Z', 'trim', 'dark', 1.5),
     ]),
-    G('legLeft', 151, 256, [
-      P('m142 238-12 60 21 5 12-59Z', 'dark', 'leather', 2),
-      P('m130 291-7 15 29 0 3-13Z', 'inner', 'trim', 1.5),
+    G('legLeft', 148, 253, [
+      P('M126 233 157 238 158 274 150 296 122 297 123 274Z', 'dark', 'leather', 2.5),
+      P('M133 243 154 245 150 273 141 283 127 275Z', 'shadow', 'trim', 1.8),
+      P('M130 252 151 256M130 265 150 269M136 244 138 279', 'none', 'metal', 2),
+      P('M124 285 153 286 163 304Q142 310 113 305Z', 'inner', 'trim', 2),
+      P('M121 303 157 303', 'none', 'leather', 3),
     ]),
-    G('legRight', 184, 251, [
-      P('m175 243 14 60 22-8-16-58Z', 'dark', 'leather', 2),
-      P('m189 295 0 12 33-8-11-11Z', 'inner', 'trim', 1.5),
+    G('legRight', 187, 253, [
+      P('M168 237 200 234 207 274 216 295 188 302 176 282Z', 'dark', 'leather', 2.5),
+      P('M175 245 197 242 203 271 192 284 179 274Z', 'shadow', 'trim', 1.8),
+      P('M180 251 199 248M182 267 202 264M189 245 194 280', 'none', 'metal', 2),
+      P('M183 292 211 286 225 300Q204 311 177 309Z', 'inner', 'trim', 2),
+      P('M185 304 216 299', 'none', 'leather', 3),
+    ]),
+    // Feathers should peek from behind Lyra's forward shoulder, and lie
+    // conspicuously on top of the mantle when viewed from behind.
+    G('quiver', 192, 143, [
+      P('M184 78 189 107 180 115 172 102Z', 'primary', 'trim', 1.5),
+      P('M192 70 197 108 188 112 183 93Z', 'metal', 'trim', 1.7),
+      P('M204 78 201 113 191 113 197 91Z', 'primary', 'shadow', 1.5),
+      P('M213 84 205 117 195 116 207 91Z', 'trim', 'dark', 1.5),
+      P('M182 96 190 137M195 89 194 139M205 98 198 138', 'none', 'leather', 2.3),
+      P('M170 126 203 117 220 137 212 196 187 211 175 195Z', 'dark', 'trim', 3),
+      P('M175 134 205 126 213 142 207 187 186 197 181 187Z', 'leather', 'metal', 2),
+      P('M177 155 212 146M183 178 207 169M181 188 200 197', 'none', 'trim', 2.3),
+      P('M192 154 197 160 193 167 187 161Z', 'primary', 'dark', 1.4),
     ]),
     G('torso', 162, 173, [
-      P('M140 126 178 127 195 167 188 235 163 253 136 234 127 164Z', 'dark', 'trim', 2),
-      P('m143 142 17 16 18-15 13 38-30 20-29-19Z', 'shadow', 'primary', 2),
-      P('m151 187 10 13 11-13-3 40-8 14-9-14Z', 'primary', 'trim'),
-      P('m131 207 56-1-2 13-48 0Z', 'leather', 'trim', 2),
-      P('m161 150 8 12-8 12-8-12Z', 'trim'),
+      P('M132 126 149 115 177 117 196 129 211 167 205 222 189 254 135 252 117 224 114 163Z', 'dark', 'trim', 3),
+      P('M129 143 146 133 179 134 193 144 192 200 179 234 143 231 129 203Z', 'leather', 'metal', 2.3),
+      P('M142 142 161 161 183 143 186 173 178 199 161 209 145 199 135 174Z', 'shadow', 'trim', 2.3),
+      P('M147 155 162 174 176 155 176 185 162 197 150 185Z', 'primary', 'metal', 2),
+      P('M162 167 169 181 162 192 155 182Z', 'trim', 'dark', 1.4),
+      // Diagonal chest strap holds the rear quiver under full stride.
+      P('M131 144 145 134 194 205 182 220Z', 'leather', 'trim', 2),
+      P('M140 145 186 211M152 157 150 171M177 194 171 211', 'none', 'metal', 2),
+      P('M126 212Q159 228 196 213L186 241 141 242Z', 'dark', 'trim', 2.4),
+      P('M135 222 190 225M151 228 149 243M177 228 179 242', 'none', 'leather', 3),
+    ]),
+    G('cape', 160, 136, [
+      P('M124 121Q143 110 160 119Q177 110 195 122L215 153 203 168 186 148 173 144 159 151 142 146 124 165 110 150Z', 'inner', 'trim', 2.5),
+      P('M131 127Q148 121 161 134Q177 122 190 128L204 150 196 159 178 140 160 146 144 138 124 159 118 150Z', 'shadow', 'primary', 2.2),
+      P('M126 149Q142 134 158 140Q178 135 196 151M143 128 160 137 179 128', 'none', 'trim', 2.5),
+      P('M153 134 160 143 167 135 165 150 159 155 155 149Z', 'trim', 'dark', 1.6),
     ]),
     G('weapon', 234, 156, [
-      // Curved limbs and a distinct string, never a generic staff.
-      P('M235 79Q276 111 255 157Q276 205 231 243', 'none', 'trim', 8),
-      P('M230 83Q248 159 228 238', 'none', 'primary', 2.5),
-      P('M235 79 231 243', 'none', 'glow', 2),
-      P('m225 151 22-4', 'none', 'leather', 5),
-      P('m230 80 10-7m-10 173 8-10', 'none', 'metal', 3),
+      // Signature recurved bow with metal caps, visible string, wood riser
+      // and an angular moon-mark at the grip; pivot stays on the glove.
+      P('M238 75Q260 88 265 116Q260 139 251 158Q267 189 252 221L234 247', 'none', 'leather', 12),
+      P('M237 77Q257 91 260 116Q253 140 245 157Q262 193 247 220L234 245', 'none', 'trim', 7),
+      P('M240 86Q250 116 242 139M245 177Q260 202 239 237', 'none', 'primary', 3.5),
+      P('M237 77 226 158 234 245', 'none', 'metal', 2),
+      P('M231 141 242 140 246 163 231 172 224 156Z', 'dark', 'trim', 2.4),
+      P('M229 152 240 152M229 161 240 160', 'none', 'leather', 4),
+      P('M232 148 239 157 232 166 226 157Z', 'primary', 'metal', 1.5),
+      P('M229 83 240 71 242 84M225 249 239 245 246 253', 'none', 'metal', 3),
     ]),
-    G('armLeft', 131, 165, [
-      P('m137 157-24 7-11 27 21 9 22-23Z', 'shadow', 'trim', 2),
-      P('m102 184 17-1 6 18-18 5Z', 'leather', 'trim', 1.5),
+    G('armLeft', 132, 167, [
+      // String-pulling arm crosses the breastplate with a finger guard.
+      P('M130 143 115 143 102 161 118 185 149 183 174 168 185 159 180 149 157 151 131 165Z', 'dark', 'trim', 2.5),
+      P('M117 153 133 150 145 162 128 178 111 171Z', 'shadow', 'metal', 2),
+      P('M141 163 162 152 178 151 180 164 156 176 141 176Z', 'leather', 'trim', 1.7),
+      P('M171 151 181 149 188 155 182 165 172 164Z', 'trim', 'dark', 1.8),
+      P('M174 155 181 157M118 163 130 168', 'none', 'primary', 2),
     ]),
     G('armRight', 205, 161, [
-      P('m182 155 21-13 25 9 9 21-14 14-25-14Z', 'shadow', 'trim', 2),
-      P('m219 155 18-7 9 11-15 12Z', 'leather', 'trim', 1.5),
+      P('M186 138 215 139 231 154 239 170 223 188 198 178Z', 'shadow', 'trim', 2.5),
+      P('M196 144 216 143 229 155 218 172 198 164Z', 'leather', 'metal', 1.8),
+      P('M215 166 224 152 236 151 243 164 237 173 222 176Z', 'dark', 'trim', 2),
+      // Palm geometry (231,159) meets bow pivot (234,156).
+      P('M224 150 234 149 242 156 238 166 226 167 221 161Z', 'trim', 'dark', 2),
+      P('M226 157 238 157', 'none', 'leather', 2.5),
     ]),
     G('head', 161, 115, [
-      P('M118 115Q130 77 153 63l15-10 19 23 24 39-29 25h-41Z', 'shadow', 'trim', 2),
-      P('m132 110 29-30 28 29-12 30h-34Z', 'face', 'leather', 2),
-      P('m135 101 24-28 27 29-18-6-17 4Z', 'primary', 'trim', 2),
-      P('m146 118 10 2m11 0 10-2', 'none', 'glow', 3),
-      P('m166 56 24-15-10 36', 'primary', 'trim', 2),
+      P('M118 112Q131 77 153 65L170 53 189 71 207 110 188 147 143 147Z', 'shadow', 'trim', 3),
+      P('M129 108Q140 88 161 84Q181 88 194 110L179 139 144 139Z', 'face', 'leather', 2),
+      P('M133 115Q145 103 156 107M167 107Q181 101 190 115', 'none', 'trim', 2),
+      P('M142 119 153 121M168 121 179 119', 'none', 'glow', 3),
+      P('M152 131Q160 135 170 130M160 116 159 127', 'none', 'metal', 1.7),
+      P('M121 111Q130 79 154 68L170 53 189 73 200 108 180 102 161 91 142 103Z', 'primary', 'trim', 2.6),
+      P('M135 93 159 76 186 93M142 100 161 88 184 100', 'none', 'metal', 2),
+      P('M164 57Q182 52 197 38L196 75 183 87', 'trim', 'shadow', 2),
+      P('M172 66 190 56 188 76', 'none', 'primary', 2),
     ]),
-    G('arrow', 228, 155, [
-      P('M183 152 258 152', 'none', 'metal', 3),
-      P('m257 152-13-7v14Z', 'trim', 'inner', 1.3),
-      P('m185 152-11-7 5 7-5 7Z', 'primary', 'trim', 1.2),
+    G('arrow', 234, 156, [
+      P('M185 157 253 157', 'none', 'metal', 3),
+      P('M252 157 239 149 239 165Z', 'trim', 'inner', 1.8),
+      P('M189 157 173 148 179 157 173 166Z', 'primary', 'trim', 1.7),
+      P('M187 157 179 151M187 157 180 164', 'none', 'metal', 1.4),
     ]),
   ],
 };
+
+// The rear face of Lyra's hood is continuous cloth, with stitched seam and
+// a small feather. Glowing forward eyes MUST NOT appear in back directions.
+export const LYRA_REAR_HOOD = freeze(G('head', 161, 115, [
+  P('M118 112Q131 77 153 65L170 53 189 71 207 110 188 147 143 147Z', 'shadow', 'trim', 3),
+  P('M127 111Q137 85 161 75Q183 86 198 110L183 144Q162 155 140 142Z', 'primary', 'metal', 2.3),
+  P('M138 108Q146 95 161 87Q177 94 190 109L178 137 161 147 146 137Z', 'shadow', 'trim', 1.8),
+  P('M160 82 160 141M144 122Q161 132 181 122M133 111 146 117M176 117 190 110', 'none', 'trim', 2.2),
+  P('M156 103 161 110 170 109 163 117 161 126 156 118 150 114 157 112Z', 'metal', 'dark', 1.3),
+  P('M164 57Q182 52 197 38L196 75 183 87', 'trim', 'shadow', 2),
+  P('M172 66 190 56 188 76', 'none', 'primary', 2),
+]));
 
 export const HERO_RIGS = freeze({ mage, guardian, ranger });
 export const HERO_IDS = freeze(['mage', 'guardian', 'ranger']);
