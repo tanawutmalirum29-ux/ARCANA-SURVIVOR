@@ -9,7 +9,7 @@ permissions:
   issues: write
 jobs:
   delete-mistaken-issue:
-    if: github.event.head_commit.message == 'chore(issue102): one-time cleanup without OWNER involvement'
+    if: contains(github.event.head_commit.message, 'issue102-delete-once')
     runs-on: ubuntu-latest
     steps:
       - name: Delete exactly the void appointment Issue 102
