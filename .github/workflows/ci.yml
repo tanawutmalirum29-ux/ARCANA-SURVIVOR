@@ -48,6 +48,11 @@ jobs:
     # mirrors. Every existing mandatory browser assertion remains unchanged.
     container:
       image: mcr.microsoft.com/playwright/python:v1.57.0-noble
+    # GitHub changes the default shell inside a job container to sh.
+    # Existing server/baseline readiness loops use Bash brace expansion.
+    defaults:
+      run:
+        shell: bash
     # Astra source + live-map captures extend the original full browser gate.
     # Hosted apt mirrors can be slow; retain every existing assertion and job.
     timeout-minutes: 45
