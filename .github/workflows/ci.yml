@@ -1,4 +1,4 @@
-name: Arcana Quality Gate # ACC_INPUT_SMOKE
+name: Arcana Quality Gate
 on:
   push:
     branches: [main]
