@@ -16,11 +16,11 @@ export function normalizeQuality(value) {
   return QUALITY_LEVELS.includes(value) ? value : 'low';
 }
 
-// An explicit in-game ON/OFF choice takes priority over the platform hint.
-// The OS preference only applies when no game preference exists.
-export function resolveReducedMotion(settings, systemPreference = false) {
-  return typeof settings?.reduceMotion === 'boolean'
-    ? settings.reduceMotion : Boolean(systemPreference);
+// Game default is Reduce Motion OFF in fresh and migrated profiles.
+// OS preference intentionally does not override the in-game default or choice.
+// Keep the legacy Boolean settings schema unchanged for existing saves.
+export function resolveReducedMotion(settings) {
+  return settings?.reduceMotion === true;
 }
 
 export function visualBudget(quality, reducedMotion = false) {
