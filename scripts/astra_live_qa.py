@@ -88,6 +88,23 @@ READ_RUN = """async () => {
   } finally {store.close();}
 }"""
 
+def clear_earned_upgrades(page):
+    # At wide viewports Astra can earn several levels in one real fixed-tick
+    # burst. Each upgrade is accepted through the game's actual UI. Do not
+    # synthesize a choice, dismiss an overlay, or bypass the pause state.
+    for _ in range(48):
+      overlay=page.locator("#overlay")
+      cards=page.locator("#overlay .upgrade-option:visible")
+      if cards.count():
+        cards.first.click()
+        page.clock.run_for(24)
+      elif overlay.is_visible():
+        page.clock.run_for(24)
+      else:
+        return
+    assert not page.locator("#overlay").is_visible(),(
+      "Real upgrade chain did not finish after 48 legitimate UI choices")
+
 def run_one(browser, engine, width, height):
     folder=OUT/engine/f"{width}x{height}"
     folder.mkdir(parents=True,exist_ok=True)
@@ -131,8 +148,7 @@ def run_one(browser, engine, width, height):
           # Let real requestAnimationFrame, enemies and automatic shots run.
           # This is accelerated elapsed time, not a synthesized render input.
           page.clock.run_for(900)
-          if page.locator(".upgrade-option").count():
-            page.locator(".upgrade-option").first.click()
+          clear_earned_upgrades(page)
           assert not page.locator(".result-card").count(),(
               "Astra died/finished before eight-heading evidence",direction)
           expect(page.locator("#hud")).to_be_visible()
@@ -151,8 +167,7 @@ def run_one(browser, engine, width, height):
       if not page.evaluate("!!globalThis.__astraQA.spell"):
         for _ in range(180):
           page.clock.run_for(35)
-          if page.locator(".upgrade-option").count():
-            page.locator(".upgrade-option").first.click()
+          clear_earned_upgrades(page)
           if page.evaluate("!!globalThis.__astraQA.spell"):break
       confirmed=page.evaluate("globalThis.__astraQA.spell")
       assert confirmed,("NO_REAL_STAFF_SPELL",engine,width,height,
