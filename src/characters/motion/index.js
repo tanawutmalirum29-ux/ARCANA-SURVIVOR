@@ -112,16 +112,28 @@ export function resolveHeroPose(input = {}) {
   // The old attack toggle instantly mirrored the whole actor for a shot behind
   // the hero, swapping legs and handedness in the middle of a stride.
   // Stationary targeting may turn the actor, but must not reverse moving feet.
-  const aimingInPlace = !walking && (active || targetPresent);
-  const viewDirection = aimingInPlace ? direction8 : travel.direction8;
-  const viewX = aimingInPlace ? aim.x : travel.x;
-  const viewY = aimingInPlace ? aim.y : travel.y;
+  // Lyra remembers the last locomotion heading while standing still. The
+  // renderer supplies this visual-only hint, never simulation state.
+  const heldFacing = heroId === 'ranger' ? normalized(input.facingVector) : null;
+  const aimingInPlace = !walking && !heldFacing && (active || targetPresent);
+  const heldDirection = heldFacing
+    ? DIRECTIONS[Math.round((Math.atan2(heldFacing.y,heldFacing.x)+TAU)/(TAU/8))%8]
+    : null;
+  const viewDirection = walking ? travel.direction8
+    : heldDirection || (aimingInPlace ? direction8 : travel.direction8);
+  const viewX = walking ? travel.x : heldFacing?.x ?? (aimingInPlace ? aim.x : travel.x);
+  const viewY = walking ? travel.y : heldFacing?.y ?? (aimingInPlace ? aim.y : travel.y);
   const profile = 1 - .24*Math.abs(viewX);
   const westView = viewDirection==='W'||viewDirection==='SW'||viewDirection==='NW';
   const view = {
     direction8: viewDirection,
     bodyScaleX: round(westView ? -profile : profile),
-    backView: Boolean((walking || active) && viewY < -.55),
+    // The quantized N/NW/NE sector must use the rear head even at shallow
+    // diagonal stick angles; an unrelated y threshold leaks the front eyes.
+    backView: heroId === 'ranger'
+      ? Boolean((walking || active || heldFacing) &&
+          (viewDirection === 'N' || viewDirection === 'NW' || viewDirection === 'NE'))
+      : Boolean((walking || active) && viewY < -.55),
   };
   // Attack crosses the visible body if the enemy lies on the weapon's
   // opposite side. This changes the arm/wrist arc, never stride or hit logic.

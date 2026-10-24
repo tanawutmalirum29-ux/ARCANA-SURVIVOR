@@ -131,6 +131,9 @@ def capture_qa(page, key, destination, expected_skin):
     data=shot["event"]
     assert data["skinId"]==expected_skin,(key,"painted skin mismatch",data)
     assert visible(data),(key,"sprite clipped/out of frame",data)
+    if key in ("N","NW","NE"):
+        assert data["viewDirection8"]==key and data["backView"] is True, (
+            key,"rear hood/front face leak",data)
     sha=write_png(destination,shot["png"])
     return {"name":key,"event":data,"sha256":sha,"file":str(destination)}
 
@@ -285,6 +288,17 @@ def run_one(browser,engine,width,height,variant):
             for key in keys:
                 page.keyboard.up(key)
                 held.discard(key)
+            if direction == "N":
+                # Idle north has a single key release. For diagonal vectors,
+                # releasing two keys sequentially briefly produces a real E/W
+                # heading; test their back view on the captured *walk* frames
+                # instead of falsely calling that transient an NE/NW idle.
+                page.clock.run_for(65)
+                held_pose=page.evaluate("globalThis.__lyraQA.latest")
+                assert held_pose and not held_pose["moving"] and (
+                    held_pose["viewDirection8"]==direction and held_pose["backView"]), (
+                    "Rear hood reverted to front during idle",direction,held_pose)
+                page.screenshot(path=str(folder/(direction+"-held-idle.png")),full_page=True)
             opposites=[OPPOSITE[key] for key in keys]
             for key in opposites:page.keyboard.down(key)
             page.clock.run_for(excursion_ms)

@@ -328,7 +328,8 @@ export const LYRA_REAR_HOOD = freeze(G('head', 161, 115, [
   P('M118 112Q131 77 153 65L170 53 189 71 207 110 188 147 143 147Z', 'shadow', 'trim', 3),
   P('M127 111Q137 85 161 75Q183 86 198 110L183 144Q162 155 140 142Z', 'primary', 'metal', 2.3),
   P('M138 108Q146 95 161 87Q177 94 190 109L178 137 161 147 146 137Z', 'shadow', 'trim', 1.8),
-  P('M160 82 160 141M144 122Q161 132 181 122M133 111 146 117M176 117 190 110', 'none', 'trim', 2.2),
+  // Back cloth has vertical seams only: no paired glowing eye-like stitches.
+  P('M160 82 160 143M155 91 153 135M166 94 168 134', 'none', 'dark', 1.9),
   P('M156 103 161 110 170 109 163 117 161 126 156 118 150 114 157 112Z', 'metal', 'dark', 1.3),
   P('M164 57Q182 52 197 38L196 75 183 87', 'trim', 'shadow', 2),
   P('M172 66 190 56 188 76', 'none', 'primary', 2),
