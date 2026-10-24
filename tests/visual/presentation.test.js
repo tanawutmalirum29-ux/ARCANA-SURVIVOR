@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { COSMETICS } from '../../src/storage.js';
+import { COSMETICS, defaultProfile, sanitizeProfile, saveProfile, loadProfile } from '../../src/storage.js';
 import {
   createFrameProfiler, getSkinGallery, getSkinPreview, normalizeQuality, visualBudget, resolveReducedMotion,
 } from '../../src/visual/presentation.js';
@@ -72,19 +72,27 @@ test('quality budgets are bounded and reduced motion disables moving adornments'
 });
 
 test('motion OFF in game keeps all three walk animations even when OS prefers reduced motion', () => {
-  assert.equal(resolveReducedMotion({reduceMotion:false},true), false);
-  assert.equal(resolveReducedMotion({reduceMotion:true},false), true);
-  assert.equal(resolveReducedMotion({},true), true);
+  // The game's default is OFF, intentionally independent of the OS setting.
+  assert.equal(resolveReducedMotion(defaultProfile().settings),false);
+  assert.equal(resolveReducedMotion(sanitizeProfile({version:1,settings:{}}).settings),false);
+  assert.equal(resolveReducedMotion({reduceMotion:false}),false);
+  assert.equal(resolveReducedMotion({reduceMotion:true}),true);
+  const bytes=new Map();
+  const storage={getItem:key=>bytes.get(key)??null,setItem:(key,value)=>bytes.set(key,value)};
+  const explicitOff=defaultProfile();
+  explicitOff.settings.reduceMotion=false;
+  assert.equal(saveProfile(explicitOff,storage),true);
+  assert.equal(resolveReducedMotion(loadProfile(storage).settings),false);
   for (const heroId of ['mage','guardian','ranger']) {
     const pose = (tick, reducedMotion) => resolveHeroPose({
       heroId, tick, moving:true, moveVector:{x:1,y:0}, reducedMotion,
     });
-    const animatedA = pose(10,resolveReducedMotion({reduceMotion:false},true));
-    const animatedB = pose(17,resolveReducedMotion({reduceMotion:false},true));
+    const animatedA = pose(10,resolveReducedMotion({reduceMotion:false}));
+    const animatedB = pose(17,resolveReducedMotion({reduceMotion:false}));
     assert.equal(animatedA.locomotion,'walk');
     assert.notDeepEqual(animatedA.joints.leftLeg,animatedB.joints.leftLeg,heroId+' walk gait must animate');
-    const stillA=pose(10,resolveReducedMotion({reduceMotion:true},false));
-    const stillB=pose(17,resolveReducedMotion({reduceMotion:true},false));
+    const stillA=pose(10,resolveReducedMotion({reduceMotion:true}));
+    const stillB=pose(17,resolveReducedMotion({reduceMotion:true}));
     assert.deepEqual(stillA.joints.leftLeg,stillB.joints.leftLeg);
   }
 });
