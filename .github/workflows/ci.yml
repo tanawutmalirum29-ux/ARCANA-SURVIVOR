@@ -140,6 +140,10 @@ jobs:
         env:
           ARCANA_LIVE_ARTIFACTS: /tmp/astra-live-proof
         run: python scripts/astra_live_qa.py
+      - name: Actual weapon equip rejection and persisted inventory after hero switches (Chromium/WebKit x five sizes)
+        env:
+          ARCANA_WEAPON_UI_ARTIFACTS: /tmp/weapon-ui-proof
+        run: python scripts/weapon_equipment_live_qa.py
       - name: Actual Orin map Canvas and 8-way keyboard combat capture
         env:
           ARCANA_LIVE_ARTIFACTS: /tmp/orin-live-proof
@@ -185,6 +189,8 @@ jobs:
             /tmp/lyra-live-proof/**/*.webm
             /tmp/lyra-live-proof/report.json
             /tmp/astra-live-proof/report.json
+            /tmp/weapon-ui-proof/**/*.png
+            /tmp/weapon-ui-proof/report.json
             /tmp/astra-baseline-proof/**/*.png
             /tmp/astra-baseline-proof/report.json
           if-no-files-found: ignore
