@@ -1,4 +1,5 @@
 // Versioned, data-only combat snapshots. The engine never reads a save or cosmetic.
+import {weaponCompatible} from './weapons.js';
 export const BALANCE_VERSION = 1;
 export const COMBAT_LIMITS = Object.freeze({ armor: .65, critChance: .6, critDamage: 3, companions: 2 });
 
@@ -29,6 +30,11 @@ export function normalizeRunConfig(input) {
   const stats = object(config.stats), chapter = object(config.chapter), modifiers = object(config.modifiers);
   const chapterDefaults = CHAPTERS[chapterId];
   const companions = Array.isArray(config.companions) ? config.companions.map(support).filter(Boolean).slice(0, COMBAT_LIMITS.companions) : [];
+  const suppliedWeapon = typeof config.weaponId === 'string' ? config.weaponId.slice(0, 64) : null;
+  const validWeapon = suppliedWeapon && weaponCompatible(heroId,suppliedWeapon) ? suppliedWeapon : null;
+  const effects = heroId === 'guardian' ? ['balanced','cleave','rapid'] : ['balanced','pierce','rapid'];
+  const effect = (!suppliedWeapon || validWeapon) && effects.includes(config.weaponEffect)
+    ? config.weaponEffect : 'balanced';
   // Explicit field copies prevent unknown (including cosmetic) data from influencing a replay.
   return Object.freeze({
     version: BALANCE_VERSION, balanceVersion: BALANCE_VERSION, heroId, chapterId, mode,
@@ -45,8 +51,8 @@ export function normalizeRunConfig(input) {
       skillMultiplier: number(stats.skillMultiplier, 1, .25, 4),
       bossDamageMultiplier: number(stats.bossDamageMultiplier, 1, .25, 4),
     }),
-    weaponId: typeof config.weaponId === 'string' ? config.weaponId.slice(0, 64) : null,
-    weaponEffect: ['balanced', 'pierce', 'rapid'].includes(config.weaponEffect) ? config.weaponEffect : 'balanced',
+    weaponId: validWeapon,
+    weaponEffect: effect,
     artifact: support(config.artifact), companions: Object.freeze(companions), guardian: support(config.guardian),
     modifiers: Object.freeze({
       novaRadius: number(modifiers.novaRadius, 1, 1, 2),
