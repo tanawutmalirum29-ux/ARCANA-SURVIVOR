@@ -215,6 +215,7 @@ export function drawScene(canvas,ctx,s,profile,time=0,visual={}){
    bowDraw:pose.fx.bowDraw,arrowVisible:pose.fx.arrowVisible,
     attackKind:shot?.kind??null,
    direction8:pose.travel.direction8,viewDirection8:pose.view.direction8,
+   attackDirection8:pose.facing.direction8,targetPresent:facing.targetPresent,
    backView:pose.view.backView,moving:pose.locomotion==='walk',hasRig,
    x:s.player.x-cam.x,y:s.player.y-cam.y,width:w,height:h,
    bodyScaleX:pose.view.bodyScaleX
