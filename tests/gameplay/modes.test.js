@@ -132,7 +132,15 @@ test('complete starter-to-citadel routes win with chapter-appropriate loadouts',
       if (!boss && Math.hypot(dx, dy) < 32) waypoint = (waypoint + 1) % points.length;
       step(s, { x: dx, y: dy });
     }
-    assert.equal(s.phase, 'won', `${chapterId} should be completable by a repeatable route`);
+    assert.equal(s.phase, 'won', `${chapterId} should be completable by a repeatable route: ${JSON.stringify({
+      tick:s.tick, phase:s.phase, hp:s.player.hp, maxHp:s.player.maxHp,
+      damageTaken:s.damageTaken, kills:s.kills, playerLevel:s.player.level,
+      shots:s.shots.length, remainingEnemies:s.enemies.length,
+      bossSpawned:s.bossSpawned,bossesDefeated:s.bossesDefeated,
+      boss:s.enemies.find(e=>e.type==='boss')?.hp??null,
+      skills:s.skills, fireDelay:s.player.fireDelay,attack:s.player.attack,
+      player:{x:s.player.x,y:s.player.y}, waypoint
+    })}`);
     assert.ok(s.tick >= s.rules.bossAtTicks && s.tick < s.rules.bossAtTicks + 45 * 60);
     assert.ok(s.damageTaken > 0 || chapterId === 'citadel', 'starter route uses ordinary survival, not invulnerability');
   }
