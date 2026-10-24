@@ -97,6 +97,29 @@ test('motion OFF in game keeps all three walk animations even when OS prefers re
   }
 });
 
+
+test('fresh and migrated motion preferences preserve unset OS fallback without corrupting saves', () => {
+  const fresh=defaultProfile();
+  assert.equal(fresh.settings.reduceMotion,null);
+  assert.equal(resolveReducedMotion(fresh.settings,true),true);
+  assert.equal(resolveReducedMotion(fresh.settings,false),false);
+  const campaign=createCampaign(fresh);
+  assert.ok(validateCampaign(campaign));
+  const vfxOnly=applyCommand(campaign,{type:'PROFILE_SETTINGS',settings:{vfx:'medium'}});
+  assert.ok(vfxOnly.ok);
+  assert.equal(vfxOnly.state.profile.settings.reduceMotion,null);
+  const explicitOff=applyCommand(vfxOnly.state,{type:'PROFILE_SETTINGS',settings:{reduceMotion:false}});
+  assert.ok(explicitOff.ok);
+  assert.equal(resolveReducedMotion(explicitOff.state.profile.settings,true),false);
+  assert.ok(validateCampaign(structuredClone(explicitOff.state)));
+  const explicitOn=applyCommand(explicitOff.state,{type:'PROFILE_SETTINGS',settings:{reduceMotion:true}});
+  assert.ok(explicitOn.ok);
+  assert.equal(resolveReducedMotion(explicitOn.state.profile.settings,false),true);
+  assert.equal(resolveReducedMotion(sanitizeProfile({version:1,settings:{}}).settings,true),true);
+  const legacy={...defaultProfile(),settings:{vfx:'high',reduceMotion:false}};
+  assert.equal(migrateLegacyBytes(JSON.stringify(legacy)).profile.settings.reduceMotion,false);
+});
+
 test('all locked skins have Preview controls but no Equip or Checkout affordance', () => {
   const html = showcaseMarkup({ profile: basic, selectedId: 'crimson', quality: 'low', reducedMotion: true });
   assert.equal((html.match(/data-vfx-skin=/g) || []).length, 8);
