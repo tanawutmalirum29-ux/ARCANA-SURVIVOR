@@ -288,6 +288,15 @@ def run_one(browser,engine,width,height,variant):
             for key in keys:
                 page.keyboard.up(key)
                 held.discard(key)
+            if direction in ("N","NW","NE"):
+                # A stopped, north-facing Lyra must retain her back hood
+                # while idle/attacking. Check before returning to centre.
+                page.clock.run_for(65)
+                held_pose=page.evaluate("globalThis.__lyraQA.latest")
+                assert held_pose and not held_pose["moving"] and (
+                    held_pose["viewDirection8"]==direction and held_pose["backView"]), (
+                    "Rear hood reverted to front during idle",direction,held_pose)
+                page.screenshot(path=str(folder/(direction+"-held-idle.png")),full_page=True)
             opposites=[OPPOSITE[key] for key in keys]
             for key in opposites:page.keyboard.down(key)
             page.clock.run_for(excursion_ms)
@@ -297,13 +306,6 @@ def run_one(browser,engine,width,height,variant):
             assert page.locator(".result-card").count()==0,"Hero died during real QA"
             expect(page.locator("#hud")).to_be_visible()
             expect(page.locator("#overlay")).to_be_hidden()
-        # After finishing NE, Lyra must keep the rear hood while standing,
-        # even if a target triggers windup/release on the following ticks.
-        page.clock.run_for(100)
-        held_pose=page.evaluate("globalThis.__lyraQA.latest")
-        assert held_pose and held_pose["viewDirection8"]=="NE" and held_pose["backView"], (
-            "Idle after NE reverted to forward face",held_pose)
-        page.screenshot(path=str(folder/"lyra-held-northeast-idle.png"),full_page=True)
         # The confirmed shot is collected by the production renderer's actual
         # resolveHeroPose from getLastPlayerFireEvent(game), not synthesized.
         if not page.evaluate("!!globalThis.__lyraQA.attack"):
