@@ -163,7 +163,7 @@ def run_one(browser, engine, width, height):
       assert event["tick"]>=event["fireTick"] and event["tick"]-event["fireTick"]<=5
       assert event["spell"]["vx"]**2+event["spell"]["vy"]**2>0
       raw=base64.b64decode(confirmed["png"].split(",",1)[1],validate=True)
-      assert raw.startswith(b"\\x89PNG\\r\\n\\x1a\\n")
+      assert raw.startswith(b"\x89PNG\r\n\x1a\n")
       spell_path=folder/"REAL-CONFIRMED-STAFF-SPELL.png"
       spell_path.write_bytes(raw)
       spell_proof={"event":event,"screenshot":str(spell_path),
