@@ -131,6 +131,9 @@ def capture_qa(page, key, destination, expected_skin):
     data=shot["event"]
     assert data["skinId"]==expected_skin,(key,"painted skin mismatch",data)
     assert visible(data),(key,"sprite clipped/out of frame",data)
+    if key in ("N","NW","NE"):
+        assert data["viewDirection8"]==key and data["backView"] is True, (
+            key,"rear hood/front face leak",data)
     sha=write_png(destination,shot["png"])
     return {"name":key,"event":data,"sha256":sha,"file":str(destination)}
 
@@ -294,6 +297,13 @@ def run_one(browser,engine,width,height,variant):
             assert page.locator(".result-card").count()==0,"Hero died during real QA"
             expect(page.locator("#hud")).to_be_visible()
             expect(page.locator("#overlay")).to_be_hidden()
+        # After finishing NE, Lyra must keep the rear hood while standing,
+        # even if a target triggers windup/release on the following ticks.
+        page.clock.run_for(100)
+        held_pose=page.evaluate("globalThis.__lyraQA.latest")
+        assert held_pose and held_pose["viewDirection8"]=="NE" and held_pose["backView"], (
+            "Idle after NE reverted to forward face",held_pose)
+        page.screenshot(path=str(folder/"lyra-held-northeast-idle.png"),full_page=True)
         # The confirmed shot is collected by the production renderer's actual
         # resolveHeroPose from getLastPlayerFireEvent(game), not synthesized.
         if not page.evaluate("!!globalThis.__lyraQA.attack"):
