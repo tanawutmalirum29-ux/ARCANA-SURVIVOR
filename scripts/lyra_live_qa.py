@@ -289,15 +289,19 @@ def run_one(browser,engine,width,height,variant):
                 page.keyboard.up(key)
                 held.discard(key)
             if direction == "N":
-                # Idle north has a single key release. For diagonal vectors,
-                # releasing two keys sequentially briefly produces a real E/W
-                # heading; test their back view on the captured *walk* frames
-                # instead of falsely calling that transient an NE/NW idle.
+                # Zero movement no longer freezes Lyra's WALK heading: an active
+                # auto-attack must turn toward its actual target/shot instead.
+                # Keep testing real main-loop frames, but assert the NEW
+                # intended direction and matching rear hood, not the old N lock.
                 page.clock.run_for(65)
                 held_pose=page.evaluate("globalThis.__lyraQA.latest")
-                assert held_pose and not held_pose["moving"] and (
-                    held_pose["viewDirection8"]==direction and held_pose["backView"]), (
-                    "Rear hood reverted to front during idle",direction,held_pose)
+                assert held_pose and held_pose["hasRig"] and not held_pose["moving"],(
+                    "Idle state/rig disappeared",direction,held_pose)
+                expected=held_pose["attackDirection8"]
+                assert held_pose["viewDirection8"]==expected,(
+                    "Idle attack is not facing the weapon's real aim",direction,held_pose)
+                assert held_pose["backView"] == (expected in ("N","NW","NE")),(
+                    "Idle rear hood is inconsistent with weapon aim",direction,held_pose)
                 page.screenshot(path=str(folder/(direction+"-held-idle.png")),full_page=True)
             opposites=[OPPOSITE[key] for key in keys]
             for key in opposites:page.keyboard.down(key)

@@ -5,9 +5,11 @@ import { paintBossWarning } from './visual/warnings.js';
 import {getSkinDefinition} from './characters/skins/index.js';
 import {renderHeroActor} from './characters/visual/hero-art.js';
 import {resolveHeroPose} from './characters/motion/index.js';
+import {resolveHeroFacing} from './characters/motion/facing.js';
 
-// Last visible Lyra heading is presentation-only; reset when a new run starts.
-const lyraFacingCache = new WeakMap();
+// Last visual heading per Canvas. Never enters sim or saves, and resets
+// if a new game instance or hero replaces the previous one.
+const facingCache = new WeakMap();
 const GOLD = '#ebd8a1';
 const PI2 = Math.PI * 2;
 const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
@@ -148,21 +150,21 @@ export function drawScene(canvas,ctx,s,profile,time=0,visual={}){
  if(s.skills.orbit){for(let i=0;i<3;i++){const a=i*PI2/3+(options.reducedMotion?0:time*2);const r=(70+s.skills.orbit*5)*(s.runConfig?.modifiers.orbitRadius||1);const x=s.player.x+Math.cos(a)*r,y=s.player.y+Math.sin(a)*r;glow(ctx,x,y,'#ff9365',24,.45*options.glow);diamond(ctx,x,y,10,'#ffbe83')}}
  for(const actor of s.supportActors||[]){const color={wisp:'#b5d5ff',sprite:'#b6e6c4',owl:'#ecd9ac'}[actor.id]||'#d9c5f3';glow(ctx,actor.x,actor.y,color,24,.3*options.glow);ellipse(ctx,actor.x,actor.y+6,10,4,'#0005');diamond(ctx,actor.x,actor.y,10,color);diamond(ctx,actor.x,actor.y,4,'#fff9ec')}
  const m=visual.movement||{x:0,y:0};
- let lyraFacing=null;
- if (heroId==='ranger') {
-  const previous=lyraFacingCache.get(canvas);
-  const moving=Math.hypot(m.x,m.y)>.001;
-  lyraFacing=moving?{x:m.x,y:m.y}
-   : previous&&s.tick>=previous.tick?previous.vector:null;
-  lyraFacingCache.set(canvas,{tick:s.tick,vector:lyraFacing});
- }
  const shot=visual.fireEvent;
- const enemy=s.enemies.find(e=>e.hp>0&&Math.hypot(e.x-s.player.x,e.y-s.player.y)<440);
- const pose=resolveHeroPose({heroId,tick:s.tick,moving:Math.hypot(m.x,m.y)>.001,moveVector:m,
-  facingVector:lyraFacing,
-  aimVector:shot?{x:shot.aimX,y:shot.aimY}:enemy?{x:enemy.x-s.player.x,y:enemy.y-s.player.y}:m,
+ const cached=facingCache.get(canvas);
+ const previous=cached?.game===s&&cached.heroId===heroId&&s.tick>=cached.tick
+  ?cached.vector:null;
+ const facing=resolveHeroFacing({
+  heroId,tick:s.tick,player:s.player,enemies:s.enemies,movement:m,
+  fireEvent:shot,lastFacing:previous,configured:Boolean(s.runConfig)
+ });
+ facingCache.set(canvas,{game:s,heroId,tick:s.tick,vector:facing.facingVector});
+ const pose=resolveHeroPose({
+  heroId,tick:s.tick,moving:facing.moving,moveVector:m,
+  facingVector:facing.facingVector,aimVector:facing.aimVector,
   lastAttackTick:shot?.tick??null,attackIntervalTicks:s.player.fireDelay,
-  targetPresent:Boolean(enemy),reducedMotion:options.reducedMotion});
+  targetPresent:facing.targetPresent,reducedMotion:options.reducedMotion
+ });
  ctx.save();ctx.globalAlpha=options.reducedMotion?1:(s.player.invuln>0&&s.player.invuln%8<4?.45:1);
  const hasRig=renderHeroActor(ctx,{heroId,skin,pose,x:s.player.x,y:s.player.y,scale:.20});
  if(hasRig&&s.player.shield>0)ring(ctx,s.player.x,s.player.y,31,'#94dafa',2);
@@ -178,6 +180,19 @@ export function drawScene(canvas,ctx,s,profile,time=0,visual={}){
    ctx.fillStyle='#fff0ca';ctx.font='bold 10px system-ui';ctx.textAlign='center';ctx.fillText('BOSS',0,-25);ctx.restore();
  }
  const v=ctx.createRadialGradient(w/2,h/2,Math.min(w,h)*.2,w/2,h/2,Math.max(w,h)*.9);v.addColorStop(0,'transparent');v.addColorStop(1,'rgba(3,6,18,.47)');ctx.fillStyle=v;ctx.fillRect(0,0,w,h);
+ // QA-only observer after the real engine-driven Canvas has been painted.
+ // Only installed by live browser tests; never mutates gameplay or save state.
+ if(typeof globalThis.__ARCANA_IDLE_FACING_QA_FRAME__==='function'){
+  globalThis.__ARCANA_IDLE_FACING_QA_FRAME__({
+   tick:s.tick,heroId,moving:facing.moving,targetPresent:facing.targetPresent,
+   direction8:pose.view.direction8,attackDirection8:pose.facing.direction8,
+   travelDirection8:pose.travel.direction8,backView:pose.view.backView,
+   attackPhase:pose.attackPhase,confirmedFireTick:shot?.tick??null,
+   confirmedShotId:shot?.shotId??null,confirmedFireKind:shot?.kind??null,
+   hasRig,realEngine:true,x:s.player.x-cam.x,y:s.player.y-cam.y,
+   width:w,height:h
+  },canvas);
+ }
  // Read-only, opt-in browser QA tap. It observes the ACTUAL engine-confirmed
  // projectile event, painted Path2D actor and viewport after the scene finishes.
  // Normal gameplay does not register a tap; no simulation or save changes.
@@ -200,6 +215,7 @@ export function drawScene(canvas,ctx,s,profile,time=0,visual={}){
    bowDraw:pose.fx.bowDraw,arrowVisible:pose.fx.arrowVisible,
     attackKind:shot?.kind??null,
    direction8:pose.travel.direction8,viewDirection8:pose.view.direction8,
+   attackDirection8:pose.facing.direction8,targetPresent:facing.targetPresent,
    backView:pose.view.backView,moving:pose.locomotion==='walk',hasRig,
    x:s.player.x-cam.x,y:s.player.y-cam.y,width:w,height:h,
    bodyScaleX:pose.view.bodyScaleX

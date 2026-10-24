@@ -136,6 +136,10 @@ jobs:
           done
           curl --fail --silent http://127.0.0.1:4174/tests/characters/visual/preview.html >/dev/null
           python scripts/astra_visual_qa.py
+      - name: Real gameplay idle attack-facing proof for all 3 heroes, 8 directions, Chromium and WebKit x 5 sizes
+        env:
+          ARCANA_IDLE_FACING_ARTIFACTS: /tmp/idle-facing-proof
+        run: python scripts/idle_facing_live_qa.py
       - name: Actual Astra map Canvas and 8-way keyboard combat capture
         env:
           ARCANA_LIVE_ARTIFACTS: /tmp/astra-live-proof
@@ -177,6 +181,8 @@ jobs:
             /tmp/arcana-walk8/**/*.png
             /tmp/astra-visual-proof/**/*.png
             /tmp/astra-visual-proof/report.json
+            /tmp/idle-facing-proof/**/*.png
+            /tmp/idle-facing-proof/report.json
             /tmp/astra-live-proof/**/*.png
             /tmp/astra-live-proof/**/*.webm
             /tmp/orin-live-proof/**/*.png
