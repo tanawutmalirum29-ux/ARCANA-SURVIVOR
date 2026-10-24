@@ -307,6 +307,8 @@ def run_one(browser,engine,width,height,variant):
         assert attack["event"]["firedAtTick"] is not None
         assert attack["event"]["tick"]>=attack["event"]["firedAtTick"]
         assert attack["event"]["shieldBrace"]>.2
+        assert attack["event"]["attackKind"]=="melee", "Orin swing must be engine melee"
+        assert attack["event"]["activeFriendlyShots"]==0, "Sword cannot emit a friendly projectile"
         brace=None
         if page.evaluate("!!globalThis.__orinQA.brace"):
             brace=capture_qa(page,"brace",folder/"REAL-SHIELD-BRACE.png",skin)
