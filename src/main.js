@@ -1,4 +1,4 @@
-import {createGame,step,chooseUpgrade,formatTime,UPGRADE_DESCRIPTIONS,getLastPlayerFireEvent} from './engine.js';
+import {createGame,step,chooseUpgrade,formatTime,getUpgradeDescription,getLastPlayerFireEvent} from './engine.js';
 import {drawScene} from './render.js';
 import {mountSkinShowcase} from './visual/showcase.js';
 import {createGameAudio,captureAudioState,getStepSounds} from './audio.js';
@@ -142,7 +142,7 @@ async function startRun(){
   if(game.phase==='upgrade')showUpgrade();
  }finally{starting=false}
 }
-function showUpgrade(){sound.play('level');heldKeys.clear();releaseTouch();screen='upgrade';const cards=game.upgrades.map(k=>{const [name,description]=UPGRADE_DESCRIPTIONS[k];return `<button class="upgrade-option" type="button" data-action="upgrade" data-id="${k}"><span class="upgrade-sigil">✧</span><span><b>${name}</b><small>${description}</small></span><span class="chevron">›</span></button>`}).join('');
+function showUpgrade(){sound.play('level');heldKeys.clear();releaseTouch();screen='upgrade';const cards=game.upgrades.map(k=>{const [name,description]=getUpgradeDescription(k,game.runConfig?.heroId);return `<button class="upgrade-option" type="button" data-action="upgrade" data-id="${k}"><span class="upgrade-sigil">✧</span><span><b>${name}</b><small>${description}</small></span><span class="chevron">›</span></button>`}).join('');
  panel(`<section class="main-card menu-card upgrade-card"><div class="eyebrow">LEVEL UP — LV ${game.player.level}</div><h2>CHOOSE YOUR POWER</h2><p class="muted">เลือกพรเวทมนตร์ 1 อย่างเพื่อสู้ต่อ</p><div class="upgrade-list">${cards}</div></section>`,'upgrade-overlay');
 }
 async function finishRun(){
