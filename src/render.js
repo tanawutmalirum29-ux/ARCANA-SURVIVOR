@@ -187,7 +187,9 @@ export function drawScene(canvas,ctx,s,profile,time=0,visual={}){
    tick:s.tick,heroId,moving:facing.moving,targetPresent:facing.targetPresent,
    direction8:pose.view.direction8,attackDirection8:pose.facing.direction8,
    travelDirection8:pose.travel.direction8,backView:pose.view.backView,
-   attackPhase:pose.attackPhase,confirmedFireTick:shot?.tick??null,
+   attackPhase:pose.attackPhase,reducedMotion:pose.reducedMotion,
+   walkJoints:{leftLeg:pose.joints.leftLeg,rightLeg:pose.joints.rightLeg,root:pose.joints.root,capeTail:pose.joints.capeTail},
+   confirmedFireTick:shot?.tick??null,
    confirmedShotId:shot?.shotId??null,confirmedFireKind:shot?.kind??null,
    hasRig,realEngine:true,x:s.player.x-cam.x,y:s.player.y-cam.y,
    width:w,height:h
