@@ -105,6 +105,7 @@ test('old cross-class equipment and saved preset are harmless and repaired witho
  // An old preset with a mismatched weapon is loaded safely and cleared.
  const old=structuredClone(state);
  old.progression.presets[0].heroId='mage';
+ old.progression.presets[0].appearance={heroId:'mage',skinId:'mage:base'};
  assert.equal(validateCampaign(old),true);
  const loaded=command(old,{type:'LOAD_PRESET',index:0});
  assert.equal(loaded.progression.equipment.weapon,null);
@@ -144,7 +145,7 @@ test('Lyra creates arrows with real velocities and Astra creates spell bolts',()
  assert.equal(ranger.s.shots[0].kind,'arrow');
  assert.ok(ranger.s.shots[0].vx>0 && ranger.s.shots[0].life>0);
  const mage=battle('mage',{distance:150,weaponId:'star_wand'});
- assert.equal(mage.event?.kind,'spell');
+ assert.equal(mage.event?.kind,undefined,'preserve original mage fire-event API');
  assert.equal(mage.s.shots[0].kind,'spell');
  assert.notEqual(mage.s.shots[0].kind,ranger.s.shots[0].kind);
  const piercing=battle('ranger',{distance:150,weaponId:'thorn_bow',weaponEffect:'pierce'});
