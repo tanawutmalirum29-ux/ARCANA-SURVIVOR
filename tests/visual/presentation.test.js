@@ -2,9 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { COSMETICS } from '../../src/storage.js';
 import {
-  createFrameProfiler, getSkinGallery, getSkinPreview, normalizeQuality, visualBudget,
+  createFrameProfiler, getSkinGallery, getSkinPreview, normalizeQuality, visualBudget, resolveReducedMotion,
 } from '../../src/visual/presentation.js';
 import { showcaseMarkup } from '../../src/visual/showcase.js';
+import { resolveHeroPose } from '../../src/characters/motion/index.js';
 
 const basic = {
   version: 1, gold: 0, skin: 'apprentice', owned: ['apprentice'],
@@ -68,6 +69,24 @@ test('quality budgets are bounded and reduced motion disables moving adornments'
   assert.ok(visualBudget('medium').particles < visualBudget('high').particles);
   assert.equal(visualBudget('high', true).particles, 0);
   assert.equal(visualBudget('high', true).trails, 0);
+});
+
+test('motion OFF in game keeps all three walk animations even when OS prefers reduced motion', () => {
+  assert.equal(resolveReducedMotion({reduceMotion:false},true), false);
+  assert.equal(resolveReducedMotion({reduceMotion:true},false), true);
+  assert.equal(resolveReducedMotion({},true), true);
+  for (const heroId of ['mage','guardian','ranger']) {
+    const pose = (tick, reducedMotion) => resolveHeroPose({
+      heroId, tick, moving:true, moveVector:{x:1,y:0}, reducedMotion,
+    });
+    const animatedA = pose(10,resolveReducedMotion({reduceMotion:false},true));
+    const animatedB = pose(17,resolveReducedMotion({reduceMotion:false},true));
+    assert.equal(animatedA.locomotion,'walk');
+    assert.notDeepEqual(animatedA.joints.leftLeg,animatedB.joints.leftLeg,heroId+' walk gait must animate');
+    const stillA=pose(10,resolveReducedMotion({reduceMotion:true},false));
+    const stillB=pose(17,resolveReducedMotion({reduceMotion:true},false));
+    assert.deepEqual(stillA.joints.leftLeg,stillB.joints.leftLeg);
+  }
 });
 
 test('all locked skins have Preview controls but no Equip or Checkout affordance', () => {
