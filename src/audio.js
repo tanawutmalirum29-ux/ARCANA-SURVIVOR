@@ -19,7 +19,7 @@ export function getStepSounds(before, game) {
   const freshFlashes = new Set(game.flashes.filter(f => f.id > before.nextId).map(f => f.type));
   const newKills = Math.max(0, game.kills - before.kills);
   const newlyCollected = before.pickups + newKills - game.pickups.length;
-  const newPlayerShots = game.shots.some(s => s.id > before.nextId);
+  const newPlayerShots = game.shots.filter(s => s.id > before.nextId);
   const newHostileShots = game.hostileShots.filter(s => s.id > before.nextId).length;
 
   if (!before.bossSpawned && game.bossSpawned) sounds.push('boss');
@@ -36,7 +36,9 @@ export function getStepSounds(before, game) {
   else if (!freshFlashes.has('nova') && !freshFlashes.has('chain') &&
     game.enemies.some(e => e.flash === 8 && e.hp > 0)) sounds.push('impact');
 
-  if (newPlayerShots) sounds.push('cast');
+  if (freshFlashes.has('sword')) sounds.push('slash');
+  if (newPlayerShots.some(shot => shot.kind === 'arrow')) sounds.push('bow');
+  else if (newPlayerShots.length) sounds.push('cast');
   if (newKills > 0) sounds.push('kill');
   if (newlyCollected > 0) sounds.push('pickup');
   if (game.player.hp < before.hp) {
@@ -134,7 +136,7 @@ export function createGameAudio({ storage, ContextClass } = {}) {
 
   // Rapid automatic attacks and overlapping powers must not swamp phone speakers.
   const cooldown = {
-    cast: .18, kill: .16, pickup: .18, hurt: .35,
+    cast: .18, slash: .17, bow: .13, kill: .16, pickup: .18, hurt: .35,
     impact: .24, nova: 1.25, chain: .38, orbit: .45,
     bossWarning: 1.1, bossAttack: .8, enemyCast: 1.2, lowHealth: 4,
     upgradeSelect: .13, heal: .2, equip: .2, unlock: .8,
@@ -197,6 +199,14 @@ export function createGameAudio({ storage, ContextClass } = {}) {
         break;
       case 'switch':
         tone(at, 400, 580, .09, .044);
+        break;
+      case 'slash':
+        tone(at, 310, 85, .145, .075, 'sawtooth');
+        tone(at + .025, 480, 140, .07, .034, 'triangle');
+        break;
+      case 'bow':
+        tone(at, 980, 180, .105, .058, 'triangle');
+        tone(at + .01, 1250, 450, .07, .022);
         break;
       case 'cast':
         tone(at, 790, 310, .145, .095, 'triangle');
