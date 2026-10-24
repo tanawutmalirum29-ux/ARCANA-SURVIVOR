@@ -36,7 +36,7 @@ SCENE=r"""({heroId,heading,x,y,variant}) => {
  const game=createGame(97531,{heroId,mode:'campaign',
   stats:{maxHp:300,attack:35,fireDelay:24}});
  game.timers.spawn=999999;
- const distance=heroId==='guardian'?65:190;
+ const distance=heroId==='guardian'?65:variant==='dead-target'?75:190;
  let dx=x,dy=y;
  if(variant==='opposed-walk'){dx=-1;dy=0;}
  const norm=Math.hypot(dx,dy);
@@ -51,10 +51,10 @@ SCENE=r"""({heroId,heading,x,y,variant}) => {
  if (!event||event.tick!==game.tick)throw Error('No REAL engine attack '+heroId+'/'+heading+'/'+variant);
  let movement={x:game.player.x-oldX,y:game.player.y-oldY};
  if(variant==='dead-target'){
-  if(e.hp!==0)throw Error('Engine did not kill one-hit target '+heroId);
-  // A real fixed tick with no living target; last shot direction stays held.
-  game.player.fireTimer=9999;
-  step(game,{x:0,y:0});
+  // The arrow/staff bolt travels for several legitimate fixed ticks before
+  // collision, unlike sword melee. Do not fake death or skip projectile physics.
+  for(let i=0;e.hp>0 && i<30;i++) step(game,{x:0,y:0});
+  if(e.hp!==0)throw Error('Actual engine shot did not kill target '+heroId);
   movement={x:0,y:0};
  }
  const visual={appearance:{heroId},movement,
