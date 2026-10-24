@@ -7,6 +7,7 @@ import {
   HEROES, EQUIPMENT, SLOTS, RELICS, TALENTS, RUNES, JEWELS, ARTIFACTS, COMPANIONS, GUARDIANS, RESEARCH, BUILDINGS,
 } from '../../src/progression/index.js';
 import { normalizeRunConfig } from '../../src/gameplay/run-config.js';
+import {weaponCompatible} from '../../src/gameplay/weapons.js';
 
 const copy = value => structuredClone(value);
 function freeze(value) { if (value && typeof value === 'object') { Object.values(value).forEach(freeze); Object.freeze(value); } return value; }
@@ -156,7 +157,9 @@ test('every gear slot and all collection upgrades contribute to the derived comb
   let state = wealthy();
   for (const def of EQUIPMENT) {
     let id; [state, id] = craft(state, def.id); const slot = SLOTS.find(slot => slot.type === def.slot).id;
-    state = step(state, { type: 'EQUIP_ITEM', itemId: id, slot }).state;
+    // Craft every design but equip only hero-compatible weapons.
+    if (def.slot !== 'weapon' || weaponCompatible(state.progression.heroId,def.id))
+      state = step(state, { type: 'EQUIP_ITEM', itemId: id, slot }).state;
     assert.equal(validateRunConfig(deriveLoadout(state)), true);
   }
   const base = deriveLoadout(state);

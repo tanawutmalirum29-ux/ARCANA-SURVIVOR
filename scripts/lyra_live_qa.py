@@ -322,6 +322,7 @@ def run_one(browser,engine,width,height,variant):
         assert attack["event"]["tick"]>=attack["event"]["firedAtTick"]
         assert attack["event"]["bowDraw"]==0
         assert attack["event"]["arrowVisible"] is False
+        assert attack["event"]["attackKind"]=="arrow", "Lyra must launch a real arrow, not magic"
         if not page.evaluate("!!globalThis.__lyraQA.brace"):
             for _ in range(220):
                 page.clock.run_for(40)

@@ -220,21 +220,50 @@ function updateSkills(s) {
   const spellScale = configured ? p.attack / 22 * p.skillMultiplier * (s.runConfig.heroId === 'mage' ? 1.1 : 1) : 1;
   p.fireTimer--;
   if (p.fireTimer <= 0) {
-    const enemy = targetNearest(s, p);
+    const sword = configured && s.runConfig.heroId === 'guardian';
+    // Orin can only strike in melee range. Distant enemies do not provoke
+    // a swing and NO friendly projectile is ever spawned by the sword.
+    const enemy = targetNearest(s,p,sword ? 108 : 580);
     if (enemy) {
       const rangerBonus = configured && s.runConfig.heroId === 'ranger' && p.movingTicks >= 60 ? 1.12 : 1;
-      const aim = unit(enemy.x - p.x, enemy.y - p.y);
-      const bolt = shoot(s, p.x, p.y, aim, true, p.attack * (1 + (s.skills.bolt - 1) * .24) * rangerBonus * (configured ? p.skillMultiplier : 1),
-        configured && s.runConfig.weaponEffect === 'rapid' ? 517.5 : 450);
-      // Emit only for a successfully created *player* projectile; a full friendly
-      // shot cap or missing target cannot fabricate an attack animation. The event
-      // remains readable even if the projectile hits and vanishes this same tick.
-      if (bolt) playerFireEvents.set(s, Object.freeze({
-        tick: s.tick, shotId: bolt.id, originX: bolt.x, originY: bolt.y,
-        aimX: aim.x, aimY: aim.y, intervalTicks: p.fireDelay,
-      }));
-      if (bolt && configured && s.runConfig.weaponEffect === 'pierce') { bolt.pierce = 2; bolt.hitIds = []; }
-      p.fireTimer = p.fireDelay;
+      const aim = unit(enemy.x-p.x,enemy.y-p.y);
+      const amount = p.attack * (1 + (s.skills.bolt - 1) * .24) *
+        rangerBonus * (configured ? p.skillMultiplier : 1);
+      if (sword) {
+        const cleave=s.runConfig.weaponEffect === 'cleave';
+        let hits=0;
+        // Balanced sword strikes one target; cleave strikes all in its cone.
+        for (const target of s.enemies) {
+          if (target.hp <= 0 || distance(p,target)>108+target.radius) continue;
+          const toward=unit(target.x-p.x,target.y-p.y);
+          if (toward.x*aim.x+toward.y*aim.y < (cleave ? .25 : .5)) continue;
+          damageEnemy(s,target,amount);hits++;
+          if (!cleave) break;
+        }
+        if (hits) {
+          s.flashes.push({id:id(s),x:p.x,y:p.y,aimX:aim.x,aimY:aim.y,
+            radius:108,ttl:12,type:'sword'});
+          playerFireEvents.set(s,Object.freeze({
+            tick:s.tick,shotId:null,originX:p.x,originY:p.y,aimX:aim.x,
+            aimY:aim.y,intervalTicks:p.fireDelay,kind:'melee',
+          }));
+        }
+      } else {
+        const bolt=shoot(s,p.x,p.y,aim,true,amount,
+          configured && s.runConfig.weaponEffect === 'rapid' ? 517.5 : 450);
+        // Actual live projectiles carry their shape type into Canvas.
+        // The original unconfigured legacy simulation remains byte-compatible.
+        if (bolt && configured) bolt.kind=s.runConfig.heroId === 'ranger' ? 'arrow' : 'spell';
+        if (bolt) playerFireEvents.set(s,Object.freeze({
+          tick:s.tick,shotId:bolt.id,originX:bolt.x,originY:bolt.y,
+          aimX:aim.x,aimY:aim.y,intervalTicks:p.fireDelay,
+          ...(configured && s.runConfig.heroId === 'ranger' ? {kind:bolt.kind} : {}),
+        }));
+        if (bolt && configured && s.runConfig.weaponEffect === 'pierce') {
+          bolt.pierce=2;bolt.hitIds=[];
+        }
+      }
+      p.fireTimer=p.fireDelay;
     }
   }
   if (s.skills.nova) {
@@ -435,3 +464,21 @@ export function getReward(s) { return Math.floor(s.kills * 2 + s.tick / 60 * 1.5
 export const UPGRADE_DESCRIPTIONS = Object.freeze({
   bolt: ['ARCANE BOLT', 'เวทกระสุนทรงพลังขึ้น'], nova: ['FROST NOVA', 'คลื่นน้ำแข็งทำให้ศัตรูช้าลง'], orbit: ['FLAME ORBIT', 'เปลวไฟรอบตัวสร้างความเสียหาย'], chain: ['LIGHTNING CHAIN', 'สายฟ้ากระโดดโจมตีเป้าหมาย'], power: ['ARCANE POWER', 'เพิ่มพลังเวท +5'], haste: ['QUICK CAST', 'โจมตีถี่ขึ้น'], speed: ['WINDSTEP', 'วิ่งเร็วขึ้น'], heal: ['RENEWAL', 'ฟื้นฟู HP 35']
 });
+
+// Auto-attack upgrades use the held weapon's terminology. Additional spells
+// (Nova/Orbit/Chain) remain separate optional skills for all heroes.
+export function getUpgradeDescription(key, heroId='mage') {
+  const custom={
+    guardian:{
+      bolt:['BLADE EDGE','ฟันดาบประชิดแรงขึ้น ไม่ปล่อยกระสุน'],
+      power:['SWORD STRENGTH','เพิ่มความเสียหายของดาบ +5'],
+      haste:['QUICK SLASH','ฟันดาบได้ถี่ขึ้น'],
+    },
+    ranger:{
+      bolt:['ARROWHEAD','ลูกธนูโจมตีแรงขึ้น'],
+      power:['BOW POWER','เพิ่มความเสียหายลูกธนู +5'],
+      haste:['QUICK DRAW','ง้างธนูและยิงได้ถี่ขึ้น'],
+    },
+  };
+  return custom[heroId]?.[key] || UPGRADE_DESCRIPTIONS[key];
+}

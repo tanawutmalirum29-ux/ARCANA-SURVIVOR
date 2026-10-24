@@ -1,4 +1,5 @@
 import { HEROES, EQUIPMENT, GEAR_SETS, SLOTS, RARITIES, CHAPTERS, MODES, RELICS, TALENTS, RUNES, JEWELS, ARTIFACTS, COMPANIONS, GUARDIANS, RESEARCH, BUILDINGS, MISSIONS, SHOP_OFFERS, SEASON_REWARDS, FEATURE_RUNS } from './catalog.js';
+import {weaponCompatible} from '../gameplay/weapons.js';
 import { byId, clone, STAT_BOUNDS } from './state.js';
 
 export const getProfileLevel = state => 1 + Math.floor(state.progression.xp / 120);
@@ -131,7 +132,10 @@ export function deriveLoadout(state) {
   for (const id of Object.values(p.equipment)) {
     const item = p.inventory.find(item => item.id === id);
     if (!item) continue;
-    const def = byId(EQUIPMENT, item.definitionId); addStats(stats, getItemStats(item));
+    const def = byId(EQUIPMENT, item.definitionId);
+    // Legacy mismatched weapons contribute neither stats nor set power.
+    if (def.slot === 'weapon' && !weaponCompatible(p.heroId,def.id)) continue;
+    addStats(stats, getItemStats(item));
     sets[def.set] = (sets[def.set] || 0) + 1;
     if (def.slot === 'weapon') { config.weaponId = def.id; config.weaponEffect = def.effect; }
   }

@@ -94,7 +94,7 @@ const boundedRecord = (value, bounds) => keys(value, Object.keys(bounds)) && Obj
 export function validateRunConfig(config) {
   if (!keys(config, ['version', 'balanceVersion', 'heroId', 'chapterId', 'mode', 'stats', 'weaponId', 'weaponEffect', 'artifact', 'companions', 'guardian', 'modifiers', 'chapter'])) return false;
   if (config.version !== 1 || config.balanceVersion !== 1 || !byId(HEROES, config.heroId) || !byId(CHAPTERS, config.chapterId) || !byId(MODES, config.mode)) return false;
-  if (!boundedRecord(config.stats, STAT_BOUNDS) || !(config.weaponId === null || byId(EQUIPMENT, config.weaponId)?.slot === 'weapon') || !['balanced', 'pierce', 'rapid'].includes(config.weaponEffect)) return false;
+  if (!boundedRecord(config.stats, STAT_BOUNDS) || !(config.weaponId === null || byId(EQUIPMENT, config.weaponId)?.slot === 'weapon') || !['balanced', 'pierce', 'rapid', 'cleave'].includes(config.weaponEffect)) return false;
   const support = (value, catalog) => value === null || (keys(value, ['id', 'level']) && byId(catalog, value.id) && integer(value.level, 1, byId(catalog, value.id).maxLevel));
   if (!support(config.artifact, ARTIFACTS) || !support(config.guardian, GUARDIANS) || !Array.isArray(config.companions) || config.companions.length > 2 || !unique(config.companions.map(x => x?.id)) || !config.companions.every(x => x !== null && support(x, COMPANIONS))) return false;
   if (!boundedRecord(config.modifiers, { novaRadius: [1, 2], chainTargets: [0, 4], orbitRadius: [1, 2], shieldEvery: [0, 120], killHeal: [0, 5] }) || !integer(config.modifiers.chainTargets, 0, 4)) return false;

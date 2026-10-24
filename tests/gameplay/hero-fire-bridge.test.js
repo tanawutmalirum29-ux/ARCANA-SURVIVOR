@@ -34,14 +34,16 @@ test('confirmed player shot event is immutable, valid and absent from sim snapsh
   assert.equal(getLastPlayerFireEvent(game), event, 'no false extra event before next real shot');
 });
 
-test('player event survives same-tick hit and removal of the projectile', () => {
+test('guardian hit event survives same-tick melee without spawning a bullet', () => {
   const game = rig('guardian', 18);
   game.player.fireTimer = 0;
   step(game);
   const event = getLastPlayerFireEvent(game);
-  assert.ok(event?.shotId > 0);
-  assert.equal(game.shots.some(b => b.id === event.shotId), false,
-    'the bullet was consumed in the same step but animation can still see its event');
+  assert.equal(event?.kind, 'melee');
+  assert.equal(event?.shotId, null);
+  assert.equal(event?.tick, game.tick);
+  assert.equal(game.shots.length, 0, 'a sword must never emit a projectile');
+  assert.ok(game.flashes.some(f => f.type === 'sword'), 'sword strike VFX derives from a real hit');
 });
 
 test('no target, full friendly cap, and paused game do not fabricate fire events', () => {
@@ -70,7 +72,7 @@ test('no target, full friendly cap, and paused game do not fabricate fire events
 });
 
 test('events are game-instance isolated and track subsequent accepted shots', () => {
-  const a=rig('ranger'), b=rig('guardian');
+  const a=rig('ranger'), b=rig('guardian',70);
   a.player.fireTimer=0; b.player.fireTimer=0;
   step(a);
   assert.ok(getLastPlayerFireEvent(a));

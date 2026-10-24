@@ -112,13 +112,35 @@ export function drawScene(canvas,ctx,s,profile,time=0,visual={}){
  if(s.sanctuary){ctx.globalAlpha=.12;ctx.fillStyle='#8fe0c8';ctx.beginPath();ctx.arc(s.sanctuary.x,s.sanctuary.y,s.sanctuary.radius,0,PI2);ctx.fill();ctx.globalAlpha=1;ring(ctx,s.sanctuary.x,s.sanctuary.y,s.sanctuary.radius,'#71c4b2',2)}
  for(const o of s.pickups){glow(ctx,o.x,o.y,'#61dcc9',26,.24*options.glow);diamond(ctx,o.x,o.y,7,'#6de7e0');diamond(ctx,o.x,o.y,3,'#fff9dc')}
  for(const e of s.enemies)enemyAvatar(ctx,e,options.reducedMotion?0:time,options.reducedMotion);
- for(const b of s.shots){glow(ctx,b.x,b.y,skin.glow,options.quality==='high'?27:15,.4*options.glow);ring(ctx,b.x,b.y,b.radius+1,skin.projectile,3);diamond(ctx,b.x,b.y,5,skin.color)}
+ for(const b of s.shots){
+  if(b.kind==='arrow'){
+   // Physical shaft/feather/steel tip, rotated along the real projectile velocity.
+   ctx.save();ctx.translate(b.x,b.y);ctx.rotate(Math.atan2(b.vy,b.vx));
+   ctx.strokeStyle='#e2c18b';ctx.lineWidth=2.5;ctx.beginPath();
+   ctx.moveTo(-16,0);ctx.lineTo(13,0);ctx.stroke();
+   ctx.fillStyle='#cadde0';ctx.beginPath();
+   ctx.moveTo(19,0);ctx.lineTo(9,-4);ctx.lineTo(9,4);ctx.closePath();ctx.fill();
+   ctx.strokeStyle=skin.glow;ctx.lineWidth=2;ctx.beginPath();
+   ctx.moveTo(-15,-5);ctx.lineTo(-9,0);ctx.lineTo(-15,5);ctx.stroke();ctx.restore();
+  }else{
+   glow(ctx,b.x,b.y,skin.glow,options.quality==='high'?27:15,.4*options.glow);
+   ring(ctx,b.x,b.y,b.radius+1,skin.projectile,3);
+   diamond(ctx,b.x,b.y,5,skin.color);
+  }
+ }
  for(const b of s.hostileShots){glow(ctx,b.x,b.y,'#ff587e',30,.3*options.glow);ring(ctx,b.x,b.y,b.radius,'#ff9c9f',4)}
  for(const f of s.flashes){
   // Telegraph outlines never fade with graphics quality, skin tier or reduced motion.
   if(f.type==='warning'){paintBossWarning(ctx,f,{quality:options.quality,reducedMotion:options.reducedMotion});continue}
   const alpha=options.reducedMotion?.35:Math.min(.65,f.ttl/18*.42);ctx.globalAlpha=alpha;
-  if(f.type==='chain'){ctx.strokeStyle='#85ecff';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(f.x,f.y);ctx.lineTo(f.x2,f.y2);ctx.stroke()}
+  if(f.type==='sword'){
+   // Directional sword swing VFX; damage was dealt by melee, not a projectile.
+   ctx.save();ctx.translate(f.x,f.y);ctx.rotate(Math.atan2(f.aimY,f.aimX));
+   ctx.strokeStyle='#dcebf0';ctx.lineWidth=7;ctx.lineCap='round';
+   ctx.beginPath();ctx.arc(0,0,f.radius*.78,-.85,.85);ctx.stroke();
+   ctx.strokeStyle=GOLD;ctx.lineWidth=2;ctx.beginPath();
+   ctx.arc(0,0,f.radius*.68,-.72,.72);ctx.stroke();ctx.restore();
+  }else if(f.type==='chain'){ctx.strokeStyle='#85ecff';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(f.x,f.y);ctx.lineTo(f.x2,f.y2);ctx.stroke()}
   else if(f.type==='nova')ring(ctx,f.x,f.y,f.radius*(1-f.ttl/35*.22),'#9adfff',3);
   else {const color={hurt:'#ff7187',critical:'#ffe79a',barrier:'#9ae4ff',healing:'#9ce4ac',hourglass:'#e6cb99',sanctuary:'#83e3c0',sunburst:'#ffd182',revive:'#ffb779'}[f.type]||'#d99dff';ring(ctx,f.x,f.y,Math.max(2,f.radius*(1-f.ttl/60*.6)),color,3)}
   ctx.globalAlpha=1;
@@ -162,7 +184,8 @@ export function drawScene(canvas,ctx,s,profile,time=0,visual={}){
  if(heroId==='guardian' && typeof globalThis.__ARCANA_ORIN_QA_FRAME__==='function'){
   const event={tick:s.tick,heroId,skinId:skin.id||null,
    firedAtTick:shot?.tick??null,phase:pose.attackPhase,poseState:pose.state,
-   shieldBrace:pose.fx.shieldBrace,direction8:pose.travel.direction8,
+   shieldBrace:pose.fx.shieldBrace,attackKind:shot?.kind??null,
+   activeFriendlyShots:s.shots.length,direction8:pose.travel.direction8,
    moving:pose.locomotion==='walk',hasRig,
    x:s.player.x-cam.x,y:s.player.y-cam.y,width:w,height:h,
    shieldValue:s.player.shield,bodyScaleX:pose.view.bodyScaleX};
@@ -175,10 +198,29 @@ export function drawScene(canvas,ctx,s,profile,time=0,visual={}){
    tick:s.tick,heroId,skinId:skin.id||null,
    firedAtTick:shot?.tick??null,phase:pose.attackPhase,poseState:pose.state,
    bowDraw:pose.fx.bowDraw,arrowVisible:pose.fx.arrowVisible,
+    attackKind:shot?.kind??null,
    direction8:pose.travel.direction8,viewDirection8:pose.view.direction8,
    backView:pose.view.backView,moving:pose.locomotion==='walk',hasRig,
    x:s.player.x-cam.x,y:s.player.y-cam.y,width:w,height:h,
    bodyScaleX:pose.view.bodyScaleX
   },canvas);
  }
+  // Opt-in Astra QA observes an already rendered, REAL engine spell shot.
+  // Existing seven-field Mage fire event/API and sim/save remain unchanged.
+  if(heroId==='mage' && typeof globalThis.__ARCANA_ASTRA_QA_FRAME__==='function'){
+   const visibleSpell=s.shots.find(b=>b.friendly && b.kind==='spell' &&
+     b.x-cam.x>25 && b.x-cam.x<w-25 && b.y-cam.y>25 && b.y-cam.y<h-25);
+   globalThis.__ARCANA_ASTRA_QA_FRAME__({
+     tick:s.tick,heroId,skinId:skin.id||null,hasRig,
+     width:w,height:h,playerX:s.player.x-cam.x,playerY:s.player.y-cam.y,
+     fireTick:shot?.tick??null,fireShotId:shot?.shotId??null,
+     spell:visibleSpell?{
+       id:visibleSpell.id,kind:visibleSpell.kind,
+       x:visibleSpell.x-cam.x,y:visibleSpell.y-cam.y,
+       vx:visibleSpell.vx,vy:visibleSpell.vy,
+       friendly:visibleSpell.friendly,radius:visibleSpell.radius,
+     }:null,
+   },canvas);
+  }
+
 }
