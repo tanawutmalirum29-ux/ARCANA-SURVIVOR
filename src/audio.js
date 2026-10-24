@@ -1,5 +1,6 @@
 // ARCANA SURVIVOR's original procedural audio: no samples, downloads or external services.
 import {createLobbyMusic,LOBBY_MUSIC_CHOICES,resolveLobbyTheme,validMusicChoice} from './lobbyMusic.js';
+import {getLastPlayerFireEvent} from './engine.js';
 // AudioContext is created only after a user gesture (required by mobile browsers).
 const SOUND_KEY = 'arcana-survivor-sound-v1';
 const MUSIC_CHOICE_KEY = 'arcana-survivor-lobby-theme-v1';
@@ -10,7 +11,8 @@ export function captureAudioState(game) {
   return {
     hp: game.player.hp, maxHp: game.player.maxHp,
     kills: game.kills, pickups: game.pickups.length,
-    nextId: game.nextId, bossSpawned: game.bossSpawned
+    nextId: game.nextId, bossSpawned: game.bossSpawned,
+    tick: game.tick
   };
 }
 
@@ -20,6 +22,11 @@ export function getStepSounds(before, game) {
   const newKills = Math.max(0, game.kills - before.kills);
   const newlyCollected = before.pickups + newKills - game.pickups.length;
   const newPlayerShots = game.shots.filter(s => s.id > before.nextId);
+  // A confirmed engine fire event survives collision/removal in the SAME tick.
+  // The tick gate rejects stale events across idle, paused and capped frames.
+  // Mage and legacy simulations retain their original seven-field fire event.
+  const fire = getLastPlayerFireEvent(game);
+  const freshFire = game.tick > before.tick && fire?.tick === game.tick ? fire : null;
   const newHostileShots = game.hostileShots.filter(s => s.id > before.nextId).length;
 
   if (!before.bossSpawned && game.bossSpawned) sounds.push('boss');
@@ -37,8 +44,12 @@ export function getStepSounds(before, game) {
     game.enemies.some(e => e.flash === 8 && e.hp > 0)) sounds.push('impact');
 
   if (freshFlashes.has('sword')) sounds.push('slash');
-  if (newPlayerShots.some(shot => shot.kind === 'arrow')) sounds.push('bow');
-  else if (newPlayerShots.length) sounds.push('cast');
+  if (freshFire?.kind === 'arrow') sounds.push('bow');
+  else if (freshFire?.shotId != null) sounds.push('cast');
+  // Older external snapshots/tests may only contain surviving projectiles.
+  // Never double-emit when the confirmed engine event already represents it.
+  else if (!freshFire && newPlayerShots.some(shot => shot.kind === 'arrow')) sounds.push('bow');
+  else if (!freshFire && newPlayerShots.length) sounds.push('cast');
   if (newKills > 0) sounds.push('kill');
   if (newlyCollected > 0) sounds.push('pickup');
   if (game.player.hp < before.hp) {
