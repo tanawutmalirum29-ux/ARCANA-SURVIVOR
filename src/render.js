@@ -180,6 +180,19 @@ export function drawScene(canvas,ctx,s,profile,time=0,visual={}){
    ctx.fillStyle='#fff0ca';ctx.font='bold 10px system-ui';ctx.textAlign='center';ctx.fillText('BOSS',0,-25);ctx.restore();
  }
  const v=ctx.createRadialGradient(w/2,h/2,Math.min(w,h)*.2,w/2,h/2,Math.max(w,h)*.9);v.addColorStop(0,'transparent');v.addColorStop(1,'rgba(3,6,18,.47)');ctx.fillStyle=v;ctx.fillRect(0,0,w,h);
+ // QA-only observer after the real engine-driven Canvas has been painted.
+ // Only installed by live browser tests; never mutates gameplay or save state.
+ if(typeof globalThis.__ARCANA_IDLE_FACING_QA_FRAME__==='function'){
+  globalThis.__ARCANA_IDLE_FACING_QA_FRAME__({
+   tick:s.tick,heroId,moving:facing.moving,targetPresent:facing.targetPresent,
+   direction8:pose.view.direction8,attackDirection8:pose.facing.direction8,
+   travelDirection8:pose.travel.direction8,backView:pose.view.backView,
+   attackPhase:pose.attackPhase,confirmedFireTick:shot?.tick??null,
+   confirmedShotId:shot?.shotId??null,confirmedFireKind:shot?.kind??null,
+   hasRig,realEngine:true,x:s.player.x-cam.x,y:s.player.y-cam.y,
+   width:w,height:h
+  },canvas);
+ }
  // Read-only, opt-in browser QA tap. It observes the ACTUAL engine-confirmed
  // projectile event, painted Path2D actor and viewport after the scene finishes.
  // Normal gameplay does not register a tap; no simulation or save changes.
