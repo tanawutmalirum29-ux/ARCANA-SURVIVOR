@@ -16,6 +16,13 @@ export function normalizeQuality(value) {
   return QUALITY_LEVELS.includes(value) ? value : 'low';
 }
 
+// An explicit in-game ON/OFF choice takes priority over the platform hint.
+// The OS preference only applies when no game preference exists.
+export function resolveReducedMotion(settings, systemPreference = false) {
+  return typeof settings?.reduceMotion === 'boolean'
+    ? settings.reduceMotion : Boolean(systemPreference);
+}
+
 export function visualBudget(quality, reducedMotion = false) {
   const q = normalizeQuality(quality);
   const budgets = {
