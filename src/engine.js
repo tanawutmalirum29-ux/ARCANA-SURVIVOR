@@ -464,3 +464,21 @@ export function getReward(s) { return Math.floor(s.kills * 2 + s.tick / 60 * 1.5
 export const UPGRADE_DESCRIPTIONS = Object.freeze({
   bolt: ['ARCANE BOLT', 'เวทกระสุนทรงพลังขึ้น'], nova: ['FROST NOVA', 'คลื่นน้ำแข็งทำให้ศัตรูช้าลง'], orbit: ['FLAME ORBIT', 'เปลวไฟรอบตัวสร้างความเสียหาย'], chain: ['LIGHTNING CHAIN', 'สายฟ้ากระโดดโจมตีเป้าหมาย'], power: ['ARCANE POWER', 'เพิ่มพลังเวท +5'], haste: ['QUICK CAST', 'โจมตีถี่ขึ้น'], speed: ['WINDSTEP', 'วิ่งเร็วขึ้น'], heal: ['RENEWAL', 'ฟื้นฟู HP 35']
 });
+
+// Auto-attack upgrades use the held weapon's terminology. Additional spells
+// (Nova/Orbit/Chain) remain separate optional skills for all heroes.
+export function getUpgradeDescription(key, heroId='mage') {
+  const custom={
+    guardian:{
+      bolt:['BLADE EDGE','ฟันดาบประชิดแรงขึ้น ไม่ปล่อยกระสุน'],
+      power:['SWORD STRENGTH','เพิ่มความเสียหายของดาบ +5'],
+      haste:['QUICK SLASH','ฟันดาบได้ถี่ขึ้น'],
+    },
+    ranger:{
+      bolt:['ARROWHEAD','ลูกธนูโจมตีแรงขึ้น'],
+      power:['BOW POWER','เพิ่มความเสียหายลูกธนู +5'],
+      haste:['QUICK DRAW','ง้างธนูและยิงได้ถี่ขึ้น'],
+    },
+  };
+  return custom[heroId]?.[key] || UPGRADE_DESCRIPTIONS[key];
+}
