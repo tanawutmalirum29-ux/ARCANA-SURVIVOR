@@ -5,6 +5,7 @@ synthetic hero rendering. The only fixture is a VALID high-progress mage save
 to survive long enough; the run uses regular UI and keyboard controls.
 Compared with scripts/astra_visual_qa.py this captures the actual #scene Canvas.
 """
+import base64
 import hashlib
 import json
 import os
@@ -13,8 +14,8 @@ from playwright.sync_api import sync_playwright, expect
 
 URL = os.environ.get("ARCANA_QA_URL", "http://127.0.0.1:4173").rstrip("/")
 OUT = Path(os.environ.get("ARCANA_LIVE_ARTIFACTS", "/tmp/astra-live-proof"))
-# Portrait and short landscape reproduce the most challenging phone layouts.
-SIZES = ((390, 844), (844, 390))
+# All five shipping viewports in BOTH browser engines: actual game, not source sheet.
+SIZES = ((320, 568), (390, 844), (768, 1024), (844, 390), (1440, 900))
 VECTORS = (
     ("E", ("ArrowRight",)),
     ("SE", ("ArrowRight", "ArrowDown")),
@@ -25,6 +26,25 @@ VECTORS = (
     ("N", ("ArrowUp",)),
     ("NE", ("ArrowUp", "ArrowRight")),
 )
+
+# Hook only runs when a separate QA page registers the observer.
+# Its payload is supplied by src/render.js AFTER painting the actual scene.
+QA_INIT = r"""(() => {
+ const qa={frames:0,spell:null,last:null};
+ globalThis.__astraQA=qa;
+ globalThis.__ARCANA_ASTRA_QA_FRAME__=(e,canvas)=>{
+   qa.frames++;qa.last=e;
+   if(!qa.spell && e.heroId==='mage' && e.hasRig &&
+      e.fireTick!==null && e.fireShotId!==null &&
+      e.spell?.kind==='spell' && e.spell.id===e.fireShotId &&
+      e.spell.friendly && e.tick>=e.fireTick && e.tick-e.fireTick<=5 &&
+      e.spell.x>25 && e.spell.y>25 &&
+      e.spell.x<e.width-25 && e.spell.y<e.height-25 &&
+      e.playerX>25 && e.playerX<e.width-25){
+     qa.spell={event:{...e},png:canvas.toDataURL('image/png')};
+   }
+ };
+})()"""
 
 STORE_FIXTURE = """async () => {
   const [{createCampaignStore, CAMPAIGN_DB, CAMPAIGN_STORE, CAMPAIGN_KEY},
@@ -77,6 +97,7 @@ def run_one(browser, engine, width, height):
       record_video_dir=str(folder),
       record_video_size={"width":width,"height":height})
     page=context.new_page()
+    page.add_init_script(QA_INIT)
     errors=[]
     page.on("pageerror",lambda exc:errors.append(str(exc)))
     page.clock.install()
@@ -125,20 +146,43 @@ def run_one(browser, engine, width, height):
                "kills":page.locator("#kill-count").inner_text(),
                "sha256":digest,"screenshot":str(capture)})
       for key in held:page.keyboard.up(key)
+      # A normal live enemy must trigger an engine-confirmed spell. No mocked
+      # projectile, player fire event, tick or synthetic visual injection.
+      if not page.evaluate("!!globalThis.__astraQA.spell"):
+        for _ in range(180):
+          page.clock.run_for(35)
+          if page.locator(".upgrade-option").count():
+            page.locator(".upgrade-option").first.click()
+          if page.evaluate("!!globalThis.__astraQA.spell"):break
+      confirmed=page.evaluate("globalThis.__astraQA.spell")
+      assert confirmed,("NO_REAL_STAFF_SPELL",engine,width,height,
+        page.evaluate("globalThis.__astraQA.last"))
+      event=confirmed["event"]
+      assert event["fireShotId"]==event["spell"]["id"],event
+      assert event["spell"]["kind"]=="spell" and event["spell"]["friendly"]
+      assert event["tick"]>=event["fireTick"] and event["tick"]-event["fireTick"]<=5
+      assert event["spell"]["vx"]**2+event["spell"]["vy"]**2>0
+      raw=base64.b64decode(confirmed["png"].split(",",1)[1],validate=True)
+      assert raw.startswith(b"\\x89PNG\\r\\n\\x1a\\n")
+      spell_path=folder/"REAL-CONFIRMED-STAFF-SPELL.png"
+      spell_path.write_bytes(raw)
+      spell_proof={"event":event,"screenshot":str(spell_path),
+        "sha256":hashlib.sha256(raw).hexdigest()}
       assert len(rows)==16
       assert len(fingerprints)>=8,(
          "Gameplay Canvas did not visibly update across inputs",len(fingerprints))
       assert rows[-1]["hud_clock"]!=start_clock,(
          "Actual simulation clock did not advance",start_clock,rows[-1])
       assert not errors,("Game page error",engine,width,height,errors)
-      print("PASS ACTUAL_ASTRA_MAP",engine,f"{width}x{height}",
-        "16 real #scene frames, normal 8-way keyboard movement",
+      print("PASS ACTUAL_ASTRA_SPELL",engine,f"{width}x{height}",
+        "16 real #scene frames, engine-confirmed painted spell + 8-way input",
         "observed_kills",rows[-1]["kills"],flush=True)
       return {"engine":engine,"viewport":f"{width}x{height}",
           "classification":"ACTUAL_BROWSER_GAMEPLAY (valid high-level save fixture)",
-          "not_proven":"exact frame of projectile fire, physical mobile device",
+          "not_proven":"physical mobile hardware device",
           "run_id":active["id"],"start_clock":start_clock,
-          "end_clock":rows[-1]["hud_clock"],"samples":rows}
+          "end_clock":rows[-1]["hud_clock"],"samples":rows,
+          "confirmed_spell":spell_proof}
     finally:
       try:
         for key in held:page.keyboard.up(key)
@@ -164,8 +208,11 @@ def main():
     path=OUT/"report.json"
     path.write_text(json.dumps(results,ensure_ascii=False,indent=2),
       encoding="utf-8")
-    print("LIVE ASTRa report",path)
-    print("PHYSICAL_MOBILE / EXACT_SHOT_FRAME: NOT_RUN / NOT_PROVEN")
+    assert len(results)==10
+    assert all(row["confirmed_spell"]["event"]["spell"]["kind"]=="spell" for row in results)
+    print("PASS ACTUAL_ASTRA_SPELL 10/10 browser/size runs; engine-confirmed shot and actual PNG/video",flush=True)
+    print("LIVE ASTRA report",path)
+    print("PHYSICAL_MOBILE: NOT_RUN; ACTUAL_ENGINE_SHOT_FRAME: VERIFIED")
 
 if __name__=="__main__":
     main()
