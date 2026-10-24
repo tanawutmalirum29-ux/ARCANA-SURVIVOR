@@ -1,6 +1,6 @@
 import { WORLD } from './engine.js';
 import { COSMETICS } from './storage.js';
-import { visualBudget } from './visual/presentation.js';
+import { visualBudget, resolveReducedMotion } from './visual/presentation.js';
 import { paintBossWarning } from './visual/warnings.js';
 import {getSkinDefinition} from './characters/skins/index.js';
 import {renderHeroActor} from './characters/visual/hero-art.js';
@@ -102,7 +102,8 @@ export function drawScene(canvas,ctx,s,profile,time=0,visual={}){
  const heroId=visual.appearance?.heroId||s.runConfig?.heroId||'mage';
  const selected=getSkinDefinition(visual.appearance?.skinId);
  const skin=selected?.heroId===heroId?selected:(COSMETICS.find(x=>x.id===profile.skin)||COSMETICS[0]);
- const reduceMotion=Boolean(profile.settings?.reduceMotion || (typeof window.matchMedia==='function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches));
+ const systemReduceMotion=typeof window.matchMedia==='function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+ const reduceMotion=resolveReducedMotion(profile.settings,systemReduceMotion);
  const options=visualBudget(profile.settings?.vfx || 'medium',reduceMotion);
  const bounds=canvas.getBoundingClientRect(),w=bounds.width||360,h=bounds.height||640;
  const dpr=Math.min(window.devicePixelRatio||1,options.dprCap);const pw=Math.round(w*dpr),ph=Math.round(h*dpr);
