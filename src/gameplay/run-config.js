@@ -85,7 +85,7 @@ export function modeRules(config) {
     // Campaign's introductory chapter previously overwhelmed baseline starter
     // loadouts before the scheduled boss; reduce normal campaign wave pressure
     // without altering hard/boss-rush/resource modes or mutating run snapshots.
-    spawnMultiplier: chapter.spawnMultiplier * (mode === 'hard' ? 1.15 : mode === 'bossRush' ? .35 : mode === 'resource' ? 1.3 : mode === 'campaign' ? .68 : 1),
+    spawnMultiplier: chapter.spawnMultiplier * (mode === 'hard' ? 1.15 : mode === 'bossRush' ? .35 : mode === 'resource' ? 1.3 : mode === 'campaign' ? .8 : 1),
   };
 }
 
