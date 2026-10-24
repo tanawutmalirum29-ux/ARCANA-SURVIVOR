@@ -46,7 +46,7 @@ export function normalizeRunConfig(input) {
       armor: number(stats.armor, 0, 0, COMBAT_LIMITS.armor),
       critChance: number(stats.critChance, 0, 0, COMBAT_LIMITS.critChance),
       critDamage: number(stats.critDamage, 1.5, 1, COMBAT_LIMITS.critDamage),
-      pickupRadius: number(stats.pickupRadius, 110, 40, 450),
+      pickupRadius: number(stats.pickupRadius, 60, 40, 450),
       healingMultiplier: number(stats.healingMultiplier, 1, .25, 3),
       skillMultiplier: number(stats.skillMultiplier, 1, .25, 4),
       bossDamageMultiplier: number(stats.bossDamageMultiplier, 1, .25, 4),
