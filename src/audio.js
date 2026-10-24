@@ -21,7 +21,6 @@ export function getStepSounds(before, game) {
   const freshFlashes = new Set(game.flashes.filter(f => f.id > before.nextId).map(f => f.type));
   const newKills = Math.max(0, game.kills - before.kills);
   const newlyCollected = before.pickups + newKills - game.pickups.length;
-  const newPlayerShots = game.shots.filter(s => s.id > before.nextId);
   // A confirmed engine fire event survives collision/removal in the SAME tick.
   // The tick gate rejects stale events across idle, paused and capped frames.
   // Mage and legacy simulations retain their original seven-field fire event.
@@ -46,10 +45,6 @@ export function getStepSounds(before, game) {
   if (freshFlashes.has('sword')) sounds.push('slash');
   if (freshFire?.kind === 'arrow') sounds.push('bow');
   else if (freshFire?.shotId != null) sounds.push('cast');
-  // Older external snapshots/tests may only contain surviving projectiles.
-  // Never double-emit when the confirmed engine event already represents it.
-  else if (!freshFire && newPlayerShots.some(shot => shot.kind === 'arrow')) sounds.push('bow');
-  else if (!freshFire && newPlayerShots.length) sounds.push('cast');
   if (newKills > 0) sounds.push('kill');
   if (newlyCollected > 0) sounds.push('pickup');
   if (game.player.hp < before.hp) {
