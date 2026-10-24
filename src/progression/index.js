@@ -6,6 +6,7 @@ export * from './selectors.js';
 import { MAX_VALUE, HEROES, EQUIPMENT, SLOTS, RARITIES, CHAPTERS, MODES, RELICS, TALENTS, RUNES, JEWELS, ARTIFACTS, COMPANIONS, GUARDIANS, RESEARCH, BUILDINGS, MISSIONS, SHOP_OFFERS, SEASON_REWARDS } from './catalog.js';
 import { byId, clone, keys, integer, unique, validDay, weekOf, createItem, validateCampaign } from './state.js';
 import { HERO_IDS, getSkinDefinition, getEquippedSkin } from '../characters/skins/index.js';
+import {weaponCompatible} from '../gameplay/weapons.js';
 import { BETA_TEST_MODE, BETA_TEST_WALLET_FLOOR, BETA_TEST_SHARD_FLOOR, BETA_TEST_FRAGMENT_FLOOR, BETA_TEST_RUN_ACCESS } from '../testing/beta-resources.js';
 import { deriveLoadout, getFeatureState, getCommandCost, getCommandRewardPreview, getMissionProgress, isItemProtected } from './selectors.js';
 
@@ -14,7 +15,7 @@ export const ERROR_MESSAGES = Object.freeze({
   UNKNOWN_COMMAND: 'ไม่พบคำสั่งนี้', NOT_FOUND: 'ไม่พบรายการนี้', LOCKED: 'ระบบนี้ยังไม่ปลดล็อก', NOT_OWNED: 'ยังไม่ได้ครอบครอง',
   NO_FUNDS: 'ทรัพยากรไม่เพียงพอ', MAX_LEVEL: 'ถึงระดับสูงสุดแล้ว', NO_CHANGE: 'ตั้งค่าอยู่แล้ว',
   ALREADY_OWNED: 'ครอบครองแล้ว', ALREADY_CLAIMED: 'รับรางวัลนี้แล้ว', NOT_READY: 'ยังไม่ครบเงื่อนไข',
-  INVALID_SLOT: 'ช่องสวมใส่ไม่ตรงประเภท', ITEM_PROTECTED: 'อุปกรณ์ถูกล็อก สวมใส่ หรืออยู่ในพรีเซ็ต',
+  INVALID_SLOT: 'ช่องสวมใส่ไม่ตรงประเภท', WEAPON_INCOMPATIBLE: 'อาวุธไม่ตรงสาย: Astra ใช้ไม้เท้า, Orin ใช้ดาบ, Lyra ใช้ธนู', ITEM_PROTECTED: 'อุปกรณ์ถูกล็อก สวมใส่ หรืออยู่ในพรีเซ็ต',
   INVALID_FUSION: 'ต้องใช้อุปกรณ์ชนิดและความหายากเดียวกัน 3 ชิ้นที่ไม่ซ้ำกัน', INVESTED_FODDER: 'วัตถุดิบที่มีการขัดเกลาหรือสลักอักขระไม่สามารถหลอมได้',
   EMPTY_PRESET: 'ยังไม่ได้บันทึกพรีเซ็ตนี้', INVENTORY_FULL: 'คลังเต็ม กรุณาแยกชิ้นส่วนก่อน', CAPACITY: 'ทรัพยากรจะเกินความจุ กรุณาใช้บางส่วนก่อน',
   RUN_ACTIVE: 'มีรอบที่ยังไม่จบ กรุณากลับเข้าเล่นหรือยุติรอบ', UNKNOWN_RUN: 'ไม่พบรอบที่กำลังเล่นนี้', INVALID_RESULT: 'ผลการเล่นไม่ถูกต้อง',
@@ -159,7 +160,11 @@ function execute(state, command) {
     }
     case 'SELECT_HERO': {
       definition(HEROES, command.heroId); requireRule(p.heroes[command.heroId].level > 0, 'NOT_OWNED'); requireRule(p.heroId !== command.heroId, 'NO_CHANGE');
-      p.heroId = command.heroId; if (p.supportHeroId === p.heroId) p.supportHeroId = null; break;
+      p.heroId = command.heroId;
+      // Keep previously owned weapon, but never leave it equipped off-class.
+      const equipped = p.inventory.find(item => item.id === p.equipment.weapon);
+      if (equipped && !weaponCompatible(p.heroId,equipped.definitionId)) p.equipment.weapon = null;
+      if (p.supportHeroId === p.heroId) p.supportHeroId = null; break;
     }
     case 'UNLOCK_HERO': {
       definition(HEROES, command.heroId); feature(state, `hero:${command.heroId}`); requireRule(!p.heroes[command.heroId].level, 'ALREADY_OWNED');
@@ -187,7 +192,9 @@ function execute(state, command) {
     case 'SELECT_MODE': definition(MODES, command.mode); feature(state, `mode:${command.mode}`); requireRule(p.mode !== command.mode, 'NO_CHANGE'); p.mode = command.mode; break;
     case 'EQUIP_ITEM': {
       const item = findItem(state, command.itemId); const slot = definition(SLOTS, command.slot); feature(state, `slot:${slot.id}`);
-      requireRule(byId(EQUIPMENT, item.definitionId).slot === slot.type, 'INVALID_SLOT'); requireRule(p.equipment[slot.id] !== item.id, 'NO_CHANGE');
+      requireRule(byId(EQUIPMENT, item.definitionId).slot === slot.type, 'INVALID_SLOT');
+      if (slot.type === 'weapon') requireRule(weaponCompatible(p.heroId,item.definitionId),'WEAPON_INCOMPATIBLE');
+      requireRule(p.equipment[slot.id] !== item.id, 'NO_CHANGE');
       for (const key of Object.keys(p.equipment)) if (p.equipment[key] === item.id) p.equipment[key] = null;
       p.equipment[slot.id] = item.id; break;
     }
@@ -237,6 +244,9 @@ function execute(state, command) {
     }
     case 'LOAD_PRESET': {
       requireRule(integer(command.index, 0, 2), 'INVALID_COMMAND'); requireRule(p.presets[command.index] !== null, 'EMPTY_PRESET'); const preset = clone(p.presets[command.index]);
+      // Sanitize old presets while retaining the weapon in inventory.
+      const presetWeapon = p.inventory.find(item => item.id === preset.equipment.weapon);
+      if (presetWeapon && !weaponCompatible(preset.heroId,presetWeapon.definitionId)) preset.equipment.weapon = null;
       Object.assign(p, { heroId: preset.heroId, supportHeroId: preset.supportHeroId, equipment: preset.equipment, artifactId: preset.artifactId, companionIds: preset.companionIds, guardianId: preset.guardianId }); p.runes.equipped = preset.runes; p.jewels.equipped = preset.jewels;
       p.wardrobe[preset.heroId].equipped = preset.appearance.skinId; break;
     }
