@@ -220,21 +220,50 @@ function updateSkills(s) {
   const spellScale = configured ? p.attack / 22 * p.skillMultiplier * (s.runConfig.heroId === 'mage' ? 1.1 : 1) : 1;
   p.fireTimer--;
   if (p.fireTimer <= 0) {
-    const enemy = targetNearest(s, p);
+    const sword = configured && s.runConfig.heroId === 'guardian';
+    // Orin can only strike in melee range. Distant enemies do not provoke
+    // a swing and NO friendly projectile is ever spawned by the sword.
+    const enemy = targetNearest(s,p,sword ? 108 : 580);
     if (enemy) {
       const rangerBonus = configured && s.runConfig.heroId === 'ranger' && p.movingTicks >= 60 ? 1.12 : 1;
-      const aim = unit(enemy.x - p.x, enemy.y - p.y);
-      const bolt = shoot(s, p.x, p.y, aim, true, p.attack * (1 + (s.skills.bolt - 1) * .24) * rangerBonus * (configured ? p.skillMultiplier : 1),
-        configured && s.runConfig.weaponEffect === 'rapid' ? 517.5 : 450);
-      // Emit only for a successfully created *player* projectile; a full friendly
-      // shot cap or missing target cannot fabricate an attack animation. The event
-      // remains readable even if the projectile hits and vanishes this same tick.
-      if (bolt) playerFireEvents.set(s, Object.freeze({
-        tick: s.tick, shotId: bolt.id, originX: bolt.x, originY: bolt.y,
-        aimX: aim.x, aimY: aim.y, intervalTicks: p.fireDelay,
-      }));
-      if (bolt && configured && s.runConfig.weaponEffect === 'pierce') { bolt.pierce = 2; bolt.hitIds = []; }
-      p.fireTimer = p.fireDelay;
+      const aim = unit(enemy.x-p.x,enemy.y-p.y);
+      const amount = p.attack * (1 + (s.skills.bolt - 1) * .24) *
+        rangerBonus * (configured ? p.skillMultiplier : 1);
+      if (sword) {
+        const cleave=s.runConfig.weaponEffect === 'cleave';
+        let hits=0;
+        // Balanced sword strikes one target; cleave strikes all in its cone.
+        for (const target of s.enemies) {
+          if (target.hp <= 0 || distance(p,target)>108+target.radius) continue;
+          const toward=unit(target.x-p.x,target.y-p.y);
+          if (toward.x*aim.x+toward.y*aim.y < (cleave ? .25 : .5)) continue;
+          damageEnemy(s,target,amount);hits++;
+          if (!cleave) break;
+        }
+        if (hits) {
+          s.flashes.push({id:id(s),x:p.x,y:p.y,aimX:aim.x,aimY:aim.y,
+            radius:108,ttl:12,type:'sword'});
+          playerFireEvents.set(s,Object.freeze({
+            tick:s.tick,shotId:null,originX:p.x,originY:p.y,aimX:aim.x,
+            aimY:aim.y,intervalTicks:p.fireDelay,kind:'melee',
+          }));
+        }
+      } else {
+        const bolt=shoot(s,p.x,p.y,aim,true,amount,
+          configured && s.runConfig.weaponEffect === 'rapid' ? 517.5 : 450);
+        // Actual live projectiles carry their shape type into Canvas.
+        // The original unconfigured legacy simulation remains byte-compatible.
+        if (bolt && configured) bolt.kind=s.runConfig.heroId === 'ranger' ? 'arrow' : 'spell';
+        if (bolt) playerFireEvents.set(s,Object.freeze({
+          tick:s.tick,shotId:bolt.id,originX:bolt.x,originY:bolt.y,
+          aimX:aim.x,aimY:aim.y,intervalTicks:p.fireDelay,
+          ...(configured ? {kind:bolt.kind} : {}),
+        }));
+        if (bolt && configured && s.runConfig.weaponEffect === 'pierce') {
+          bolt.pierce=2;bolt.hitIds=[];
+        }
+      }
+      p.fireTimer=p.fireDelay;
     }
   }
   if (s.skills.nova) {
