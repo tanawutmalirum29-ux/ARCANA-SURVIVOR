@@ -288,9 +288,11 @@ def run_one(browser,engine,width,height,variant):
             for key in keys:
                 page.keyboard.up(key)
                 held.discard(key)
-            if direction in ("N","NW","NE"):
-                # A stopped, north-facing Lyra must retain her back hood
-                # while idle/attacking. Check before returning to centre.
+            if direction == "N":
+                # Idle north has a single key release. For diagonal vectors,
+                # releasing two keys sequentially briefly produces a real E/W
+                # heading; test their back view on the captured *walk* frames
+                # instead of falsely calling that transient an NE/NW idle.
                 page.clock.run_for(65)
                 held_pose=page.evaluate("globalThis.__lyraQA.latest")
                 assert held_pose and not held_pose["moving"] and (
