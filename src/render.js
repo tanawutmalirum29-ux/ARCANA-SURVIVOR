@@ -186,6 +186,8 @@ export function drawScene(canvas,ctx,s,profile,time=0,visual={}){
   globalThis.__ARCANA_IDLE_FACING_QA_FRAME__({
    tick:s.tick,heroId,moving:facing.moving,targetPresent:facing.targetPresent,
    direction8:pose.view.direction8,attackDirection8:pose.facing.direction8,
+   reducedMotion:options.reducedMotion,leftLeg:{...pose.joints.leftLeg},
+   rightLeg:{...pose.joints.rightLeg},
    travelDirection8:pose.travel.direction8,backView:pose.view.backView,
    attackPhase:pose.attackPhase,reducedMotion:pose.reducedMotion,
    walkJoints:{leftLeg:pose.joints.leftLeg,rightLeg:pose.joints.rightLeg,root:pose.joints.root,capeTail:pose.joints.capeTail},
