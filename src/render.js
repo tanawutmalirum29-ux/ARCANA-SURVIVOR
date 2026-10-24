@@ -184,7 +184,8 @@ export function drawScene(canvas,ctx,s,profile,time=0,visual={}){
  if(heroId==='guardian' && typeof globalThis.__ARCANA_ORIN_QA_FRAME__==='function'){
   const event={tick:s.tick,heroId,skinId:skin.id||null,
    firedAtTick:shot?.tick??null,phase:pose.attackPhase,poseState:pose.state,
-   shieldBrace:pose.fx.shieldBrace,direction8:pose.travel.direction8,
+   shieldBrace:pose.fx.shieldBrace,attackKind:shot?.kind??null,
+   activeFriendlyShots:s.shots.length,direction8:pose.travel.direction8,
    moving:pose.locomotion==='walk',hasRig,
    x:s.player.x-cam.x,y:s.player.y-cam.y,width:w,height:h,
    shieldValue:s.player.shield,bodyScaleX:pose.view.bodyScaleX};
@@ -197,6 +198,7 @@ export function drawScene(canvas,ctx,s,profile,time=0,visual={}){
    tick:s.tick,heroId,skinId:skin.id||null,
    firedAtTick:shot?.tick??null,phase:pose.attackPhase,poseState:pose.state,
    bowDraw:pose.fx.bowDraw,arrowVisible:pose.fx.arrowVisible,
+    attackKind:shot?.kind??null,
    direction8:pose.travel.direction8,viewDirection8:pose.view.direction8,
    backView:pose.view.backView,moving:pose.locomotion==='walk',hasRig,
    x:s.player.x-cam.x,y:s.player.y-cam.y,width:w,height:h,
