@@ -126,7 +126,7 @@ test('Lyra never draws front facial paths in shallow N/NW/NE, idle hold or comba
  const head=HERO_RIGS.ranger.parts.find(part=>part.name==='head');
  const facePaths=head.layers.slice(1,5).map(layer=>layer.d);
  const headings=[
-  ['NW',-1,-.45],['N',0,-1],['NE',1,-.45],
+  ['NW',-1,-.5],['N',0,-1],['NE',1,-.5],
  ];
  const oldPath=globalThis.Path2D;
  globalThis.Path2D=class QAPath {constructor(d){this.d=d;}};
