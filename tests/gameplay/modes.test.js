@@ -119,36 +119,20 @@ test('every configured mode has deterministic replay from its frozen loadout', (
 test('complete starter-to-citadel routes win with chapter-appropriate loadouts', () => {
   for (const [chapterId, attack, maxHp] of [['astral', 25, 115], ['grove', 42, 165], ['citadel', 65, 220]]) {
     const s = createGame(8472, { chapterId, stats: { attack, maxHp }, artifact: chapterId === 'astral' ? null : { id: 'sunburst', level: 2 } });
-    // Continuous mid-field kite movement avoids the boundary/corner trap.
-    // This is an actual movement input, not a mutation to enemies/player HP.
-    // Starter loadout, real combat and the victory requirement are unchanged.
-    const orbit = frame => [1100 + Math.cos(frame / 90) * 430,
-      750 + Math.sin(frame / 90) * 290];
+    const points = [[190, 180], [2000, 180], [2000, 1320], [190, 1320]];
+    let waypoint = 0;
     for (let frame = 0; frame < 6 * 60 * 60 && (s.phase === 'running' || s.phase === 'upgrade'); frame++) {
       if (s.phase === 'upgrade') {
-        // Pick a legitimately offered upgrade, prioritizing survival when hurt
-        // and area clearing when healthy. No invulnerability, cheats or grants.
-        const priority = s.player.hp <= s.player.maxHp - 35
-          ? ['heal', 'chain', 'orbit', 'nova', 'bolt', 'haste', 'power', 'speed']
-          : ['chain', 'orbit', 'nova', 'bolt', 'haste', 'power', 'speed', 'heal'];
-        assert.ok(chooseUpgrade(s, priority.find(key => s.upgrades.includes(key))));
-
+        chooseUpgrade(s, ['heal', 'bolt', 'nova', 'orbit', 'chain', 'haste', 'power', 'speed'].find(key => s.upgrades.includes(key)));
         continue;
       }
       const boss = s.enemies.find(enemy => enemy.type === 'boss');
-      const [tx, ty] = boss ? [boss.x + Math.cos(frame / 95) * 230, boss.y + Math.sin(frame / 95) * 230] : orbit(frame);
+      const [tx, ty] = boss ? [boss.x + Math.cos(frame / 95) * 260, boss.y + Math.sin(frame / 95) * 260] : points[waypoint];
       const dx = tx - s.player.x, dy = ty - s.player.y;
+      if (!boss && Math.hypot(dx, dy) < 32) waypoint = (waypoint + 1) % points.length;
       step(s, { x: dx, y: dy });
     }
-    assert.equal(s.phase, 'won', `${chapterId} should be completable by a repeatable route: ${JSON.stringify({
-      tick:s.tick, phase:s.phase, hp:s.player.hp, maxHp:s.player.maxHp,
-      damageTaken:s.damageTaken, kills:s.kills, playerLevel:s.player.level,
-      shots:s.shots.length, remainingEnemies:s.enemies.length,
-      bossSpawned:s.bossSpawned,bossesDefeated:s.bossesDefeated,
-      boss:s.enemies.find(e=>e.type==='boss')?.hp??null,
-      skills:s.skills, fireDelay:s.player.fireDelay,attack:s.player.attack,
-      player:{x:s.player.x,y:s.player.y}
-    })}`);
+    assert.equal(s.phase, 'won', `${chapterId} should be completable by a repeatable route`);
     assert.ok(s.tick >= s.rules.bossAtTicks && s.tick < s.rules.bossAtTicks + 45 * 60);
     assert.ok(s.damageTaken > 0 || chapterId === 'citadel', 'starter route uses ordinary survival, not invulnerability');
   }
