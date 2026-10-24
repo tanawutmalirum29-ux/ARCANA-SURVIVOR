@@ -205,4 +205,22 @@ export function drawScene(canvas,ctx,s,profile,time=0,visual={}){
    bodyScaleX:pose.view.bodyScaleX
   },canvas);
  }
+  // Opt-in Astra QA observes an already rendered, REAL engine spell shot.
+  // Existing seven-field Mage fire event/API and sim/save remain unchanged.
+  if(heroId==='mage' && typeof globalThis.__ARCANA_ASTRA_QA_FRAME__==='function'){
+   const visibleSpell=s.shots.find(b=>b.friendly && b.kind==='spell' &&
+     b.x-cam.x>25 && b.x-cam.x<w-25 && b.y-cam.y>25 && b.y-cam.y<h-25);
+   globalThis.__ARCANA_ASTRA_QA_FRAME__({
+     tick:s.tick,heroId,skinId:skin.id||null,hasRig,
+     width:w,height:h,playerX:s.player.x-cam.x,playerY:s.player.y-cam.y,
+     fireTick:shot?.tick??null,fireShotId:shot?.shotId??null,
+     spell:visibleSpell?{
+       id:visibleSpell.id,kind:visibleSpell.kind,
+       x:visibleSpell.x-cam.x,y:visibleSpell.y-cam.y,
+       vx:visibleSpell.vx,vy:visibleSpell.vy,
+       friendly:visibleSpell.friendly,radius:visibleSpell.radius,
+     }:null,
+   },canvas);
+  }
+
 }
