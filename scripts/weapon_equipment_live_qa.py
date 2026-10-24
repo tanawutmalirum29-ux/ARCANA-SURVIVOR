@@ -58,6 +58,7 @@ def state(page):
 
 def evidence(page,folder,name):
  target=folder/(name+".png")
+ assert not target.exists(),("SCREENSHOT_OVERWRITE_BLOCKED",str(target))
  page.screenshot(path=str(target),timeout=15000)
  data=target.read_bytes()
  assert data.startswith(b"\x89PNG\r\n\x1a\n"),name
@@ -79,13 +80,13 @@ def close_modal(page):
  page.locator('[data-action="close-modal"]').click()
  expect(page.locator('[role="dialog"]')).to_have_count(0)
 
-def rejection(page,folder,hero,item):
+def rejection(page,folder,hero,item,phase=None):
  dialog=open_modal(page,item)
  button=dialog.locator(f'[data-command="EQUIP_ITEM"][data-item-id="{item}"]')
  assert button.count()==1,(hero,item,'missing actual UI equip control')
  expect(button).to_be_disabled()
  expect(dialog.locator('.lb-unlock-reason')).to_contain_text('อาวุธนี้สวมไม่ได้')
- proof=evidence(page,folder,f"{hero}-blocked-{item}")
+ proof=evidence(page,folder,f"{hero}-{phase}-blocked-{item}" if phase else f"{hero}-blocked-{item}")
  close_modal(page)
  return proof
 
@@ -135,7 +136,7 @@ def run_one(browser,engine,width,height):
   assert before["progression"]["equipment"]["weapon"]=="item-1"
   # Mage cannot equip either the sword or the bow, even via an enabled button.
   shots.append(rejection(page,folder,"mage","item-3"))
-  shots.append(rejection(page,folder,"mage","item-4"))
+  shots.append(rejection(page,folder,"mage","item-4",phase="initial"))
   guardian=switch(page,"guardian")
   assert guardian["progression"]["equipment"]["weapon"] is None
   assert set(i["id"] for i in guardian["progression"]["inventory"])==expected
@@ -154,7 +155,7 @@ def run_one(browser,engine,width,height):
   assert mage["progression"]["equipment"]["weapon"] is None
   assert set(i["id"] for i in mage["progression"]["inventory"])==expected
   shots.append(evidence(page,folder,"mage-switch-inventory-preserved"))
-  shots.append(rejection(page,folder,"mage","item-4"))
+  shots.append(rejection(page,folder,"mage","item-4",phase="returned"))
   equip(page,"mage","item-1")
   after=state(page)
   assert set(i["id"] for i in after["progression"]["inventory"])==expected
@@ -167,6 +168,7 @@ def run_one(browser,engine,width,height):
   assert reloaded["progression"]["equipment"]["weapon"]=="item-1"
   assert set(i["id"] for i in reloaded["progression"]["inventory"])==expected
   assert not page_errors,("page errors",page_errors)
+  assert len(shots)==10 and len({shot["screenshot"] for shot in shots})==10,("DUPLICATE_EVIDENCE_PATH",engine,width,height)
   print("PASS REAL_WEAPON_UI",engine,f"{width}x{height}",
    "6 disabled off-class equip controls; 3 persisted hero switches;",
    "3 valid equipped weapons; 4/4 inventory items preserved after reload",flush=True)
@@ -190,11 +192,26 @@ def main():
      results.append(run_one(browser,engine,width,height))
    finally:browser.close()
  assert len(results)==10
+ # Audit the final PNG bytes on disk, not just the bytes at capture time.
+ # Overwritten screenshots invalidate earlier hashes even if UI tests pass.
+ records=[shot for run in results for shot in run["screenshots"]]
+ assert len(records)==100,("INCOMPLETE_EVIDENCE",len(records))
+ paths=[Path(shot["screenshot"]) for shot in records]
+ assert len(set(paths))==100,("DUPLICATE_EVIDENCE_PATHS",len(set(paths)))
+ for shot,path in zip(records,paths):
+  assert path.is_file(),("EVIDENCE_NOT_FOUND",str(path))
+  raw=path.read_bytes()
+  assert raw.startswith(b"\x89PNG\r\n\x1a\n"),("NOT_PNG",str(path))
+  actual=hashlib.sha256(raw).hexdigest()
+  assert actual==shot["sha256"],("EVIDENCE_SHA256_MISMATCH",str(path),shot["sha256"],actual)
+ actual_files=set(OUT.rglob("*.png"))
+ assert actual_files==set(paths),("UNLISTED_OR_MISSING_PNGS",len(actual_files),len(set(paths)))
  OUT.mkdir(parents=True,exist_ok=True)
  report=OUT/"report.json"
  report.write_text(json.dumps({"runs":results,
   "actual_engine_size_pairs":10,"physical_mobile":"NOT_TESTED",
   "fixtures":"legally valid owned/unlocked items, no reward grant in UI test"},ensure_ascii=False,indent=2),encoding="utf-8")
  print("PASS REAL_WEAPON_UI 10/10 browser/size runs",flush=True)
+ print("PASS WEAPON_UI_EVIDENCE_SHA256 100/100 MATCH, 100 UNIQUE PNG PATHS, 0 OVERWRITES",flush=True)
 
 if __name__=="__main__":main()
