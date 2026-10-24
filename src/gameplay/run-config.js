@@ -82,7 +82,10 @@ export function modeRules(config) {
     objective: mode === 'resource' ? 'SURVIVE' : mode === 'endless' ? 'ENDURE' : mode === 'bossRush' || mode === 'expedition' ? 'DEFEAT 3 BOSSES' : 'DEFEAT THE BOSS',
     healthMultiplier: chapter.enemyHpMultiplier * (mode === 'hard' ? 1.35 : 1),
     damageMultiplier: chapter.enemyDamageMultiplier * (mode === 'hard' ? 1.2 : 1),
-    spawnMultiplier: chapter.spawnMultiplier * (mode === 'hard' ? 1.15 : mode === 'bossRush' ? .35 : mode === 'resource' ? 1.3 : 1),
+    // Campaign's introductory chapter previously overwhelmed baseline starter
+    // loadouts before the scheduled boss; reduce normal campaign wave pressure
+    // without altering hard/boss-rush/resource modes or mutating run snapshots.
+    spawnMultiplier: chapter.spawnMultiplier * (mode === 'hard' ? 1.15 : mode === 'bossRush' ? .35 : mode === 'resource' ? 1.3 : mode === 'campaign' ? .68 : 1),
   };
 }
 
