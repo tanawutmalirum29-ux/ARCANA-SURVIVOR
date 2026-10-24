@@ -119,11 +119,11 @@ test('every configured mode has deterministic replay from its frozen loadout', (
 test('complete starter-to-citadel routes win with chapter-appropriate loadouts', () => {
   for (const [chapterId, attack, maxHp] of [['astral', 25, 115], ['grove', 42, 165], ['citadel', 65, 220]]) {
     const s = createGame(8472, { chapterId, stats: { attack, maxHp }, artifact: chapterId === 'astral' ? null : { id: 'sunburst', level: 2 } });
-    // A real player's route should not lead the low-level hero into the
-    // boundary/corner crowd, where auto-aim spends the entire boss fight on
-    // 70+ surviving mobs. Keep the SAME starter loadouts and real collision.
-    const points = [[820, 510], [1380, 510], [1380, 990], [820, 990]];
-    let waypoint = 0;
+    // Continuous mid-field kite movement avoids the boundary/corner trap.
+    // This is an actual movement input, not a mutation to enemies/player HP.
+    // Starter loadout, real combat and the victory requirement are unchanged.
+    const orbit = frame => [1100 + Math.cos(frame / 90) * 430,
+      750 + Math.sin(frame / 90) * 290];
     for (let frame = 0; frame < 6 * 60 * 60 && (s.phase === 'running' || s.phase === 'upgrade'); frame++) {
       if (s.phase === 'upgrade') {
         // Pick a legitimately offered upgrade, prioritizing survival when hurt
@@ -136,9 +136,8 @@ test('complete starter-to-citadel routes win with chapter-appropriate loadouts',
         continue;
       }
       const boss = s.enemies.find(enemy => enemy.type === 'boss');
-      const [tx, ty] = boss ? [boss.x + Math.cos(frame / 85) * 205, boss.y + Math.sin(frame / 85) * 205] : points[waypoint];
+      const [tx, ty] = boss ? [boss.x + Math.cos(frame / 95) * 230, boss.y + Math.sin(frame / 95) * 230] : orbit(frame);
       const dx = tx - s.player.x, dy = ty - s.player.y;
-      if (!boss && Math.hypot(dx, dy) < 32) waypoint = (waypoint + 1) % points.length;
       step(s, { x: dx, y: dy });
     }
     assert.equal(s.phase, 'won', `${chapterId} should be completable by a repeatable route: ${JSON.stringify({
@@ -148,7 +147,7 @@ test('complete starter-to-citadel routes win with chapter-appropriate loadouts',
       bossSpawned:s.bossSpawned,bossesDefeated:s.bossesDefeated,
       boss:s.enemies.find(e=>e.type==='boss')?.hp??null,
       skills:s.skills, fireDelay:s.player.fireDelay,attack:s.player.attack,
-      player:{x:s.player.x,y:s.player.y}, waypoint
+      player:{x:s.player.x,y:s.player.y}
     })}`);
     assert.ok(s.tick >= s.rules.bossAtTicks && s.tick < s.rules.bossAtTicks + 45 * 60);
     assert.ok(s.damageTaken > 0 || chapterId === 'citadel', 'starter route uses ordinary survival, not invulnerability');
