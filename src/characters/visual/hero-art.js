@@ -64,7 +64,12 @@ const swatch = (name,palette) => palette[name] || 'none';
 // Directional silhouette is shared by SVG and Canvas. No mutation to the rig.
 // North-facing cloak sits in front of the torso; equipment remains visible.
 function partsFor(rig,pose) {
-  if (!(pose?.view?.backView ?? pose?.travel?.backView)) return rig.parts;
+  // Fail closed for Lyra's north-moving poses, even if an external caller
+  // supplies an older/inconsistent backView flag. Shared by SVG and Path2D.
+  const northHead = rig.id === 'ranger' &&
+    pose?.locomotion === 'walk' &&
+    ['N','NW','NE'].includes(pose?.view?.direction8);
+  if (!(northHead || (pose?.view?.backView ?? pose?.travel?.backView))) return rig.parts;
   if (rig.id === 'mage') {
     // Keep shoulder yoke aligned to the torso, but NEVER display the
     // front-facing eyes/mask when Astra runs N/NW/NE. The closed rear hood
