@@ -114,7 +114,7 @@ function addStats(target, stats, scale = 1) {
 function engineConfig(heroId, chapterId, mode) {
   const hero = byId(HEROES, heroId); const chapter = byId(CHAPTERS, chapterId);
   return { version: 1, balanceVersion: 1, heroId, chapterId, mode,
-    stats: { ...hero.stats, armor: 0, critChance: .03, critDamage: 1.5, pickupRadius: 110, healingMultiplier: 1, skillMultiplier: 1, bossDamageMultiplier: 1 },
+    stats: { ...hero.stats, armor: 0, critChance: .03, critDamage: 1.5, pickupRadius: 60, healingMultiplier: 1, skillMultiplier: 1, bossDamageMultiplier: 1 },
     weaponId: null, weaponEffect: 'balanced', artifact: null, companions: [], guardian: null,
     modifiers: { novaRadius: 1, chainTargets: 0, orbitRadius: 1, shieldEvery: 0, killHeal: 0 },
     chapter: { enemyHpMultiplier: chapter.enemyHpMultiplier, enemyDamageMultiplier: chapter.enemyDamageMultiplier, spawnMultiplier: chapter.spawnMultiplier, bossAtSeconds: chapter.bossAtSeconds, bossHpMultiplier: chapter.bossHpMultiplier, bossName: chapter.bossName, durationSeconds: mode === 'resource' ? 90 : 0 },
