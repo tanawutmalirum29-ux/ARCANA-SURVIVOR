@@ -1,5 +1,6 @@
 import {createGame,step,chooseUpgrade,formatTime,getUpgradeDescription,getLastPlayerFireEvent} from './engine.js';
 import {drawScene} from './render.js';
+import {resolveReducedMotion} from './visual/presentation.js';
 import {mountSkinShowcase} from './visual/showcase.js';
 import {createGameAudio,captureAudioState,getStepSounds} from './audio.js';
 import {COSMETICS,defaultProfile} from './storage.js';
@@ -98,7 +99,7 @@ function showSkinShowcase(id){
  const host=$('overlay');host.className='overlay menu-overlay';host.classList.remove('hidden');
  showcaseController=mountSkinShowcase({
    host,profile:safe,catalog,initialSkinId:id,quality:safe.settings.vfx,
-   reducedMotion:safe.settings.reduceMotion||window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches===true,
+   reducedMotion:resolveReducedMotion(safe.settings),
    onClose:()=>{disposeShowcase();showWardrobe()},
    onEquip:async nextId=>{
      const result=await commitCommand({type:'EQUIP_COSMETIC',heroId,cosmeticId:nextId});
