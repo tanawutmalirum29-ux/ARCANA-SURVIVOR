@@ -119,15 +119,24 @@ test('every configured mode has deterministic replay from its frozen loadout', (
 test('complete starter-to-citadel routes win with chapter-appropriate loadouts', () => {
   for (const [chapterId, attack, maxHp] of [['astral', 25, 115], ['grove', 42, 165], ['citadel', 65, 220]]) {
     const s = createGame(8472, { chapterId, stats: { attack, maxHp }, artifact: chapterId === 'astral' ? null : { id: 'sunburst', level: 2 } });
-    const points = [[190, 180], [2000, 180], [2000, 1320], [190, 1320]];
+    // A real player's route should not lead the low-level hero into the
+    // boundary/corner crowd, where auto-aim spends the entire boss fight on
+    // 70+ surviving mobs. Keep the SAME starter loadouts and real collision.
+    const points = [[820, 510], [1380, 510], [1380, 990], [820, 990]];
     let waypoint = 0;
     for (let frame = 0; frame < 6 * 60 * 60 && (s.phase === 'running' || s.phase === 'upgrade'); frame++) {
       if (s.phase === 'upgrade') {
-        chooseUpgrade(s, ['heal', 'bolt', 'nova', 'orbit', 'chain', 'haste', 'power', 'speed'].find(key => s.upgrades.includes(key)));
+        // Pick a legitimately offered upgrade, prioritizing survival when hurt
+        // and area clearing when healthy. No invulnerability, cheats or grants.
+        const priority = s.player.hp <= s.player.maxHp - 35
+          ? ['heal', 'chain', 'orbit', 'nova', 'bolt', 'haste', 'power', 'speed']
+          : ['chain', 'orbit', 'nova', 'bolt', 'haste', 'power', 'speed', 'heal'];
+        assert.ok(chooseUpgrade(s, priority.find(key => s.upgrades.includes(key))));
+
         continue;
       }
       const boss = s.enemies.find(enemy => enemy.type === 'boss');
-      const [tx, ty] = boss ? [boss.x + Math.cos(frame / 95) * 260, boss.y + Math.sin(frame / 95) * 260] : points[waypoint];
+      const [tx, ty] = boss ? [boss.x + Math.cos(frame / 85) * 205, boss.y + Math.sin(frame / 85) * 205] : points[waypoint];
       const dx = tx - s.player.x, dy = ty - s.player.y;
       if (!boss && Math.hypot(dx, dy) < 32) waypoint = (waypoint + 1) % points.length;
       step(s, { x: dx, y: dy });
