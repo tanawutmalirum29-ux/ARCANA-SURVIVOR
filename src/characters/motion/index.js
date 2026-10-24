@@ -108,32 +108,27 @@ export function resolveHeroPose(input = {}) {
   // Canonical rig weapons are already upright in local actor coordinates.
   // Absolute world aim angles here used to roll idle swords/staves/bows by 180°.
   // Only a modest local wrist tilt belongs in these part transforms.
-  // While running, keep the entire silhouette anchored to the *walk* heading.
-  // The old attack toggle instantly mirrored the whole actor for a shot behind
-  // the hero, swapping legs and handedness in the middle of a stride.
-  // Stationary targeting may turn the actor, but must not reverse moving feet.
-  // Lyra remembers the last locomotion heading while standing still. The
-  // renderer supplies this visual-only hint, never simulation state.
-  const heldFacing = heroId === 'ranger' ? normalized(input.facingVector) : null;
-  const aimingInPlace = !walking && !heldFacing && (active || targetPresent);
-  const heldDirection = heldFacing
-    ? DIRECTIONS[Math.round((Math.atan2(heldFacing.y,heldFacing.x)+TAU)/(TAU/8))%8]
-    : null;
-  const viewDirection = walking ? travel.direction8
-    : heldDirection || (aimingInPlace ? direction8 : travel.direction8);
-  const viewX = walking ? travel.x : heldFacing?.x ?? (aimingInPlace ? aim.x : travel.x);
-  const viewY = walking ? travel.y : heldFacing?.y ?? (aimingInPlace ? aim.y : travel.y);
+  // Motion always controls the silhouette while walking, even during an
+  // attack. When standing still every hero follows the actual weapon aim,
+  // not a remembered walk direction (previously Lyra overrode all aim).
+  // When no living target/attack remains, hold the last visual direction.
+  const heldFacing = normalized(input.facingVector);
+  const aimingInPlace = !walking && (active || targetPresent);
+  const stationaryFacing = aimingInPlace ? aim : heldFacing;
+  const stationaryAngle = stationaryFacing ? Math.atan2(stationaryFacing.y,stationaryFacing.x) : null;
+  const viewDirection = walking ? travel.direction8 : stationaryFacing
+    ? DIRECTIONS[Math.round((stationaryAngle+TAU)/(TAU/8))%8]
+    : travel.direction8;
+  const viewX = walking ? travel.x : stationaryFacing?.x ?? travel.x;
   const profile = 1 - .24*Math.abs(viewX);
   const westView = viewDirection==='W'||viewDirection==='SW'||viewDirection==='NW';
   const view = {
     direction8: viewDirection,
     bodyScaleX: round(westView ? -profile : profile),
-    // The quantized N/NW/NE sector must use the rear head even at shallow
-    // diagonal stick angles; an unrelated y threshold leaks the front eyes.
-    backView: heroId === 'ranger'
-      ? Boolean((walking || active || heldFacing) &&
-          (viewDirection === 'N' || viewDirection === 'NW' || viewDirection === 'NE'))
-      : Boolean((walking || active) && viewY < -.55),
+    // Rear head geometry is required for ALL three heroes when facing any
+    // of N/NW/NE. Never expose eyes through the hood/helmet on idle attacks.
+    backView: Boolean((walking || stationaryFacing) &&
+      (viewDirection==='N'||viewDirection==='NW'||viewDirection==='NE')),
   };
   // Attack crosses the visible body if the enemy lies on the weapon's
   // opposite side. This changes the arm/wrist arc, never stride or hit logic.
