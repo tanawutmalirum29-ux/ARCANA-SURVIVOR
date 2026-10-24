@@ -1,6 +1,6 @@
 import { WORLD } from './engine.js';
 import { COSMETICS } from './storage.js';
-import { visualBudget } from './visual/presentation.js';
+import { visualBudget, resolveReducedMotion } from './visual/presentation.js';
 import { paintBossWarning } from './visual/warnings.js';
 import {getSkinDefinition} from './characters/skins/index.js';
 import {renderHeroActor} from './characters/visual/hero-art.js';
@@ -102,7 +102,8 @@ export function drawScene(canvas,ctx,s,profile,time=0,visual={}){
  const heroId=visual.appearance?.heroId||s.runConfig?.heroId||'mage';
  const selected=getSkinDefinition(visual.appearance?.skinId);
  const skin=selected?.heroId===heroId?selected:(COSMETICS.find(x=>x.id===profile.skin)||COSMETICS[0]);
- const reduceMotion=Boolean(profile.settings?.reduceMotion || (typeof window.matchMedia==='function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches));
+ const systemReduced=typeof window.matchMedia==='function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+ const reduceMotion=resolveReducedMotion(profile.settings,systemReduced);
  const options=visualBudget(profile.settings?.vfx || 'medium',reduceMotion);
  const bounds=canvas.getBoundingClientRect(),w=bounds.width||360,h=bounds.height||640;
  const dpr=Math.min(window.devicePixelRatio||1,options.dprCap);const pw=Math.round(w*dpr),ph=Math.round(h*dpr);
@@ -186,8 +187,12 @@ export function drawScene(canvas,ctx,s,profile,time=0,visual={}){
   globalThis.__ARCANA_IDLE_FACING_QA_FRAME__({
    tick:s.tick,heroId,moving:facing.moving,targetPresent:facing.targetPresent,
    direction8:pose.view.direction8,attackDirection8:pose.facing.direction8,
+   reducedMotion:options.reducedMotion,leftLeg:{...pose.joints.leftLeg},
+   rightLeg:{...pose.joints.rightLeg},
    travelDirection8:pose.travel.direction8,backView:pose.view.backView,
-   attackPhase:pose.attackPhase,confirmedFireTick:shot?.tick??null,
+   attackPhase:pose.attackPhase,reducedMotion:pose.reducedMotion,
+   walkJoints:{leftLeg:pose.joints.leftLeg,rightLeg:pose.joints.rightLeg,root:pose.joints.root,capeTail:pose.joints.capeTail},
+   confirmedFireTick:shot?.tick??null,
    confirmedShotId:shot?.shotId??null,confirmedFireKind:shot?.kind??null,
    hasRig,realEngine:true,x:s.player.x-cam.x,y:s.player.y-cam.y,
    width:w,height:h

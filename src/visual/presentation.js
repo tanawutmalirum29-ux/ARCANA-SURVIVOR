@@ -16,6 +16,13 @@ export function normalizeQuality(value) {
   return QUALITY_LEVELS.includes(value) ? value : 'low';
 }
 
+// Persist null for users who have not chosen a setting. Only in that state
+// should the operating-system accessibility preference determine the animation.
+export function resolveReducedMotion(settings, systemPreference = false) {
+  return typeof settings?.reduceMotion === 'boolean'
+    ? settings.reduceMotion : Boolean(systemPreference);
+}
+
 export function visualBudget(quality, reducedMotion = false) {
   const q = normalizeQuality(quality);
   const budgets = {

@@ -1,5 +1,6 @@
 import {createGame,step,chooseUpgrade,formatTime,getUpgradeDescription,getLastPlayerFireEvent} from './engine.js';
 import {drawScene} from './render.js';
+import {resolveReducedMotion} from './visual/presentation.js';
 import {mountSkinShowcase} from './visual/showcase.js';
 import {createGameAudio,captureAudioState,getStepSounds} from './audio.js';
 import {COSMETICS,defaultProfile} from './storage.js';
@@ -11,6 +12,8 @@ import {HERO_IDS,listSkinsForHero,getEquippedSkin} from './characters/skins/inde
 
 const $=id=>document.getElementById(id);
 const canvas=$('scene'),ctx=canvas.getContext('2d',{alpha:false});
+const osPrefersReducedMotion=()=>window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches===true;
+const motionReduced=()=>resolveReducedMotion(profile.settings,osPrefersReducedMotion());
 let profile=defaultProfile(),campaign=null,game=createGame(73001),screen='loading',paused=false,lastTime=0,accumulator=0,lastHud=0;
 const heldKeys=new Set();const touch={x:0,y:0,active:false,pointerId:null,originX:0,originY:0};
 let toastUntil=0;
@@ -98,7 +101,7 @@ function showSkinShowcase(id){
  const host=$('overlay');host.className='overlay menu-overlay';host.classList.remove('hidden');
  showcaseController=mountSkinShowcase({
    host,profile:safe,catalog,initialSkinId:id,quality:safe.settings.vfx,
-   reducedMotion:safe.settings.reduceMotion||window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches===true,
+   reducedMotion:resolveReducedMotion(safe.settings,osPrefersReducedMotion()),
    onClose:()=>{disposeShowcase();showWardrobe()},
    onEquip:async nextId=>{
      const result=await commitCommand({type:'EQUIP_COSMETIC',heroId,cosmeticId:nextId});
@@ -113,7 +116,7 @@ function showSkinShowcase(id){
 }
 function showSettings(from='lobby'){
  screen='settings';window.__returnTo=from;
- panel(`<section class="main-card menu-card"><div class="eyebrow">GAME OPTIONS</div><h2>SETTINGS</h2><div class="setting-row"><div><b>คุณภาพเอฟเฟกต์</b><small>ปรับความสวยให้เหมาะกับอุปกรณ์</small></div><button class="button secondary" type="button" data-action="vfx">${profile.settings.vfx.toUpperCase()}</button></div><div class="setting-row"><div><b>ลดการเคลื่อนไหว</b><small>ปิดการขยับตกแต่งและแสงมากเกินไป</small></div><button class="button secondary" type="button" data-action="motion">${profile.settings.reduceMotion?'ON':'OFF'}</button></div><div class="setting-row"><div><b>เสียงเวทมนตร์และเพลง</b><small>สังเคราะห์ในเครื่อง · เล่นออฟไลน์</small></div><button class="button secondary" type="button" data-action="sound">${sound.isEnabled()?'SOUND ON':'SOUND OFF'}</button></div><div class="setting-row"><div><b>เพลงล็อบบี้ตามเทศกาล</b><small>เปลี่ยนอัตโนมัติตามวันที่หรือเลือกธีมเองได้</small></div><button class="button secondary" type="button" data-action="music-settings">${sound.musicChoices().find(c=>c.id===sound.getMusicChoice())?.label} ↻</button></div><div class="tip">เดินด้วย WASD / ลูกศร หรือจอยสัมผัส<br>กด Esc เพื่อหยุดเกม · ระบบบันทึกในเครื่องนี้</div><button class="button primary wide" type="button" data-action="back">เสร็จสิ้น</button></section>`,'menu-overlay');
+ panel(`<section class="main-card menu-card"><div class="eyebrow">GAME OPTIONS</div><h2>SETTINGS</h2><div class="setting-row"><div><b>คุณภาพเอฟเฟกต์</b><small>ปรับความสวยให้เหมาะกับอุปกรณ์</small></div><button class="button secondary" type="button" data-action="vfx">${profile.settings.vfx.toUpperCase()}</button></div><div class="setting-row"><div><b>ลดการเคลื่อนไหว</b><small>ปิดการขยับตกแต่งและแสงมากเกินไป</small></div><button class="button secondary" type="button" data-action="motion">${motionReduced()?'ON':'OFF'}</button></div><div class="setting-row"><div><b>เสียงเวทมนตร์และเพลง</b><small>สังเคราะห์ในเครื่อง · เล่นออฟไลน์</small></div><button class="button secondary" type="button" data-action="sound">${sound.isEnabled()?'SOUND ON':'SOUND OFF'}</button></div><div class="setting-row"><div><b>เพลงล็อบบี้ตามเทศกาล</b><small>เปลี่ยนอัตโนมัติตามวันที่หรือเลือกธีมเองได้</small></div><button class="button secondary" type="button" data-action="music-settings">${sound.musicChoices().find(c=>c.id===sound.getMusicChoice())?.label} ↻</button></div><div class="tip">เดินด้วย WASD / ลูกศร หรือจอยสัมผัส<br>กด Esc เพื่อหยุดเกม · ระบบบันทึกในเครื่องนี้</div><button class="button primary wide" type="button" data-action="back">เสร็จสิ้น</button></section>`,'menu-overlay');
 }
 async function startRun(){
  if(starting||finishing||pendingFinish)return;
@@ -181,7 +184,7 @@ async function handleAction(action,id){
  if(action==='settings'){sound.unlock();sound.play('menuOpen');return showSettings(screen==='play'?'pause':screen)}
  if(action==='back'){sound.play('menuBack');return window.__returnTo==='pause'?showPauseFromSettings():showLobby()}
  if(action==='vfx'){const vfx=profile.settings.vfx==='high'?'low':profile.settings.vfx==='low'?'medium':'high';if((await commitCommand({type:'PROFILE_SETTINGS',settings:{vfx}})).ok)sound.play('switch');return showSettings(window.__returnTo)}
- if(action==='motion'){if((await commitCommand({type:'PROFILE_SETTINGS',settings:{reduceMotion:!profile.settings.reduceMotion}})).ok)sound.play('switch');return showSettings(window.__returnTo)}
+ if(action==='motion'){if((await commitCommand({type:'PROFILE_SETTINGS',settings:{reduceMotion:!motionReduced()}})).ok)sound.play('switch');return showSettings(window.__returnTo)}
  if(action==='sound'){sound.setEnabled(!sound.isEnabled());if(sound.isEnabled()){sound.unlock();sound.play('menu')}return showSettings(window.__returnTo)}
  if(action==='music-settings'){
    const choices=sound.musicChoices(),idx=choices.findIndex(c=>c.id===sound.getMusicChoice());

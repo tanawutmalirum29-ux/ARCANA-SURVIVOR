@@ -140,6 +140,10 @@ jobs:
         env:
           ARCANA_IDLE_FACING_ARTIFACTS: /tmp/idle-facing-proof
         run: python scripts/idle_facing_live_qa.py
+      - name: Real walking Canvas with OS Reduce Motion ON and game OFF/ON across 3 heroes, Chromium + WebKit x 5 sizes
+        env:
+          ARCANA_WALK_MOTION_ARTIFACTS: /tmp/walk-motion-proof
+        run: python scripts/walk_motion_live_qa.py
       - name: Actual Astra map Canvas and 8-way keyboard combat capture
         env:
           ARCANA_LIVE_ARTIFACTS: /tmp/astra-live-proof
@@ -183,6 +187,8 @@ jobs:
             /tmp/astra-visual-proof/report.json
             /tmp/idle-facing-proof/**/*.png
             /tmp/idle-facing-proof/report.json
+            /tmp/walk-motion-proof/**/*.png
+            /tmp/walk-motion-proof/report.json
             /tmp/astra-live-proof/**/*.png
             /tmp/astra-live-proof/**/*.webm
             /tmp/orin-live-proof/**/*.png

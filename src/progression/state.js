@@ -22,7 +22,8 @@ export function validateLegacyProfile(profile) {
     && ['gold', 'totalKills', 'runs', 'bestSeconds'].every(key => integer(profile[key]))
     && unique(profile.owned) && profile.owned.includes('apprentice') && profile.owned.every(id => earnedCosmetics.includes(id))
     && profile.owned.includes(profile.skin) && keys(profile.settings, ['vfx', 'reduceMotion'])
-    && ['low', 'medium', 'high'].includes(profile.settings.vfx) && typeof profile.settings.reduceMotion === 'boolean';
+    && ['low', 'medium', 'high'].includes(profile.settings.vfx)
+    && (profile.settings.reduceMotion === null || typeof profile.settings.reduceMotion === 'boolean');
 }
 export function createItem(id, definitionId, rarity = 0) {
   return { id, definitionId, rarity, level: 1, locked: false, refinement: 0, glyph: null, invested: { gold: 0, essence: 0 } };

@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { COSMETICS } from '../../src/storage.js';
+import { COSMETICS, defaultProfile, sanitizeProfile, saveProfile, loadProfile } from '../../src/storage.js';
 import {
-  createFrameProfiler, getSkinGallery, getSkinPreview, normalizeQuality, visualBudget,
+  createFrameProfiler, getSkinGallery, getSkinPreview, normalizeQuality, visualBudget, resolveReducedMotion,
 } from '../../src/visual/presentation.js';
 import { showcaseMarkup } from '../../src/visual/showcase.js';
+import { resolveHeroPose } from '../../src/characters/motion/index.js';
 
 const basic = {
   version: 1, gold: 0, skin: 'apprentice', owned: ['apprentice'],
@@ -68,6 +69,55 @@ test('quality budgets are bounded and reduced motion disables moving adornments'
   assert.ok(visualBudget('medium').particles < visualBudget('high').particles);
   assert.equal(visualBudget('high', true).particles, 0);
   assert.equal(visualBudget('high', true).trails, 0);
+});
+
+test('motion OFF in game keeps all three walk animations even when OS prefers reduced motion', () => {
+  // The game's default is OFF, intentionally independent of the OS setting.
+  assert.equal(resolveReducedMotion(defaultProfile().settings),false);
+  assert.equal(resolveReducedMotion(sanitizeProfile({version:1,settings:{}}).settings),false);
+  assert.equal(resolveReducedMotion({reduceMotion:false}),false);
+  assert.equal(resolveReducedMotion({reduceMotion:true}),true);
+  const bytes=new Map();
+  const storage={getItem:key=>bytes.get(key)??null,setItem:(key,value)=>bytes.set(key,value)};
+  const explicitOff=defaultProfile();
+  explicitOff.settings.reduceMotion=false;
+  assert.equal(saveProfile(explicitOff,storage),true);
+  assert.equal(resolveReducedMotion(loadProfile(storage).settings),false);
+  for (const heroId of ['mage','guardian','ranger']) {
+    const pose = (tick, reducedMotion) => resolveHeroPose({
+      heroId, tick, moving:true, moveVector:{x:1,y:0}, reducedMotion,
+    });
+    const animatedA = pose(10,resolveReducedMotion({reduceMotion:false}));
+    const animatedB = pose(17,resolveReducedMotion({reduceMotion:false}));
+    assert.equal(animatedA.locomotion,'walk');
+    assert.notDeepEqual(animatedA.joints.leftLeg,animatedB.joints.leftLeg,heroId+' walk gait must animate');
+    const stillA=pose(10,resolveReducedMotion({reduceMotion:true}));
+    const stillB=pose(17,resolveReducedMotion({reduceMotion:true}));
+    assert.deepEqual(stillA.joints.leftLeg,stillB.joints.leftLeg);
+  }
+});
+
+
+test('fresh and migrated motion preferences preserve unset OS fallback without corrupting saves', () => {
+  const fresh=defaultProfile();
+  assert.equal(fresh.settings.reduceMotion,null);
+  assert.equal(resolveReducedMotion(fresh.settings,true),true);
+  assert.equal(resolveReducedMotion(fresh.settings,false),false);
+  const campaign=createCampaign(fresh);
+  assert.ok(validateCampaign(campaign));
+  const vfxOnly=applyCommand(campaign,{type:'PROFILE_SETTINGS',settings:{vfx:'medium'}});
+  assert.ok(vfxOnly.ok);
+  assert.equal(vfxOnly.state.profile.settings.reduceMotion,null);
+  const explicitOff=applyCommand(vfxOnly.state,{type:'PROFILE_SETTINGS',settings:{reduceMotion:false}});
+  assert.ok(explicitOff.ok);
+  assert.equal(resolveReducedMotion(explicitOff.state.profile.settings,true),false);
+  assert.ok(validateCampaign(structuredClone(explicitOff.state)));
+  const explicitOn=applyCommand(explicitOff.state,{type:'PROFILE_SETTINGS',settings:{reduceMotion:true}});
+  assert.ok(explicitOn.ok);
+  assert.equal(resolveReducedMotion(explicitOn.state.profile.settings,false),true);
+  assert.equal(resolveReducedMotion(sanitizeProfile({version:1,settings:{}}).settings,true),true);
+  const legacy={...defaultProfile(),settings:{vfx:'high',reduceMotion:false}};
+  assert.equal(migrateLegacyBytes(JSON.stringify(legacy)).profile.settings.reduceMotion,false);
 });
 
 test('all locked skins have Preview controls but no Equip or Checkout affordance', () => {
