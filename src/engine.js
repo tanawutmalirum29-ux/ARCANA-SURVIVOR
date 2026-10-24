@@ -257,7 +257,7 @@ function updateSkills(s) {
         if (bolt) playerFireEvents.set(s,Object.freeze({
           tick:s.tick,shotId:bolt.id,originX:bolt.x,originY:bolt.y,
           aimX:aim.x,aimY:aim.y,intervalTicks:p.fireDelay,
-          ...(configured ? {kind:bolt.kind} : {}),
+          ...(configured && s.runConfig.heroId === 'ranger' ? {kind:bolt.kind} : {}),
         }));
         if (bolt && configured && s.runConfig.weaponEffect === 'pierce') {
           bolt.pierce=2;bolt.hitIds=[];
