@@ -121,3 +121,58 @@ test('Lyra canonical bow, quiver, hood and cloak survive owned and preview colou
   assert.doesNotMatch(svg,/onload|NaN|Infinity/);
  }
 });
+
+test('Lyra never draws front facial paths in shallow N/NW/NE, idle hold or combat phases',()=>{
+ const head=HERO_RIGS.ranger.parts.find(part=>part.name==='head');
+ const facePaths=head.layers.slice(1,5).map(layer=>layer.d);
+ const headings=[
+  ['NW',-1,-.45],['N',0,-1],['NE',1,-.45],
+ ];
+ const oldPath=globalThis.Path2D;
+ globalThis.Path2D=class QAPath {constructor(d){this.d=d;}};
+ const paths=[];
+ const ctx={save(){},restore(){},translate(){},rotate(){},scale(){},
+   fill(p){paths.push(p.d)},stroke(p){paths.push(p.d)}};
+ try{
+  for(const [name,x,y] of headings){
+   const phases=['idle','walk','windup','charge','release','recover'];
+   for(const phase of phases)for(const tick of [0,3,8,15,23,50,96]){
+    const args={heroId:'ranger',tick,moving:phase!=='idle',
+      moveVector:{x,y},facingVector:{x,y},
+      aimVector:{x:0,y:1},attackIntervalTicks:30};
+    if(phase==='windup'||phase==='charge'){
+     args.targetPresent=true;
+     args.nextAttackTick=tick+(phase==='windup'?11:6);
+    }
+    if(phase==='release')args.lastAttackTick=tick;
+    if(phase==='recover')args.lastAttackTick=Math.max(0,tick-4);
+    const pose=resolveHeroPose(args);
+    assert.equal(pose.view.direction8,name,name+'/'+phase+'/'+tick);
+    assert.equal(pose.view.backView,true,name+'/'+phase+'/'+tick);
+    const svg=heroActorSvg({heroId:'ranger',pose});
+    assert.match(svg,/data-actor-part="head"/);
+    for(const d of facePaths)assert.ok(!svg.includes('d="'+d+'"'),
+      name+'/'+phase+'/'+tick+' emitted front face path');
+    paths.length=0;
+    assert.ok(renderHeroActor(ctx,{heroId:'ranger',pose,x:40,y:40,scale:.2}));
+    for(const d of facePaths)assert.ok(!paths.includes(d),
+      name+'/'+phase+'/'+tick+' emitted front Canvas path');
+   }
+   // The head selection must also fail closed for an old motion caller
+   // which still reports backView=false during a shallow diagonal walk.
+   const pose=resolveHeroPose({heroId:'ranger',tick:13,moving:true,
+     moveVector:{x,y},facingVector:{x,y}});
+   pose.view.backView=false;
+   const svg=heroActorSvg({heroId:'ranger',pose});
+   for(const d of facePaths)assert.ok(!svg.includes('d="'+d+'"'));
+  }
+  const south=resolveHeroPose({heroId:'ranger',tick:12,moving:true,
+    moveVector:{x:0,y:1},facingVector:{x:0,y:1}});
+  assert.equal(south.view.backView,false);
+  const svg=heroActorSvg({heroId:'ranger',pose:south});
+  assert.ok(svg.includes('d="'+facePaths[0]+'"'),'south-facing front face disappeared');
+ }finally{
+  if(oldPath===undefined)delete globalThis.Path2D;
+  else globalThis.Path2D=oldPath;
+ }
+});
